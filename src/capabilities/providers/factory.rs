@@ -122,9 +122,6 @@ pub(crate) fn build_docs_search(
         (ProviderId::Exa, DocsSearchProviderConfig::Exa(config)) => {
             Box::new(super::build_exa(config, client, retry_policy, deadline))
         }
-        (ProviderId::Context7, DocsSearchProviderConfig::Context7(config)) => Box::new(
-            super::build_context7(config, client, retry_policy, deadline),
-        ),
         _ => unreachable!("validated docs-search catalog entry has matching config"),
     }
 }

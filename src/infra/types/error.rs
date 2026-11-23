@@ -120,7 +120,6 @@ pub struct ProviderError {
     pub attempts: Vec<ProviderAttempt>,
     pub verbose: bool,
     pub diagnostic: Option<String>,
-    pub redirected_library_id: Option<String>,
 }
 
 #[cfg(test)]

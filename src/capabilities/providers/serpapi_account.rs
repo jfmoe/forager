@@ -70,7 +70,6 @@ impl Serpapi {
                         attempts: outcome.attempts,
                         verbose: false,
                         diagnostic: outcome.diagnostic,
-                        redirected_library_id: None,
                     }),
             },
             Err(error) => KeyAccount {

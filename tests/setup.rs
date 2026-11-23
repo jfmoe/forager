@@ -30,7 +30,7 @@ fn non_interactive_setup_creates_a_complete_template() {
         ),
         (
             Some(0),
-            71,
+            68,
             Some(0),
             &toml::Value::Array(
                 ["firecrawl", "jina", "tavily"]
@@ -151,7 +151,7 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let canary = "setup-canary-secret";
     let input = format!(
-        "https://main.example/v1\n{canary}\nmain-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
+        "https://main.example/v1\n{canary}\nmain-model\nexa-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
     );
 
     let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
@@ -191,7 +191,6 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
     );
     for (provider, expected_key) in [
         ("exa", "exa-secret"),
-        ("context7", "context7-secret"),
         ("jina", "jina-secret"),
         ("tavily", "tavily-secret"),
         ("firecrawl", "firecrawl-secret"),

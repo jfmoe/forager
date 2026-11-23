@@ -26,6 +26,7 @@ pub const RETIRED: &[&str] = &[
     "summary_path",
     "fetch_before_claim",
     "classifier",
+    "context7",
 ];
 
 /// Paths where a retired identifier legitimately appears, each with its reason. A `*` matches

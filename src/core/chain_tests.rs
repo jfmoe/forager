@@ -129,7 +129,6 @@ fn failed(
         attempts: vec![failed_attempt(provider, kind, message)],
         verbose: false,
         diagnostic: diagnostic.map(str::to_owned),
-        redirected_library_id: None,
     })
 }
 

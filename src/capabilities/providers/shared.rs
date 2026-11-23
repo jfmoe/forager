@@ -122,7 +122,6 @@ impl Trail {
             attempts: Vec::new(),
             verbose: false,
             diagnostic: None,
-            redirected_library_id: None,
         })
     }
 
@@ -161,7 +160,6 @@ pub(super) fn parameter_error(message: String) -> ProviderError {
         attempts: Vec::new(),
         verbose: false,
         diagnostic: None,
-        redirected_library_id: None,
     }
 }
 

@@ -11,8 +11,8 @@ use forager::app::{
     ProviderError, SearchFailure, bounded_attempt_summary,
 };
 use forager::types::{
-    AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome,
-    MapOutcome, SearchCandidate, SearchOutcome,
+    AttemptErrorKind, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome, MapOutcome,
+    SearchCandidate, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -65,12 +65,6 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(render_exa(result, format, output), attempt_log),
-        Ok(CommandOutput::Context7 {
-            result,
-            format,
-            output,
-            attempt_log,
-        }) => emit_logged(render_context7(result, format, output), attempt_log),
         Ok(CommandOutput::Fetch {
             result,
             format,
@@ -545,84 +539,6 @@ fn render_exa(
     )
 }
 
-fn render_context7(
-    result: Result<Context7Outcome, ProviderError>,
-    format: DocsOutputFormat,
-    output: Option<OutputTarget>,
-) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(outcome) => {
-            let diagnostic = match &outcome {
-                Context7Outcome::Library(outcome) => outcome.diagnostic.clone(),
-                Context7Outcome::Docs(outcome) => outcome.diagnostic.clone(),
-            };
-            (format_context7_success(&outcome, format)?, 0, diagnostic)
-        }
-        Err(error) => (
-            format_context7_failure(&error, format)?,
-            postflight_exit_code(error.kind),
-            error.diagnostic,
-        ),
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == DocsOutputFormat::Json,
-        output,
-        diagnostic,
-    )
-}
-
-fn format_context7_success(
-    outcome: &Context7Outcome,
-    format: DocsOutputFormat,
-) -> Result<String, String> {
-    match (outcome, format) {
-        (Context7Outcome::Library(outcome), DocsOutputFormat::Json) => {
-            serde_json::to_string(outcome).map_err(|error| error.to_string())
-        }
-        (Context7Outcome::Library(outcome), DocsOutputFormat::Markdown) => {
-            let mut markdown = format!("# Context7 libraries: {}\n", outcome.query);
-            for library in &outcome.results {
-                let _ = write!(
-                    markdown,
-                    "\n- **{}** (`{}`) — {}",
-                    library.title, library.id, library.description
-                );
-            }
-            if outcome.results.is_empty() {
-                markdown.push_str("\n\nNo results.");
-            }
-            Ok(markdown)
-        }
-        (Context7Outcome::Library(_), DocsOutputFormat::Content) => {
-            Err("content format is only available for context7 docs".into())
-        }
-        (Context7Outcome::Docs(outcome), DocsOutputFormat::Json) => {
-            serde_json::to_string(outcome).map_err(|error| error.to_string())
-        }
-        (Context7Outcome::Docs(outcome), DocsOutputFormat::Markdown) => Ok(format!(
-            "# Context7 docs: {}\n\n{}",
-            outcome.library_id, outcome.content
-        )),
-        (Context7Outcome::Docs(outcome), DocsOutputFormat::Content) => Ok(outcome.content.clone()),
-    }
-}
-
-fn format_context7_failure(
-    error: &ProviderError,
-    format: DocsOutputFormat,
-) -> Result<String, String> {
-    match format {
-        DocsOutputFormat::Json => format_failure_json(error),
-        DocsOutputFormat::Markdown | DocsOutputFormat::Content => Ok(format!(
-            "# Context7 request failed\n\n**{}**: {}",
-            error.kind.as_str(),
-            error.message
-        )),
-    }
-}
-
 fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, String> {
     match format {
         OutputFormat::Json => serde_json::to_string(outcome).map_err(|error| error.to_string()),
@@ -675,12 +591,6 @@ fn failure_payload(error: &ProviderError) -> Result<serde_json::Map<String, Valu
     payload.insert("attempts".into(), bounded_attempt_summary(&error.attempts));
     payload.insert("journal_ref".into(), Value::Null);
     payload.insert("journal_status".into(), "not_applicable".into());
-    if let Some(target) = &error.redirected_library_id {
-        payload.insert(
-            "redirected_library_id".into(),
-            Value::String(target.chars().take(500).collect()),
-        );
-    }
     if error.verbose {
         payload.insert(
             "provider_attempts".into(),
@@ -823,7 +733,6 @@ mod tests {
             attempts,
             verbose: false,
             diagnostic: None,
-            redirected_library_id: Some("库".repeat(2_000)),
         };
         let encoded =
             format_failure_json(&provider_error).expect("bounded provider failure payload");
@@ -836,10 +745,6 @@ mod tests {
                     .as_str()
                     .map(str::chars)
                     .map(Iterator::count),
-                payload["redirected_library_id"]
-                    .as_str()
-                    .map(str::chars)
-                    .map(Iterator::count),
                 payload["attempts"]["by_kind"]
                     .as_object()
                     .map(serde_json::Map::len),
@@ -847,14 +752,7 @@ mod tests {
                 payload["attempts"]["providers"].as_array().map(Vec::len),
                 payload["attempts"]["providers_truncated"].as_bool(),
             ),
-            (
-                Some(500),
-                Some(500),
-                Some(8),
-                Some(true),
-                Some(8),
-                Some(true)
-            )
+            (Some(500), Some(8), Some(true), Some(8), Some(true))
         );
     }
 

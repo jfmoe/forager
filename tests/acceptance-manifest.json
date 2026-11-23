@@ -43,12 +43,6 @@
       "test": "tests/jina_fetch.rs::jina_fetch_preserves_content_while_redacting_protected_outputs"
     },
     {
-      "id": "F08",
-      "provider": "context7",
-      "seam": "docs_search",
-      "test": "tests/context7.rs::context7_library_initializes_the_mcp_session_and_normalizes_json_results"
-    },
-    {
       "id": "F09",
       "provider": "exa",
       "seam": "docs_search",

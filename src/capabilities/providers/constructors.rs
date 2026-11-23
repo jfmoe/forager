@@ -1,10 +1,9 @@
 use reqwest::Client;
 
-use super::{Context7, Exa, Openai, TavilyMap, Xai};
+use super::{Exa, Openai, TavilyMap, Xai};
 use crate::catalog::{ProviderId, registration};
 use crate::config::{
-    Context7RuntimeConfig, ExaRuntimeConfig, OpenaiRuntimeConfig, WebFetchProviderConfig,
-    XaiRuntimeConfig,
+    ExaRuntimeConfig, OpenaiRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
@@ -51,16 +50,6 @@ pub(crate) fn build_tavily_map(
     debug_assert!(registration.operations.contains(&"site_map"));
     let credentials = credentials(ProviderId::Tavily, &mut config.keys);
     TavilyMap::new(config, client, credentials, retry_policy, deadline)
-}
-
-pub(crate) fn build_context7(
-    mut config: Context7RuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Context7 {
-    let credentials = credentials(ProviderId::Context7, &mut config.keys);
-    Context7::new(config, client, credentials, retry_policy, deadline)
 }
 
 /// Returns a limiter for a provider whose registration declares an access policy.

@@ -17,22 +17,11 @@ when a YouTube Data API key is configured, or without `--depth` for its captions
 has enabled the `youtube_web` route; see [`platforms.md`](platforms.md). When another URL requires authentication and cannot be fetched
 directly, use an available authenticated client to retrieve it.
 
-Commands under `exa` and `context7` bypass capability routing. Use them when the user
+Commands under `exa` bypass capability routing. Use them when the user
 requests that provider or the operation exists only as a direct command. Restrict
 `exa search` to known domains with `--include-domains CSV` rather than `site:` in the query. With
 `exa search --include-text`, each result's text is capped by `--text-max-characters` (default
 3000); prefer `--include-highlights` when snippets suffice.
-
-## Context7 documentation
-
-Run `forager context7 library NAME QUERY` to obtain a `library_id`; when the user supplied a valid
-`/owner/project[/version]`, use it directly. For later single-topic queries about the same library,
-reuse the same `library_id` and change only the query. When the user requested a version, keep the
-versioned ID.
-
-A `library_id` is not a URL; do not pass it to `fetch`. When the returned content contains an
-absolute URL, decide whether the claim risk warrants fetching it. When it contains no URL, report
-the documentation and do not invent a source.
 
 Complete direct retrieval when it returns the requested content or page set. Route an observed
 authentication, configuration, or terminal provider failure to Diagnose or configure in

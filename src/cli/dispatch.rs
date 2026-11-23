@@ -7,18 +7,16 @@ use serde_json::Value;
 use thiserror::Error;
 
 use super::args::{
-    Cli, Command, ConfigCommand, Context7Command, DocsOutputFormat, ExaCommand, Language,
-    OutputFormat, OutputTarget,
+    Cli, Command, ConfigCommand, DocsOutputFormat, ExaCommand, Language, OutputFormat, OutputTarget,
 };
 use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, Context7DocsRequest, Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest,
-    FetchRequest, MapRequest, ProviderId,
+    self, ExaSearchRequest, ExaSimilarRequest, FetchRequest, MapRequest, ProviderId,
 };
 use crate::types::{
-    AttemptErrorKind, CapabilitySet, Context7Outcome, Deadline, FallbackPolicy, FetchOutcome,
-    HnStoriesResult, JournalOutcome, MapOutcome, Platform, PlatformAskResult, PlatformCommentsPage,
+    AttemptErrorKind, CapabilitySet, Deadline, FallbackPolicy, FetchOutcome, HnStoriesResult,
+    JournalOutcome, MapOutcome, Platform, PlatformAskResult, PlatformCommentsPage,
     PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult, PolymarketHistoryResult,
     ProviderAttempt, SearchOutcome,
 };
@@ -85,17 +83,6 @@ pub enum CommandOutput {
         result: Result<ExaOutcome, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// Typed Context7 terminal state for binary-side formatting and tee output.
-    Context7 {
-        /// Provider result.
-        result: Result<Context7Outcome, ProviderError>,
-        /// Requested output format.
-        format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -468,55 +455,6 @@ impl AppContext<providers::TavilyMap> {
     }
 }
 
-impl AppContext<providers::Context7> {
-    fn for_context7(timeout: Option<u64>) -> Result<Self, AppError> {
-        let dependencies = NetworkDependencies::load()?;
-        let config = dependencies.config;
-        let log_level = config.log_level;
-        if !config.provider_configured(ProviderId::Context7) {
-            return Err(AppError::Config(ConfigError::Message(
-                "providers.context7.keys has no configured credentials".into(),
-            )));
-        }
-        let command_timeout = timeout.unwrap_or(config.context7.timeout_seconds);
-        let provider = providers::build_context7(
-            config.context7,
-            dependencies.client,
-            dependencies.retry_policy,
-            Deadline::new(Duration::from_secs(command_timeout)),
-        );
-        Ok(Self {
-            provider,
-            runtime: dependencies.runtime,
-            log_level,
-        })
-    }
-
-    fn library(
-        self,
-        request: Context7LibraryRequest,
-    ) -> (Result<Context7Outcome, ProviderError>, Option<String>) {
-        let result = self.runtime.block_on(self.provider.library(request));
-        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
-            Context7Outcome::Library(outcome) => &outcome.attempts,
-            Context7Outcome::Docs(outcome) => &outcome.attempts,
-        });
-        (result, attempt_log)
-    }
-
-    fn docs(
-        self,
-        request: Context7DocsRequest,
-    ) -> (Result<Context7Outcome, ProviderError>, Option<String>) {
-        let result = self.runtime.block_on(self.provider.docs(request));
-        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
-            Context7Outcome::Library(outcome) => &outcome.attempts,
-            Context7Outcome::Docs(outcome) => &outcome.attempts,
-        });
-        (result, attempt_log)
-    }
-}
-
 /// Executes a parsed command.
 ///
 /// # Errors
@@ -617,57 +555,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     verbose,
                 });
             Ok(CommandOutput::Map {
-                result,
-                format,
-                output: output.target(),
-                attempt_log,
-            })
-        }
-        Command::Context7 {
-            command:
-                Context7Command::Library {
-                    name,
-                    query,
-                    timeout,
-                    format,
-                    output,
-                    verbose,
-                },
-        } => {
-            let (result, attempt_log) = AppContext::<providers::Context7>::for_context7(timeout)?
-                .library(Context7LibraryRequest {
-                    name,
-                    query,
-                    verbose,
-                });
-            Ok(CommandOutput::Context7 {
-                result,
-                format: match format {
-                    OutputFormat::Json => DocsOutputFormat::Json,
-                    OutputFormat::Markdown => DocsOutputFormat::Markdown,
-                },
-                output: output.target(),
-                attempt_log,
-            })
-        }
-        Command::Context7 {
-            command:
-                Context7Command::Docs {
-                    library_id,
-                    query,
-                    timeout,
-                    format,
-                    output,
-                    verbose,
-                },
-        } => {
-            let (result, attempt_log) = AppContext::<providers::Context7>::for_context7(timeout)?
-                .docs(Context7DocsRequest {
-                    library_id,
-                    query,
-                    verbose,
-                });
-            Ok(CommandOutput::Context7 {
                 result,
                 format,
                 output: output.target(),
@@ -1158,7 +1045,7 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
         &mut input,
         language,
         &mut document,
-        &["exa", "context7", "jina", "tavily", "firecrawl"],
+        &["exa", "jina", "tavily", "firecrawl"],
     )?;
 
     prompt_stage(language, 4);

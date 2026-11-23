@@ -409,25 +409,16 @@ fn respond(mut stream: TcpStream, response: &Response) -> String {
     } else {
         "Error"
     };
-    let mut headers = String::new();
-    for (name, value) in &response.headers {
-        headers.push_str(name);
-        headers.push_str(": ");
-        headers.push_str(value);
-        headers.push_str("\r\n");
-    }
     let _ = write!(
         stream,
-        "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         response.status,
         response.content_type,
-        headers,
         response
             .declared_content_length
             .unwrap_or(response.body.len())
     );
     let _ = stream.flush();
-    thread::sleep(response.body_delay);
     let _ = stream.write_all(response.body.as_bytes());
     String::from_utf8(request).expect("UTF-8 request")
 }
@@ -467,9 +458,7 @@ pub(crate) struct Response {
     status: u16,
     content_type: String,
     body: String,
-    headers: Vec<(String, String)>,
     delay: Duration,
-    body_delay: Duration,
     declared_content_length: Option<usize>,
 }
 
@@ -479,9 +468,7 @@ impl Response {
             status,
             content_type: content_type.into(),
             body: body.into(),
-            headers: Vec::new(),
             delay: Duration::ZERO,
-            body_delay: Duration::ZERO,
             declared_content_length: None,
         }
     }
@@ -494,22 +481,8 @@ impl Response {
         Self::new(status, "text/event-stream", body)
     }
 
-    pub(crate) fn with_header(mut self, name: &str, value: &str) -> Self {
-        self.headers.push((name.into(), value.into()));
-        self
-    }
-
-    pub(crate) fn with_session(self, session: &str) -> Self {
-        self.with_header("Mcp-Session-Id", session)
-    }
-
     pub(crate) fn with_delay(mut self, delay: Duration) -> Self {
         self.delay = delay;
-        self
-    }
-
-    pub(crate) fn with_body_delay(mut self, delay: Duration) -> Self {
-        self.body_delay = delay;
         self
     }
 

@@ -50,7 +50,6 @@ where
             attempts: Vec::new(),
             verbose: settings.verbose,
             diagnostic: None,
-            redirected_library_id: None,
         });
     }
     let selection = credentials.claim().await;
@@ -323,7 +322,6 @@ fn terminal_error(
         attempts,
         verbose,
         diagnostic,
-        redirected_library_id: None,
     }
 }
 

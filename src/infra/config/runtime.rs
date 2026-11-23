@@ -9,11 +9,10 @@ use super::route_config::{
 };
 use super::schema::{Config, FieldRef, SCHEMA};
 use super::seam_config::{
-    Context7RuntimeConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, MainSearchProviders,
-    MainSearchRuntimeConfig, OpenaiRuntimeConfig, SeamEntry, WebFetchProviderConfig,
-    WebFetchRuntimeConfig, WebProviders, WebSearchRuntimeConfig, XaiRuntimeConfig,
-    docs_search_runtime, main_search_runtime, provider_configured, unknown_provider,
-    web_fetch_runtime, web_search_runtime,
+    DocsSearchRuntimeConfig, ExaRuntimeConfig, MainSearchProviders, MainSearchRuntimeConfig,
+    OpenaiRuntimeConfig, SeamEntry, WebFetchProviderConfig, WebFetchRuntimeConfig, WebProviders,
+    WebSearchRuntimeConfig, XaiRuntimeConfig, docs_search_runtime, main_search_runtime,
+    provider_configured, unknown_provider, web_fetch_runtime, web_search_runtime,
 };
 use crate::catalog::{self, ProviderId};
 use crate::redact::Secret;
@@ -182,7 +181,6 @@ pub(crate) struct RuntimeConfig {
     pub(crate) xai: XaiRuntimeConfig,
     pub(crate) openai: OpenaiRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
-    pub(crate) context7: Context7RuntimeConfig,
     pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) firecrawl: WebFetchProviderConfig,
@@ -244,10 +242,6 @@ impl RuntimeConfig {
             ProviderId::Jina => ProviderRuntime {
                 endpoint: &self.jina.url,
                 keys: &self.jina.keys,
-            },
-            ProviderId::Context7 => ProviderRuntime {
-                endpoint: &self.context7.url,
-                keys: &self.context7.keys,
             },
             ProviderId::ArxivApi => ProviderRuntime {
                 endpoint: &self.platform_routes.arxiv_api.url,
@@ -334,11 +328,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         keys: config.providers.exa.keys,
         timeout_seconds: config.providers.exa.timeout,
     };
-    let context7 = Context7RuntimeConfig {
-        url: config.providers.context7.url,
-        keys: config.providers.context7.keys,
-        timeout_seconds: config.providers.context7.timeout,
-    };
     let xai = XaiRuntimeConfig {
         url: config.providers.xai.url,
         keys: config.providers.xai.keys,
@@ -408,7 +397,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             openai: &openai,
         },
     )?;
-    let docs_search = docs_search_runtime(config.capabilities.docs_search.order, &exa, &context7)?;
+    let docs_search = docs_search_runtime(config.capabilities.docs_search.order, &exa)?;
     let web_providers = WebProviders {
         tavily: &tavily,
         firecrawl: &firecrawl,
@@ -460,7 +449,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         xai,
         openai,
         exa,
-        context7,
         platform_routes,
         tavily,
         firecrawl,
@@ -605,7 +593,7 @@ mod tests {
         config.providers.openai.keys = vec![Secret::from("openai-canary")];
         config.providers.xai.keys = vec![Secret::from("xai-canary")];
         config.providers.exa.keys = vec![Secret::from("exa-canary")];
-        config.providers.context7.keys = vec![Secret::from("context7-canary")];
+        config.providers.youtube_api.keys = vec![Secret::from("youtube-canary")];
         config.providers.jina.keys = vec![Secret::from("jina-canary")];
         config.providers.tavily.keys = vec![Secret::from("tavily-canary")];
         config.providers.firecrawl.keys = vec![Secret::from("firecrawl-canary")];

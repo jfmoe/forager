@@ -554,7 +554,6 @@ fn deliver(
             attempts: fetched.attempts,
             verbose,
             diagnostic: fetched.diagnostic,
-            redirected_library_id: None,
         }),
     }
 }

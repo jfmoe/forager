@@ -12,6 +12,12 @@ forager also does not choose capabilities for the caller. There is no classifier
 decides what an ordinary search runs. A search without a Caller Capability Declaration runs main
 search only (ADR-0004).
 
+forager does not keep a second Documentation Search provider behind Exa. Context7 is retired as a
+provider and as direct commands, and Exa alone serves a declared Documentation Search. The
+capability seam and its order stay, and a result with no consumable candidate still counts as a
+failed attempt rather than an empty success, so a provider added to the order later is reached
+when Exa finds nothing usable.
+
 These rules of the agent layer stay in force:
 
 - **Cost ladder.** Every request goes down `direct retrieval → ordinary search → multi-source
@@ -50,6 +56,17 @@ These rules of the agent layer stay in force:
   (at most 11.6 s) before main search could start. Its callers are agents that the product skill
   already teaches to declare, so the classifier cost a model endpoint, a credential, a `setup` step
   and journal fields for a decision the caller makes better from the request it has read.
+- **Context7 was never reached.** Over the same 30 days the journal recorded no Context7 attempt
+  as the Documentation Search fallback, against 10 Exa attempts, and no session outside forager's
+  own development ever ran its direct commands; the last development call was on 2026-09-25.
+- **Exa answers documentation queries better.** In a comparison of 14 queries checked against
+  official pages, Context7 covered 48% of key facts and Exa 93%, at median latencies of 8.2 s and
+  2.4 s. On vendor platforms, data APIs and app manuals, Context7 covered 25% and Exa 100%. Exa
+  also returns URLs a caller can fetch, where Context7 returned library locators that needed a
+  second call.
+- **Context7 cost a provider of its own.** A 434-line provider with an 806-line test file, an MCP
+  transport no other provider used, a configuration section, a `setup` prompt, a doctor probe and
+  two live cases, all kept for a fallback that did not run.
 - **The accepted cost.** Research discovered candidates through Supplemental Web Search without
   running main search. Through `search`, each part of an investigation pays one main search, a
   median of 31 s over the same 30 days. An undeclared search gets no supplemental sources of any
@@ -68,6 +85,11 @@ These rules of the agent layer stay in force:
   fetching, but parallel `fetch` calls that each write their page to a file already do that
   without a new contract for partial failure.
 
+- **Keeping Context7 as an unused fallback.** It keeps a credential, a transport and a live
+  check alive for a path the journal never shows, and its library resolution almost always returns
+  some library, so it hides a miss rather than filling it.
+- **Keeping only the direct Context7 commands.** Nobody outside forager's development called them.
+
 ## Revisit when
 
 - Agents repeat the same investigation bookkeeping and get it wrong in a way a deterministic step
@@ -80,8 +102,15 @@ These rules of the agent layer stay in force:
   request needed and did not get, for example because callers other than agents taught by the
   product skill start using `search`.
 
+- Exa's coverage of documentation queries falls clearly below another documentation provider's
+  on a comparable sample, or Exa stops serving them. A second provider then joins the
+  Documentation Search order.
+
 ## Supersedes
 
 - ADR-0013, which kept the research engine deterministic and orchestrated it from the skill. The
   engine is retired; the cost ladder, the recovery caps and the rule that a main-search answer is
   never evidence are restated above.
+- ADR-0017, which put Exa before Context7 in Documentation Search and kept Context7 docs as one
+  readable payload. Context7 is retired; the rule that a result with no consumable candidate does
+  not end the chain is restated above.

@@ -17,15 +17,14 @@ Routine `search` stays on its branch reference. Treat
 
 ## Shared behavior
 
-The public top-level commands are `search`, `fetch`, `map`, `exa`, `context7`,
-`platform`, `browser`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+The public top-level commands are `search`, `fetch`, `map`, `exa`, `platform`,
+`browser`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
 | --- | --- |
 | `search` | `s` |
 | `fetch` | `f` |
-| `context7` | `c7` |
 | `config list` | `config ls` |
 
 Subcommand prefixes are not inferred: an abbreviation that is not a listed alias is an unknown
@@ -69,8 +68,7 @@ result or the exit code.
 `trace` adds safe fields for each attempt. This projection never changes stdout or replaces
 `--verbose` and journal attempts.
 
-`content` output is available only for `search`, `fetch`, `context7 docs`, and
-`platform <id> fetch`.
+`content` output is available only for `search`, `fetch`, and `platform <id> fetch`.
 All other commands with `--format` accept only `json` and `markdown`. `smoke` emits JSON and does
 not expose `--format`.
 
@@ -99,19 +97,16 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 
 Default search JSON keeps `answer`, Primary Search Sources in `sources`, every non-primary Search
 Candidate in `extra_sources`, capability gaps, and the journal reference. Each candidate has
-required `provider`, `capability`, and provider-specific `provider_data`, plus nullable `title`,
-`url`, and `summary`. Provider-native summaries are not verified evidence. Candidates with an
-HTTP(S) URL can enter Web Fetch; a Context7 candidate carries a typed library locator in
-`provider_data` for `context7 docs` and has no fabricated URL. Search-side Web Fetch successes use
-the actual fetch provider and a 300-character Normalized Fetch Content preview as their candidate
-summary. `--verbose` adds provider attempts inline.
+required `provider`, `capability`, an HTTP(S) `url` that can enter Web Fetch, and
+provider-specific `provider_data`, plus nullable `title` and `summary`. Provider-native summaries
+are not verified evidence. Search-side Web Fetch successes use the actual fetch provider and a
+300-character Normalized Fetch Content preview as their candidate summary. `--verbose` adds
+provider attempts inline.
 Content format emits only the main answer. Markdown labels the two source roles as `Primary
 Sources` and `Extra Sources`. The `--extra-sources` target never selects a capability: with
-`--capabilities none` no supplemental search runs. A Context7 candidate's `provider_data` holds
-`library_id`, `total_snippets`, `trust_score`, `benchmark_score`, `stars`, and `versions`; an Exa
-Documentation Search candidate has a real URL and `provider_data` with `id`, `highlights`,
-`published_date`, `author`, `image`, and `favicon`, without the page text. A field the provider
-does not report is left out.
+`--capabilities none` no supplemental search runs. An Exa Documentation Search candidate has
+`provider_data` with `id`, `highlights`, `published_date`, `author`, `image`, and `favicon`,
+without the page text. A field the provider does not report is left out.
 
 Main search runs the backends of `search.backends` in order: `xai` (the xAI Responses API) and
 `openai` (an OpenAI Responses endpoint with its `web_search` tool, such as a CLIProxyAPI gateway in
@@ -227,47 +222,6 @@ forager exa similar URL [--num-results N] [--timeout SECONDS]
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
-
-### `context7 library`
-
-```console
-forager context7 library NAME [QUERY] [--timeout SECONDS]
-                                     [--format json|markdown]
-                                     [--output FILE [--receipt]] [--verbose]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `NAME` | Library or package name to resolve. | Required |
-| `QUERY` | Optional context used to rank matching libraries. | Empty |
-| `--timeout SECONDS` | Override `providers.context7.timeout`. | Configured value |
-| `--format FORMAT` | Use `json` or `markdown`. | `json` |
-| `--output FILE` | Tee the rendered result to a file. | Omitted |
-| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
-| `--verbose` | Include full provider attempts inline. | Off |
-
-### `context7 docs`
-
-```console
-forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
-                                       [--format json|markdown|content]
-                                       [--output FILE [--receipt]] [--verbose]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `LIBRARY_ID` | Context7-compatible library ID, normally obtained from `context7 library`. | Required |
-| `QUERY` | Documentation question or topic. | Required |
-| `--timeout SECONDS` | Override `providers.context7.timeout`. | Configured value |
-| `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
-| `--output FILE` | Tee the rendered result to a file. | Omitted |
-| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
-| `--verbose` | Include full provider attempts inline. | Off |
-
-Success JSON has `provider`, `library_id`, `query`, and `content`; `--verbose` adds
-`provider_attempts`. `content` is the one documentation body Context7 returns. forager does not
-parse its `Source:` lines into a source list, so read any URLs inside `content` to decide
-whether an original page needs fetching.
 
 ## Platform commands
 
@@ -1303,7 +1257,7 @@ forager setup [--non-interactive] [--lang zh|en]
 After setup, use `forager doctor` to check the resulting configuration.
 
 Interactive setup has four steps: the language; the main model (`xai` URL, keys, and model); keys
-for `exa`, `context7`, `jina`, `tavily`, and `firecrawl`; and keys for the `serpapi` and
+for `exa`, `jina`, `tavily`, and `firecrawl`; and keys for the `serpapi` and
 `youtube_api` routes. Enter keeps the current value, so a second
 run updates the existing file. Setup asks only for credentials and model settings and sends no
 request; set other keys with `config set`.
@@ -1347,7 +1301,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 

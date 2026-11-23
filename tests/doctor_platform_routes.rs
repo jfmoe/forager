@@ -149,7 +149,7 @@ fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
 /// Runs a shallow doctor where every HTTP provider is reachable, `youtube_web` among them when
 /// the YouTube order lists it.
 fn shallow_with_youtube_web(enabled: bool) -> (Value, usize) {
-    let requests = if enabled { 11 } else { 10 };
+    let requests = if enabled { 10 } else { 9 };
     let fixture = Fixture::start_sequence(reachable_responses(requests));
     let order = if enabled {
         "[\"youtube_api\", \"youtube_web\"]"
@@ -186,10 +186,10 @@ fn shallow_doctor_reaches_youtube_web_only_while_an_order_enables_it() {
         (
             &Value::Bool(false),
             &Value::Bool(false),
+            9,
+            &Value::Bool(true),
+            &Value::Bool(true),
             10,
-            &Value::Bool(true),
-            &Value::Bool(true),
-            11,
         )
     );
 }
@@ -285,7 +285,7 @@ mod xiaohongshu_browser {
     use crate::support::{Fixture, RunEnvironment};
 
     fn shallow_with_xiaohongshu(order: &str, logged_in: bool) -> (Option<i32>, Value, usize) {
-        let fixture = Fixture::start_sequence(reachable_responses(10));
+        let fixture = Fixture::start_sequence(reachable_responses(9));
         let stand_in = StandIn::failing("must not start");
         let environment = RunEnvironment::new(&format!(
             "{}\n{}",
@@ -298,7 +298,7 @@ mod xiaohongshu_browser {
 
         let output = environment.run(&["doctor"]);
         let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-        assert_eq!(fixture.finish_all().len(), 10);
+        assert_eq!(fixture.finish_all().len(), 9);
         (
             output.status.code(),
             route_status(&payload, "xiaohongshu_browser").clone(),

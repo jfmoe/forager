@@ -476,7 +476,6 @@ mod tests {
                                     attempts: Vec::new(),
                                     verbose: true,
                                     diagnostic: None,
-                                    redirected_library_id: None,
                                 })
                             } else {
                                 StepVerdict::Accepted(StepSuccess {

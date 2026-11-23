@@ -23,12 +23,10 @@ explicit value from `1..=20` is the exact target.
   marks an uncited answer: treat each of its claims as unverified until fetched content supports
   it.
 - `extra_sources` contains every non-primary Search Candidate. Each candidate has stable
-  `provider`, `capability`, `title`, `url`, `summary`, and `provider_data` fields; `title`, `url`,
-  and `summary` can be null, while `provider_data` carries provider-specific selection data. A
+  `provider`, `capability`, `title`, `url`, `summary`, and `provider_data` fields; `title` and
+  `summary` can be null, while `provider_data` carries provider-specific selection data. A
   provider-native summary is not verified evidence.
-- Fetch a candidate with an HTTP(S) `url` before using it as evidence. A Context7 Documentation
-  Candidate instead carries a typed library locator in `provider_data`; read it with
-  `forager context7 docs`, never by fabricating a URL or passing it to Web Fetch.
+- Fetch a candidate's HTTP(S) `url` before using it as evidence.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 
 For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to

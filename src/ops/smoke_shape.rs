@@ -12,8 +12,6 @@ pub(super) enum ResultShape {
     PipelineSearch,
     SupplementalSearch,
     Fetch,
-    Context7Library,
-    Context7Docs,
     Exa,
     Map,
     PlatformSearch,
@@ -33,10 +31,9 @@ pub(super) fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> b
         ResultShape::PipelineSearch => {
             nonempty_string(payload, "answer") && nonempty_array(payload, "extra_sources")
         }
-        ResultShape::SupplementalSearch
-        | ResultShape::Context7Library
-        | ResultShape::Exa
-        | ResultShape::Map => nonempty_array(payload, "results"),
+        ResultShape::SupplementalSearch | ResultShape::Exa | ResultShape::Map => {
+            nonempty_array(payload, "results")
+        }
         ResultShape::PlatformSearch => nonempty_array(payload, "items"),
         // X posts have no title; their text proves the read.
         ResultShape::PlatformFetch => {
@@ -55,7 +52,6 @@ pub(super) fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> b
                     .as_array()
                     .is_some_and(|attempts| attempts.iter().all(|a| a["anonymous"] == false))
         }
-        ResultShape::Context7Docs => nonempty_string(payload, "content"),
         // A note without comments is a legitimate result, but it proves nothing here.
         ResultShape::XiaohongshuComments => nonempty_string(payload, "note"),
         // The canary video has millions of comments, so an empty page means a broken read.

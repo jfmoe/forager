@@ -343,9 +343,6 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.exa.url", providers.exa.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.exa.keys", providers.exa.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.exa.timeout", providers.exa.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
-    leaf!("providers.context7.url", providers.context7.url: String, Rule::Any, View::Url, "service endpoint URL"),
-    leaf!("providers.context7.keys", providers.context7.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
-    leaf!("providers.context7.timeout", providers.context7.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.jina.url", providers.jina.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.jina.keys", providers.jina.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.jina.respond_with", providers.jina.respond_with: String, Rule::Any, View::Plain, "optional X-Respond-With header value"),
@@ -626,7 +623,6 @@ mod tests {
             "providers.xai.keys" => Some(&config.providers.xai.keys),
             "providers.openai.keys" => Some(&config.providers.openai.keys),
             "providers.exa.keys" => Some(&config.providers.exa.keys),
-            "providers.context7.keys" => Some(&config.providers.context7.keys),
             "providers.jina.keys" => Some(&config.providers.jina.keys),
             "providers.tavily.keys" => Some(&config.providers.tavily.keys),
             "providers.firecrawl.keys" => Some(&config.providers.firecrawl.keys),
@@ -708,7 +704,6 @@ mod tests {
     fn provider_endpoints_use_their_url_defaults_when_omitted() {
         let config: Config = toml::from_str(
             "[providers.exa]\ntimeout = 41\n\
-             [providers.context7]\ntimeout = 42\n\
              [providers.tavily]\ntimeout = 43\n\
              [providers.firecrawl]\ntimeout = 44\n\
              [providers.arxiv_api]\ntimeout = 46\n\
@@ -720,7 +715,6 @@ mod tests {
         assert_eq!(
             (
                 config.providers.exa.url.as_str(),
-                config.providers.context7.url.as_str(),
                 config.providers.tavily.url.as_str(),
                 config.providers.firecrawl.url.as_str(),
                 config.providers.arxiv_api.url.as_str(),
@@ -729,7 +723,6 @@ mod tests {
             ),
             (
                 "https://api.exa.ai",
-                "https://mcp.context7.com/mcp",
                 "https://api.tavily.com",
                 "https://api.firecrawl.dev/v2",
                 "https://export.arxiv.org/api/query",

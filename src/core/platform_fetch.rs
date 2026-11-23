@@ -333,7 +333,6 @@ async fn read_url_full_text(
         attempts: Vec::new(),
         verbose: false,
         diagnostic: None,
-        redirected_library_id: None,
     });
     error.attempts = attempts;
     Err(error)

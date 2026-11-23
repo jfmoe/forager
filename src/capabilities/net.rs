@@ -5,12 +5,10 @@ use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt, future};
 use reqwest::{Client, RequestBuilder, Response, StatusCode, redirect};
 use serde::Deserialize;
-use serde_json::{Value, json};
 
 use crate::credentials::CredentialPool;
-use crate::redact::Secret;
 use crate::redact::redact_urls;
-use crate::types::{AttemptErrorKind, Deadline, MIN_USEFUL_SLICE_SECONDS};
+use crate::types::{AttemptErrorKind, MIN_USEFUL_SLICE_SECONDS};
 
 const HTTP_READ_TIMEOUT: Duration = Duration::from_mins(1);
 pub(crate) const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -349,6 +347,71 @@ impl RetryPolicy {
             .unwrap_or(self.max_wait)
             .min(self.max_wait)
     }
+}
+
+pub(crate) fn build_client(ssl_verify: bool) -> Result<Client, reqwest::Error> {
+    build_client_with_read_timeout(ssl_verify, HTTP_READ_TIMEOUT)
+}
+
+fn build_client_with_read_timeout(
+    ssl_verify: bool,
+    read_timeout: Duration,
+) -> Result<Client, reqwest::Error> {
+    Client::builder()
+        .danger_accept_invalid_certs(!ssl_verify)
+        .connect_timeout(Duration::from_secs(5))
+        .read_timeout(read_timeout)
+        .redirect(redirect::Policy::none())
+        .user_agent(concat!("forager/", env!("CARGO_PKG_VERSION")))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .build()
+}
+
+pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptErrorKind {
+    match status.as_u16() {
+        400 | 404 | 405 | 409 | 422 => AttemptErrorKind::Parameter,
+        // Firecrawl refuses unsupported target sites with 403; its invalid keys get 401.
+        403 if mentions(body, "support this site") => AttemptErrorKind::Parameter,
+        // Jina refuses anonymous access to a domain it is shielding from abuse; a key may lift it.
+        403 if mentions(body, "AbuseAlleviationError") => AttemptErrorKind::Parameter,
+        401 | 403 => AttemptErrorKind::Auth,
+        402 => AttemptErrorKind::QuotaExhausted,
+        // SerpApi reports a used-up monthly plan as "run out of searches".
+        429 if mentions(body, "quota") || mentions(body, "run out of searches") => {
+            AttemptErrorKind::QuotaExhausted
+        }
+        429 => AttemptErrorKind::RateLimited,
+        408 | 504 => AttemptErrorKind::Timeout,
+        500..=599 => AttemptErrorKind::Network,
+        _ => AttemptErrorKind::Runtime,
+    }
+}
+
+fn mentions(body: &str, phrase: &str) -> bool {
+    body.as_bytes()
+        .windows(phrase.len())
+        .any(|window| window.eq_ignore_ascii_case(phrase.as_bytes()))
+}
+
+pub(crate) fn truncate_message(message: &str) -> String {
+    message.chars().take(500).collect()
+}
+
+pub fn combine_diagnostics(diagnostics: impl IntoIterator<Item = String>) -> Option<String> {
+    let diagnostics = diagnostics.into_iter().collect::<Vec<_>>();
+    (!diagnostics.is_empty()).then(|| diagnostics.join("\n"))
+}
+
+pub(crate) fn slice_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
+    if remaining_slots == 1 {
+        return Some(remaining);
+    }
+    let slice = remaining / u32::try_from(remaining_slots).unwrap_or(u32::MAX);
+    (slice >= Duration::from_secs(MIN_USEFUL_SLICE_SECONDS)).then_some(slice)
+}
+
+pub(crate) fn duration_millis(duration: Duration) -> u64 {
+    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]
@@ -856,457 +919,5 @@ mod tests {
             matches!(result, Err(ref error) if error.is_timeout()),
             "shared client did not enforce its read timeout: {result:?}"
         );
-    }
-}
-
-pub(crate) fn build_client(ssl_verify: bool) -> Result<Client, reqwest::Error> {
-    build_client_with_read_timeout(ssl_verify, HTTP_READ_TIMEOUT)
-}
-
-fn build_client_with_read_timeout(
-    ssl_verify: bool,
-    read_timeout: Duration,
-) -> Result<Client, reqwest::Error> {
-    Client::builder()
-        .danger_accept_invalid_certs(!ssl_verify)
-        .connect_timeout(Duration::from_secs(5))
-        .read_timeout(read_timeout)
-        .redirect(redirect::Policy::none())
-        .user_agent(concat!("forager/", env!("CARGO_PKG_VERSION")))
-        .pool_idle_timeout(Duration::from_secs(90))
-        .build()
-}
-
-pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptErrorKind {
-    match status.as_u16() {
-        400 | 404 | 405 | 409 | 422 => AttemptErrorKind::Parameter,
-        // Firecrawl refuses unsupported target sites with 403; its invalid keys get 401.
-        403 if mentions(body, "support this site") => AttemptErrorKind::Parameter,
-        // Jina refuses anonymous access to a domain it is shielding from abuse; a key may lift it.
-        403 if mentions(body, "AbuseAlleviationError") => AttemptErrorKind::Parameter,
-        401 | 403 => AttemptErrorKind::Auth,
-        402 => AttemptErrorKind::QuotaExhausted,
-        // SerpApi reports a used-up monthly plan as "run out of searches".
-        429 if mentions(body, "quota") || mentions(body, "run out of searches") => {
-            AttemptErrorKind::QuotaExhausted
-        }
-        429 => AttemptErrorKind::RateLimited,
-        408 | 504 => AttemptErrorKind::Timeout,
-        500..=599 => AttemptErrorKind::Network,
-        _ => AttemptErrorKind::Runtime,
-    }
-}
-
-fn mentions(body: &str, phrase: &str) -> bool {
-    body.as_bytes()
-        .windows(phrase.len())
-        .any(|window| window.eq_ignore_ascii_case(phrase.as_bytes()))
-}
-
-pub(crate) fn truncate_message(message: &str) -> String {
-    message.chars().take(500).collect()
-}
-
-pub fn combine_diagnostics(diagnostics: impl IntoIterator<Item = String>) -> Option<String> {
-    let diagnostics = diagnostics.into_iter().collect::<Vec<_>>();
-    (!diagnostics.is_empty()).then(|| diagnostics.join("\n"))
-}
-
-pub(crate) fn slice_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
-    if remaining_slots == 1 {
-        return Some(remaining);
-    }
-    let slice = remaining / u32::try_from(remaining_slots).unwrap_or(u32::MAX);
-    (slice >= Duration::from_secs(MIN_USEFUL_SLICE_SECONDS)).then_some(slice)
-}
-
-pub(crate) fn duration_millis(duration: Duration) -> u64 {
-    duration.as_millis().try_into().unwrap_or(u64::MAX)
-}
-
-const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
-
-pub(crate) struct McpClient<'a> {
-    client: &'a Client,
-    url: &'a str,
-    deadline: Deadline,
-}
-
-pub(crate) struct McpToolResult {
-    pub(crate) structured_content: Value,
-    pub(crate) text: String,
-}
-
-#[derive(Debug)]
-pub(crate) struct McpError {
-    pub(crate) kind: AttemptErrorKind,
-    pub(crate) status: Option<u16>,
-    pub(crate) message: String,
-    session_expired: bool,
-}
-
-impl<'a> McpClient<'a> {
-    pub(crate) fn new(client: &'a Client, url: &'a str, deadline: Deadline) -> Self {
-        Self {
-            client,
-            url,
-            deadline,
-        }
-    }
-
-    pub(crate) async fn call_tool(
-        &self,
-        credential: &Secret,
-        tool: &str,
-        arguments: Value,
-    ) -> Result<McpToolResult, McpError> {
-        for handshake in 0..2 {
-            let session = self.initialize(credential).await?;
-            if let Some(session) = session.as_deref() {
-                match self.notify_initialized(credential, session).await {
-                    Err(error) if error.session_expired && handshake == 0 => continue,
-                    Err(error) => return Err(error),
-                    Ok(()) => {}
-                }
-            }
-            match self
-                .tool_call(credential, session.as_deref(), tool, arguments.clone())
-                .await
-            {
-                Err(error) if error.session_expired && handshake == 0 => {}
-                Ok(result) => return Ok(result),
-                Err(error) => return Err(error),
-            }
-        }
-        Err(McpError::runtime("MCP session could not be renewed"))
-    }
-
-    async fn initialize(&self, credential: &Secret) -> Result<Option<String>, McpError> {
-        let response = self
-            .post(
-                credential,
-                None,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": MCP_PROTOCOL_VERSION,
-                        "capabilities": {},
-                        "clientInfo": {"name": "forager", "version": env!("CARGO_PKG_VERSION")}
-                    }
-                }),
-            )
-            .await?;
-        let session = response
-            .headers()
-            .get("mcp-session-id")
-            .and_then(|value| value.to_str().ok())
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned);
-        rpc_result(response, 1, self.deadline).await?;
-        Ok(session)
-    }
-
-    async fn notify_initialized(&self, credential: &Secret, session: &str) -> Result<(), McpError> {
-        self.post(
-            credential,
-            Some(session),
-            &json!({
-                "jsonrpc": "2.0",
-                "method": "notifications/initialized"
-            }),
-        )
-        .await?;
-        Ok(())
-    }
-
-    async fn tool_call(
-        &self,
-        credential: &Secret,
-        session: Option<&str>,
-        tool: &str,
-        arguments: Value,
-    ) -> Result<McpToolResult, McpError> {
-        let response = self
-            .post(
-                credential,
-                session,
-                &json!({
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {"name": tool, "arguments": arguments}
-                }),
-            )
-            .await?;
-        let result = rpc_result(response, 2, self.deadline).await?;
-        let text = content_text(&result)?;
-        if result
-            .get("isError")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        {
-            return Err(McpError::semantic(&text, None));
-        }
-        Ok(McpToolResult {
-            structured_content: result
-                .get("structuredContent")
-                .cloned()
-                .filter(Value::is_object)
-                .unwrap_or_else(|| json!({})),
-            text,
-        })
-    }
-
-    async fn post(
-        &self,
-        credential: &Secret,
-        session: Option<&str>,
-        payload: &Value,
-    ) -> Result<Response, McpError> {
-        let remaining = self.deadline.remaining().ok_or_else(|| {
-            McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed")
-        })?;
-        let mut request = self
-            .client
-            .post(self.url)
-            .header("accept", "application/json, text/event-stream")
-            .header("content-type", "application/json")
-            .bearer_auth(credential.expose())
-            .json(payload);
-        if let Some(session) = session {
-            request = request.header("mcp-session-id", session);
-        }
-        let response = tokio::time::timeout(remaining, request.send())
-            .await
-            .map_err(|_| McpError::new(AttemptErrorKind::Timeout, None, "MCP request timed out"))?
-            .map_err(|error| {
-                McpError::new(
-                    AttemptErrorKind::Network,
-                    error.status().map(|status| status.as_u16()),
-                    &format!("MCP network request failed: {error}"),
-                )
-            })?;
-        if response.status().is_success() {
-            return Ok(response);
-        }
-        let status = response.status();
-        let remaining = self.deadline.remaining().ok_or_else(|| {
-            McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed")
-        })?;
-        let body = tokio::time::timeout(
-            remaining,
-            read_response_body(response, ResponseBodyPolicy::Error),
-        )
-        .await
-        .map_err(|_| {
-            McpError::new(
-                AttemptErrorKind::Timeout,
-                Some(status.as_u16()),
-                "MCP response body timed out",
-            )
-        })?
-        .map_err(|error| {
-            McpError::new(
-                AttemptErrorKind::Network,
-                Some(status.as_u16()),
-                &format!("MCP response body failed: {error}"),
-            )
-        })?;
-        let mut error = McpError::new(
-            error_kind_for_status(status, &body.text),
-            Some(status.as_u16()),
-            &if body.text.trim().is_empty() {
-                format!("MCP server returned HTTP {}", status.as_u16())
-            } else {
-                body.text
-            },
-        );
-        error.session_expired = session.is_some() && session_expired(status, &error.message);
-        Err(error)
-    }
-}
-
-async fn rpc_result(
-    response: Response,
-    request_id: u64,
-    deadline: Deadline,
-) -> Result<Value, McpError> {
-    let messages = response_messages(response, deadline).await?;
-    for message in messages {
-        if message.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
-            return Err(McpError::runtime(
-                "MCP returned an invalid JSON-RPC message",
-            ));
-        }
-        if message.get("id").and_then(Value::as_u64) != Some(request_id) {
-            continue;
-        }
-        if let Some(error) = message.get("error") {
-            let text = error
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("MCP returned a JSON-RPC error");
-            let mut classified = McpError::semantic(text, None);
-            if classified.kind == AttemptErrorKind::Runtime
-                && error.get("code").and_then(Value::as_i64) == Some(-32602)
-            {
-                classified.kind = AttemptErrorKind::Parameter;
-            }
-            classified.session_expired =
-                session_expired(StatusCode::BAD_REQUEST, &classified.message);
-            return Err(classified);
-        }
-        let result = message
-            .get("result")
-            .cloned()
-            .filter(Value::is_object)
-            .ok_or_else(|| McpError::runtime("MCP JSON-RPC response omitted its result"))?;
-        return Ok(result);
-    }
-    Err(McpError::runtime(
-        "MCP response did not match the JSON-RPC request",
-    ))
-}
-
-async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec<Value>, McpError> {
-    let is_sse = response
-        .headers()
-        .get("content-type")
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.to_ascii_lowercase().contains("text/event-stream"));
-    if is_sse {
-        let mut events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
-        let mut messages = Vec::new();
-        loop {
-            let remaining = deadline.remaining().ok_or_else(|| {
-                McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed")
-            })?;
-            let event = tokio::time::timeout(remaining, events.next())
-                .await
-                .map_err(|_| {
-                    McpError::new(
-                        AttemptErrorKind::Timeout,
-                        None,
-                        "MCP SSE response timed out",
-                    )
-                })?;
-            let Some(event) = event else {
-                break;
-            };
-            let event = match event {
-                Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
-                    return Err(McpError::runtime(RESPONSE_LIMIT_MESSAGE));
-                }
-                Err(error) => {
-                    return Err(McpError::new(
-                        AttemptErrorKind::Network,
-                        None,
-                        &format!("MCP SSE response failed: {error}"),
-                    ));
-                }
-                Ok(event) => event,
-            };
-            let message = serde_json::from_str(&event.data).map_err(|error| {
-                McpError::runtime(&format!("MCP returned invalid SSE JSON: {error}"))
-            })?;
-            messages.push(message);
-        }
-        if messages.is_empty() {
-            return Err(McpError::runtime("MCP returned an empty SSE response"));
-        }
-        return Ok(messages);
-    }
-
-    let remaining = deadline
-        .remaining()
-        .ok_or_else(|| McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed"))?;
-    let body = tokio::time::timeout(
-        remaining,
-        read_response_body(response, ResponseBodyPolicy::CompleteProtocol),
-    )
-    .await
-    .map_err(|_| {
-        McpError::new(
-            AttemptErrorKind::Timeout,
-            None,
-            "MCP JSON response timed out",
-        )
-    })?
-    .map_err(|error| match error {
-        CappedStreamError::Transport(error) => McpError::new(
-            AttemptErrorKind::Network,
-            error.status().map(|status| status.as_u16()),
-            &format!("MCP response body failed: {error}"),
-        ),
-        CappedStreamError::LimitExceeded => McpError::runtime(RESPONSE_LIMIT_MESSAGE),
-    })?;
-    let payload: Value = serde_json::from_str(&body.text)
-        .map_err(|error| McpError::runtime(&format!("MCP returned invalid JSON: {error}")))?;
-    let messages = match payload {
-        Value::Array(messages) => messages,
-        message => vec![message],
-    };
-    Ok(messages)
-}
-
-fn content_text(result: &Value) -> Result<String, McpError> {
-    let Some(content) = result.get("content") else {
-        return Ok(String::new());
-    };
-    let content = content
-        .as_array()
-        .ok_or_else(|| McpError::runtime("MCP result content must be an array"))?;
-    Ok(content
-        .iter()
-        .filter(|item| item.get("type").and_then(Value::as_str) == Some("text"))
-        .filter_map(|item| item.get("text").and_then(Value::as_str))
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_owned())
-}
-
-fn session_expired(status: StatusCode, message: &str) -> bool {
-    let lower = message.to_ascii_lowercase();
-    matches!(
-        status,
-        StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND | StatusCode::CONFLICT
-    ) && lower.contains("session")
-        && ["expired", "not found", "invalid"]
-            .iter()
-            .any(|marker| lower.contains(marker))
-}
-
-impl McpError {
-    fn new(kind: AttemptErrorKind, status: Option<u16>, message: &str) -> Self {
-        Self {
-            kind,
-            status,
-            message: truncate_message(message),
-            session_expired: false,
-        }
-    }
-
-    fn runtime(message: &str) -> Self {
-        Self::new(AttemptErrorKind::Runtime, None, message)
-    }
-
-    fn semantic(message: &str, status: Option<u16>) -> Self {
-        let lower = message.to_ascii_lowercase();
-        let kind = if lower.contains("quota") || lower.contains("credits exhausted") {
-            AttemptErrorKind::QuotaExhausted
-        } else if lower.contains("rate limit") || lower.contains("too many requests") {
-            AttemptErrorKind::RateLimited
-        } else if lower.contains("unauthorized") || lower.contains("authentication") {
-            AttemptErrorKind::Auth
-        } else if lower.contains("invalid parameter") || lower.contains("invalid argument") {
-            AttemptErrorKind::Parameter
-        } else {
-            AttemptErrorKind::Runtime
-        };
-        Self::new(kind, status, message)
     }
 }

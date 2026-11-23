@@ -4,7 +4,6 @@ mod browser_profile;
 mod browser_route;
 mod cdp;
 mod constructors;
-mod context7;
 mod exa;
 pub(crate) mod execution;
 mod factory;
@@ -42,9 +41,8 @@ pub(crate) use browser::{
 pub(crate) use browser_profile::{BrowserProfile, Screen as BrowserScreen};
 pub(crate) use browser_route::preflight as browser_preflight;
 pub(crate) use constructors::{
-    build_context7, build_exa, build_openai, build_tavily_map, build_xai, route_limiter,
+    build_exa, build_openai, build_tavily_map, build_xai, route_limiter,
 };
-pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
     HN_STORIES_ROUTES, POLYMARKET_HISTORY_ROUTES, SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES,

@@ -99,7 +99,7 @@ When the skill names a command or option the installed forager lacks, upgrade fo
 - `search` accepts the full capability set the caller declares; forager does not widen it on its own.
 - The `sources` of `search` are only the main answer's sources; `extra_sources` carries every non-main Search Candidate produced by Supplemental Web Search, Documentation Search and search-side Web Fetch. Candidates keep the provider's own snippet; only search-side Web Fetch candidates carry a short preview of the page body.
 - forager does not orchestrate investigations: the calling agent splits the question, chooses the commands and judges the evidence.
-- `fetch`, `map` and the `exa` and `context7` subcommands are explicit direct entry points.
+- `fetch`, `map` and the `exa` subcommands are explicit direct entry points.
 - Credentials are kept in the local configuration; command output and the persisted journal redact sensitive URL parameters.
 - When a capability is temporarily unavailable, the result reports it in `capability_gaps` instead of passing the missing capability off as covered.
 

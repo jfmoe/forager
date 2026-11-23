@@ -37,8 +37,6 @@ keys = ["release-gate"]
 keys = ["release-gate"]
 [providers.jina]
 keys = ["release-gate"]
-[providers.context7]
-keys = ["release-gate"]
 [providers.exa]
 keys = ["release-gate"]
 '@
@@ -53,7 +51,7 @@ if ($doctorExitCode -ne 4 -or $doctor.ok -or $doctor.mode -ne "shallow") {
   throw "doctor did not report the expected unreachable configuration"
 }
 $configured = @($doctor.providers | Where-Object configured)
-if ($configured.Count -ne 10) {
+if ($configured.Count -ne 9) {
   throw "doctor did not load all migrated provider credentials"
 }
 exit 0
