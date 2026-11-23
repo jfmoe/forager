@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use support::{
-    Fixture, JOURNAL_EXECUTION_KEYS, Response, RunEnvironment, jina_response, object_keys,
+    Fixture, JOURNAL_EXECUTION_KEYS, Response, Route, RunEnvironment, jina_response, object_keys,
     request_json,
 };
 
@@ -1106,9 +1106,17 @@ fn declared_web_fetch_reports_a_partial_gap_when_one_target_succeeds() {
         &completed_body("answer", "Primary"),
     );
     let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
-    let jina = Fixture::start_sequence(vec![
-        Response::new(200, "application/json", &jina_response(&content)),
-        Response::new(503, "text/plain", "unavailable"),
+    let jina = Fixture::start_routed(vec![
+        Route::new(
+            "GET",
+            "/https://example.test/one",
+            Response::new(200, "application/json", &jina_response(&content)),
+        ),
+        Route::new(
+            "GET",
+            "/https://example.test/two",
+            Response::new(503, "text/plain", "unavailable"),
+        ),
     ]);
     let config = format!(
         "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
@@ -1147,7 +1155,7 @@ fn declared_web_fetch_reports_a_partial_gap_when_one_target_succeeds() {
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
-    assert_eq!(jina.finish_all().len(), 2);
+    jina.finish_all();
 }
 
 #[test]

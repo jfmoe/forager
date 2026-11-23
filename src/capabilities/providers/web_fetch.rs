@@ -326,25 +326,18 @@ mod tests {
     use super::{FetchRequest, HttpFetchProvider};
     use crate::config::WebFetchProviderConfig;
     use crate::credentials::CredentialPool;
+    use crate::fixture_server::{Fixture, Response, Route};
     use crate::net::{RetryPolicy, build_client};
     use crate::providers::ProviderId;
     use crate::types::{AttemptErrorKind, Deadline};
 
     #[test]
     fn a_fetch_target_naming_a_remote_site_reaches_the_loopback_fixture() {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind provider fixture");
-        let address = listener.local_addr().expect("fixture address");
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("accept provider request");
-            let mut request = [0_u8; 4096];
-            let _ = stream.read(&mut request).expect("read provider request");
-            let body = r#"{"data":{"content":"fixture article"}}"#;
-            let _ = write!(
-                stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len(),
-            );
-        });
+        let fixture = Fixture::start_routed(vec![Route::new(
+            "GET",
+            "/https://example.test/article",
+            Response::json(200, r#"{"data":{"content":"fixture article"}}"#),
+        )]);
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -354,7 +347,7 @@ mod tests {
             let provider = HttpFetchProvider {
                 id: ProviderId::Jina,
                 config: WebFetchProviderConfig {
-                    url: format!("http://{address}"),
+                    url: fixture.url.clone(),
                     keys: Vec::new(),
                     timeout_seconds: 5,
                     respond_with: String::new(),
@@ -370,7 +363,7 @@ mod tests {
             };
             provider.execute(&request).await
         });
-        server.join().expect("provider fixture");
+        fixture.finish_all();
 
         assert_eq!(
             outcome.map(|outcome| outcome.content).ok(),
