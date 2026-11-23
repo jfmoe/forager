@@ -33,18 +33,18 @@ fn verified_posts_become_snippet_items_dated_by_their_id() {
     assert_eq!(
         page["items"][0],
         json!({
-            "ref": "x:2106088717547077910",
-            "url": "https://x.com/i/status/2106088717547077910",
+            "ref": "x:2106088717546398899",
+            "url": "https://x.com/i/status/2106088717546398899",
             "depth": "snippet",
             "title": null,
-            "authors": ["loncothad"],
+            "authors": ["example_dev1"],
             "published": "2026-10-02T18:27:34Z",
-            "author_handle": "loncothad",
-            "text": "Rust developers (of The Rust, not working With) are on the generation run to make the Edition 2027 the dream language. Wow. But I can't see the reason why - AI is banned there and it's not like any new cash grants were given to them... Just a random lock in, it seems..."
+            "author_handle": "example_dev1",
+            "text": "Rust developers (of the language, not just users of it) are working hard to make the Edition 2027 a great release. Nice. But I wonder which of the planned changes will land first - the list keeps growing and the release date is not far off... Just curious, I guess..."
         })
     );
     assert_eq!(
         refs(&page),
-        ["x:2106088717547077910", "x:2110286468623351937"]
+        ["x:2106088717546398899", "x:2110286468622476580"]
     );
 }

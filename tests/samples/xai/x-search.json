@@ -27,42 +27,42 @@
       "content": [
         {
           "type": "output_text",
-          "text": "{\n  \"posts\": [\n    {\n      \"url\": \"https://x.com/loncothad/status/2106088717547077910\",\n      \"author_handle\": \"loncothad\",\n      \"created_at\": \"Fri, 02 Oct 2026 18:27:34 GMT\",\n      \"text\": \"Rust developers (of The Rust, not working With) are on the generation run to make the Edition 2027 the dream language. Wow. But I can't see the reason why - AI is banned there and it's not like any new cash grants were given to them... Just a random lock in, it seems...\"\n    },\n    {\n      \"url\": \"https://x.com/blackenedgold/status/2110286468623351937\",\n      \"author_handle\": \"blackenedgold\",\n      \"created_at\": \"Wed, 14 Oct 2026 08:27:56 GMT\",\n      \"text\": \"そしてその併設ワークショップでRustのプログラミング言語理論を扱ったやつも開催するみたい\\n\\nPLRust 2027 - First Workshop on Programming Language Exploration into Rust - ‹Programming› 2027\\nhttps://2027.programming-conference.org/home/plrust-2027#About\"\n    }\n  ]\n}",
+          "text": "{\n  \"posts\": [\n    {\n      \"url\": \"https://x.com/example_dev1/status/2106088717546398899\",\n      \"author_handle\": \"example_dev1\",\n      \"created_at\": \"Fri, 02 Oct 2026 18:27:34 GMT\",\n      \"text\": \"Rust developers (of the language, not just users of it) are working hard to make the Edition 2027 a great release. Nice. But I wonder which of the planned changes will land first - the list keeps growing and the release date is not far off... Just curious, I guess...\"\n    },\n    {\n      \"url\": \"https://x.com/example_dev2/status/2110286468622476580\",\n      \"author_handle\": \"example_dev2\",\n      \"created_at\": \"Wed, 14 Oct 2026 08:27:56 GMT\",\n      \"text\": \"そして併設のワークショップではRustの言語理論も取り上げるらしい\\n\\nExample Workshop 2027 - Programming Languages and Rust - ‹Conference› 2027\\nhttps://example.org/workshop-2027#About\"\n    }\n  ]\n}",
           "annotations": [
             {
               "type": "url_citation",
-              "url": "https://x.com/i/status/2108236514526392619",
+              "url": "https://x.com/i/status/2108236514525697166",
               "start_index": 0,
               "end_index": 0,
-              "title": "https://x.com/i/status/2108236514526392619"
+              "title": "https://x.com/i/status/2108236514525697166"
             },
             {
               "type": "url_citation",
-              "url": "https://x.com/i/status/2105699436990980293",
+              "url": "https://x.com/i/status/2105699436989760864",
               "start_index": 0,
               "end_index": 0,
-              "title": "https://x.com/i/status/2105699436990980293"
+              "title": "https://x.com/i/status/2105699436989760864"
             },
             {
               "type": "url_citation",
-              "url": "https://x.com/i/user/1112661938608078848",
+              "url": "https://x.com/i/user/1112661938606744997",
               "start_index": 0,
               "end_index": 0,
-              "title": "https://x.com/i/user/1112661938608078848"
+              "title": "https://x.com/i/user/1112661938606744997"
             },
             {
               "type": "url_citation",
-              "url": "https://x.com/i/status/2110286468623351937",
+              "url": "https://x.com/i/status/2110286468622476580",
               "start_index": 0,
               "end_index": 0,
-              "title": "https://x.com/i/status/2110286468623351937"
+              "title": "https://x.com/i/status/2110286468622476580"
             },
             {
               "type": "url_citation",
-              "url": "https://x.com/i/status/2106088717547077910",
+              "url": "https://x.com/i/status/2106088717546398899",
               "start_index": 0,
               "end_index": 0,
-              "title": "https://x.com/i/status/2106088717547077910"
+              "title": "https://x.com/i/status/2106088717546398899"
             }
           ]
         }

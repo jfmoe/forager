@@ -21,22 +21,13 @@
         "summary": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of financial economics, 2012 - Elsevier",
         "authors": [
           {
-            "name": "TJ Moskowitz",
-            "link": "https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "q9g8tuAAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=q9g8tuAAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "TJ Moskowitz"
           },
           {
-            "name": "YH Ooi",
-            "link": "https://scholar.google.com/citations?user=-zheQv4AAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "-zheQv4AAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=-zheQv4AAAAJ&engine=google_scholar_author&hl=en"
+            "name": "YH Ooi"
           },
           {
-            "name": "LH Pedersen",
-            "link": "https://scholar.google.com/citations?user=XhSFeucAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "XhSFeucAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=XhSFeucAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "LH Pedersen"
           }
         ]
       },
@@ -81,22 +72,13 @@
         "summary": "B Lim, S Zohren, S Roberts - arXiv preprint arXiv:1904.04912, 2019 - arxiv.org",
         "authors": [
           {
-            "name": "B Lim",
-            "link": "https://scholar.google.com/citations?user=NECavRYAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "NECavRYAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=NECavRYAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "B Lim"
           },
           {
-            "name": "S Zohren",
-            "link": "https://scholar.google.com/citations?user=mtNQD-8AAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "mtNQD-8AAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=mtNQD-8AAAAJ&engine=google_scholar_author&hl=en"
+            "name": "S Zohren"
           },
           {
-            "name": "S Roberts",
-            "link": "https://scholar.google.com/citations?user=T1lNNLkAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "T1lNNLkAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=T1lNNLkAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "S Roberts"
           }
         ]
       },
@@ -216,16 +198,10 @@
             "name": "B Hurst"
           },
           {
-            "name": "YH Ooi",
-            "link": "https://scholar.google.com/citations?user=-zheQv4AAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "-zheQv4AAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=-zheQv4AAAAJ&engine=google_scholar_author&hl=en"
+            "name": "YH Ooi"
           },
           {
-            "name": "LH Pedersen",
-            "link": "https://scholar.google.com/citations?user=XhSFeucAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "XhSFeucAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=XhSFeucAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "LH Pedersen"
           }
         ]
       },
@@ -302,31 +278,19 @@
         "summary": "P Tan, M Curcic, B Haus, I Savelyev, S Matt - 2024 - scholarship.miami.edu",
         "authors": [
           {
-            "name": "P Tan",
-            "link": "https://scholar.google.com/citations?user=wlLQBswAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "wlLQBswAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=wlLQBswAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "P Tan"
           },
           {
-            "name": "M Curcic",
-            "link": "https://scholar.google.com/citations?user=NS217eUAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "NS217eUAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=NS217eUAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "M Curcic"
           },
           {
             "name": "B Haus"
           },
           {
-            "name": "I Savelyev",
-            "link": "https://scholar.google.com/citations?user=suyEwsYAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "suyEwsYAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=suyEwsYAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "I Savelyev"
           },
           {
-            "name": "S Matt",
-            "link": "https://scholar.google.com/citations?user=EQFaXeEAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "EQFaXeEAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=EQFaXeEAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "S Matt"
           }
         ]
       },

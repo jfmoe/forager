@@ -24,7 +24,7 @@ fn content_format_prints_the_thread_as_markdown() {
             stdout
                 .starts_with("- **@SpaceX** (root, 2026-10-13T21:52:33Z) `x:2110126570233094527`"),
             stdout.contains(
-                "- **@BassonBrain** (reply, 2026-10-13T22:41:44Z) `x:2110138949234487662`\n\n  Wow!"
+                "- **@example_fan3** (reply, 2026-10-13T22:41:44Z) `x:2110138949233267915`\n\n  Nice!"
             ),
         ),
         (Some(0), true, true),
