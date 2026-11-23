@@ -867,3 +867,112 @@ mod youtube_api_tests {
         assert!(results.iter().all(is_argument_error), "{results:?}");
     }
 }
+
+/// The argument rules of the `gemini_api` commands, ask and transcribe, proven by parsing their
+/// definition in process.
+#[cfg(test)]
+mod gemini_api_tests {
+    use std::path::PathBuf;
+
+    use super::super::{PlatformCommand, parse_platform};
+    use super::{YoutubeCommand, youtube_ask_input, youtube_transcribe_input};
+    use crate::app::AppError;
+    use crate::app::args::{ContentOutputFormat, OutputFormat};
+    use crate::types::YoutubeRef;
+
+    const ZOO: &str = "jNQXAC9IVRw";
+    const QUESTION: &str = "What animals stand behind the speaker?";
+
+    fn parsed(arguments: &[&str]) -> YoutubeCommand {
+        let command = std::iter::once("youtube").chain(arguments.iter().copied());
+        match parse_platform(&command.collect::<Vec<_>>())
+            .unwrap_or_else(|error| panic!("the parser accepts {arguments:?}: {error}"))
+        {
+            PlatformCommand::Youtube { command } => command,
+            _ => unreachable!("the arguments name youtube"),
+        }
+    }
+
+    /// The video and question an ask reads, with its deadline, or its argument error.
+    fn ask(arguments: &[&str]) -> Result<(YoutubeRef, String, OutputFormat, u64), AppError> {
+        let ask = std::iter::once("ask").chain(arguments.iter().copied());
+        let YoutubeCommand::Ask(parsed) = parsed(&ask.collect::<Vec<_>>()) else {
+            unreachable!("the arguments name youtube ask")
+        };
+        youtube_ask_input(parsed).map(|(request, format, common)| {
+            (request.video, request.question, format, common.timeout)
+        })
+    }
+
+    /// The video a transcription reads, its content directory, format and deadline, or its
+    /// argument error.
+    fn transcribe(
+        arguments: &[&str],
+    ) -> Result<(YoutubeRef, Option<PathBuf>, ContentOutputFormat, u64), AppError> {
+        let transcribe = std::iter::once("transcribe").chain(arguments.iter().copied());
+        let YoutubeCommand::Transcribe(parsed) = parsed(&transcribe.collect::<Vec<_>>()) else {
+            unreachable!("the arguments name youtube transcribe")
+        };
+        youtube_transcribe_input(parsed).map(|(request, content_dir, format, common)| {
+            (request.video, content_dir, format, common.timeout)
+        })
+    }
+
+    fn video() -> YoutubeRef {
+        YoutubeRef::video(ZOO).expect("a video ID")
+    }
+
+    fn is_argument_error<T: std::fmt::Debug>(result: &Result<T, AppError>) -> bool {
+        matches!(result, Err(AppError::Argument(_)))
+    }
+
+    #[test]
+    fn an_ask_reads_the_video_of_a_short_url_and_its_question_with_the_model_deadline() {
+        let asked = ask(&[&format!("https://youtu.be/{ZOO}?t=3"), QUESTION]);
+
+        assert_eq!(
+            asked.ok(),
+            Some((video(), QUESTION.to_owned(), OutputFormat::Json, 600))
+        );
+    }
+
+    #[test]
+    fn a_transcription_reads_its_video_content_directory_and_format_with_the_model_deadline() {
+        let transcribed = transcribe(&[
+            &format!("youtube:{ZOO}"),
+            "--content-dir",
+            "transcripts",
+            "--format",
+            "content",
+        ]);
+
+        assert_eq!(
+            transcribed.ok(),
+            Some((
+                video(),
+                Some(PathBuf::from("transcripts")),
+                ContentOutputFormat::Content,
+                600
+            ))
+        );
+    }
+
+    #[test]
+    fn a_blank_question_or_a_collection_is_an_argument_error() {
+        let playlist = "https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
+        let asks = [
+            ask(&[&format!("youtube:{ZOO}"), "  "]),
+            ask(&[playlist, QUESTION]),
+        ];
+        let transcriptions = [
+            transcribe(&[playlist]),
+            transcribe(&["youtube:channel/UCExampleMathsChannel001"]),
+        ];
+
+        assert!(asks.iter().all(is_argument_error), "{asks:?}");
+        assert!(
+            transcriptions.iter().all(is_argument_error),
+            "{transcriptions:?}"
+        );
+    }
+}

@@ -117,42 +117,9 @@ pub(super) fn render(output: &str, video: &PlatformItem) -> Result<Rendered, Str
 mod tests {
     use serde_json::json;
 
+    use super::super::tests::zoo;
     use super::render;
-    use crate::types::{
-        ContentDepth, PlatformItem, PlatformItemData, PlatformRef, TranscriptSource,
-        YoutubeChapter, YoutubeItemData, YoutubeRef,
-    };
-
-    fn zoo(duration_seconds: Option<u64>) -> PlatformItem {
-        let reference = YoutubeRef::video("jNQXAC9IVRw").expect("video ref");
-        PlatformItem {
-            url: reference.canonical_url(),
-            reference: PlatformRef::Youtube(reference),
-            depth: ContentDepth::Abstract,
-            title: Some("Me at the zoo".into()),
-            authors: vec!["Example Zoo Visitor".into()],
-            published: Some("2005-04-24T03:31:52Z".into()),
-            data: PlatformItemData::Youtube(YoutubeItemData {
-                channel_ref: None,
-                snippet: None,
-                duration_seconds,
-                live_status: None,
-                views: None,
-                likes: None,
-                comments: None,
-                language: None,
-                has_captions: None,
-                caption_tracks: None,
-                description: Some("The first video.".into()),
-                chapters: Some(vec![YoutubeChapter {
-                    start_seconds: 0,
-                    title: "Intro".into(),
-                }]),
-                transcript: None,
-                position: None,
-            }),
-        }
-    }
+    use crate::types::TranscriptSource;
 
     fn output(segments: &serde_json::Value) -> String {
         json!({"language": "en", "segments": segments}).to_string()
