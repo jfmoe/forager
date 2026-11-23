@@ -760,11 +760,12 @@ fn only_a_thread_metadata_or_full_text_can_be_fetched() {
 #[test]
 fn both_endpoints_wait_on_one_access_window() {
     let fixture = Fixture::start_sequence(vec![json(&search_page(&[story_hit()], 0, 1))]);
-    // The Firebase window opens a full interval after the Algolia request, past this budget, so
-    // its reservation fails at once and no test waits.
+    // The Firebase window opens a full 500 ms interval after the Algolia request, so any budget
+    // below the interval makes its reservation fail at once and no test waits. The budget sits
+    // just below the interval to leave the Algolia request the most time on a loaded machine.
     let route = {
         let _paced = paced_limiters();
-        route(&fixture.url, Duration::from_millis(450))
+        route(&fixture.url, Duration::from_millis(490))
     };
     let request = PlatformFetchRequest::new(PlatformRef::Hn(hn(8863)), ContentDepth::Metadata);
 
