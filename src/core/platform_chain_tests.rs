@@ -1,7 +1,17 @@
-use super::{PlatformPreflightError, RouteCandidate, RoutePlan, plan_routes};
+use super::{
+    PlatformPreflightError, RouteCandidate, RoutePlan, plan_cursor_search, plan_routes, plan_search,
+};
 use crate::catalog::{self, PlatformOperation, ProviderId};
+use crate::config::{RuntimeConfig, runtime_config_from_toml};
+use crate::page_cursor::{self, PagedRequest as _};
+use crate::platform_fetch::plan_fetch;
+use crate::platform_operation::{plan_ask, plan_cited_by, plan_cursor_cited_by, plan_history};
 use crate::types::{
-    ArxivSearchOptions, AttemptDisposition, Platform, PlatformSearchOptions, PlatformSearchRequest,
+    ArxivSearchOptions, AttemptDisposition, ContentDepth, Platform, PlatformAskRequest,
+    PlatformFetchRequest, PlatformRef, PlatformSearchOptions, PlatformSearchRequest,
+    PolymarketHistoryRequest, PolymarketInterval, PolymarketRef, PolymarketSearchOptions,
+    PolymarketWindow, ScholarCitedByRequest, ScholarCitedBySort, ScholarRef, ScholarSearchOptions,
+    SsrnSearchOptions, XAskRequest, XSearchOptions, YoutubeAskRequest, YoutubeRef,
 };
 
 const ORDER_KEY: &str = "platforms.arxiv.order";
@@ -308,5 +318,258 @@ fn a_cursor_whose_route_left_the_order_is_an_argument_error() {
         Some(PlatformPreflightError::Argument(
             "the cursor route `arxiv_api` is no longer available for arxiv search; search again without --cursor".into()
         ))
+    );
+}
+
+/// What planning answered, without the plan.
+type Planned = Result<(), PlatformPreflightError>;
+
+fn search_request(options: PlatformSearchOptions) -> PlatformSearchRequest {
+    PlatformSearchRequest {
+        query: "momentum".into(),
+        limit: 5,
+        options,
+        page: None,
+    }
+}
+
+fn plan_first_search(runtime: &RuntimeConfig, options: PlatformSearchOptions) -> Planned {
+    let platform = options.platform();
+    plan_search(runtime.platforms.get(platform), search_request(options)).map(drop)
+}
+
+fn plan_abstract_fetch(runtime: &RuntimeConfig, platform: Platform, reference: &str) -> Planned {
+    let reference = PlatformRef::parse(platform, reference).expect("valid ref");
+    let request = PlatformFetchRequest::new(reference, ContentDepth::Abstract);
+    plan_fetch(runtime.platforms.get(platform), request).map(drop)
+}
+
+fn cited_by_request() -> ScholarCitedByRequest {
+    ScholarCitedByRequest {
+        cited: ScholarRef::parse("scholar:18208131694456651388").expect("valid ref"),
+        query: None,
+        limit: 20,
+        year_from: None,
+        year_to: None,
+        sort: ScholarCitedBySort::default(),
+        page: None,
+    }
+}
+
+fn scholar_cited_by(runtime: &RuntimeConfig) -> Planned {
+    plan_cited_by(
+        runtime.platforms.get(Platform::Scholar),
+        &runtime.platform_routes,
+        cited_by_request(),
+    )
+    .map(drop)
+}
+
+fn polymarket_history(runtime: &RuntimeConfig) -> Planned {
+    let market = PolymarketRef::parse("polymarket:market/will-no-fed-rate-cuts-happen-in-2026")
+        .expect("valid ref");
+    let request = PolymarketHistoryRequest::new(
+        market,
+        None,
+        PolymarketWindow::Interval(PolymarketInterval::Day),
+        None,
+    )
+    .expect("valid request");
+    plan_history(
+        runtime.platforms.get(Platform::Polymarket),
+        &runtime.platform_routes,
+        request,
+    )
+    .map(drop)
+}
+
+fn plan_an_ask(runtime: &RuntimeConfig, request: PlatformAskRequest) -> Planned {
+    plan_ask(
+        runtime.platforms.get(request.platform()),
+        &runtime.platform_routes,
+        request,
+    )
+    .map(drop)
+}
+
+fn arxiv_search(runtime: &RuntimeConfig) -> Planned {
+    plan_first_search(
+        runtime,
+        PlatformSearchOptions::Arxiv(ArxivSearchOptions::default()),
+    )
+}
+
+fn ssrn_search(runtime: &RuntimeConfig) -> Planned {
+    plan_first_search(
+        runtime,
+        PlatformSearchOptions::Ssrn(SsrnSearchOptions::default()),
+    )
+}
+
+fn polymarket_search(runtime: &RuntimeConfig) -> Planned {
+    plan_first_search(
+        runtime,
+        PlatformSearchOptions::Polymarket(PolymarketSearchOptions::default()),
+    )
+}
+
+fn x_search(runtime: &RuntimeConfig) -> Planned {
+    plan_first_search(runtime, PlatformSearchOptions::X(XSearchOptions::default()))
+}
+
+fn scholar_search(runtime: &RuntimeConfig) -> Planned {
+    plan_first_search(
+        runtime,
+        PlatformSearchOptions::Scholar(ScholarSearchOptions::default()),
+    )
+}
+
+fn arxiv_fetch(runtime: &RuntimeConfig) -> Planned {
+    plan_abstract_fetch(runtime, Platform::Arxiv, "arxiv:2401.01234")
+}
+
+fn polymarket_fetch(runtime: &RuntimeConfig) -> Planned {
+    plan_abstract_fetch(
+        runtime,
+        Platform::Polymarket,
+        "polymarket:how-many-fed-rate-cuts-in-2026",
+    )
+}
+
+fn x_ask(runtime: &RuntimeConfig) -> Planned {
+    plan_an_ask(
+        runtime,
+        PlatformAskRequest::X(XAskRequest {
+            query: "Starship news".into(),
+            options: XSearchOptions::default(),
+        }),
+    )
+}
+
+fn youtube_ask(runtime: &RuntimeConfig) -> Planned {
+    plan_an_ask(
+        runtime,
+        PlatformAskRequest::Youtube(YoutubeAskRequest {
+            video: YoutubeRef::parse("youtube:jNQXAC9IVRw").expect("valid ref"),
+            question: "What animal is shown?".into(),
+        }),
+    )
+}
+
+/// Plans one operation over a runtime configuration.
+type Planner = fn(&RuntimeConfig) -> Planned;
+
+#[test]
+fn an_order_without_a_configured_route_is_a_configuration_error_that_names_the_missing_keys() {
+    const SCHOLAR_WITHOUT_ORDER: &str =
+        "[providers.serpapi]\nkeys = [\"serpapi-key\"]\n[platforms.scholar]\norder = []\n";
+    let cases: [(&str, Planner, &str); 14] = [
+        (
+            "[platforms.arxiv]\norder = []\n",
+            arxiv_search,
+            "platforms.arxiv.order has no configured route for arxiv search",
+        ),
+        (
+            "[platforms.arxiv]\norder = []\n",
+            arxiv_fetch,
+            "platforms.arxiv.order has no configured route for arxiv fetch",
+        ),
+        (
+            "[platforms.ssrn]\norder = []\n",
+            ssrn_search,
+            "platforms.ssrn.order has no configured route for ssrn search",
+        ),
+        (
+            "[platforms.polymarket]\norder = []\n",
+            polymarket_search,
+            "platforms.polymarket.order has no configured route for polymarket search",
+        ),
+        (
+            "[platforms.polymarket]\norder = []\n",
+            polymarket_fetch,
+            "platforms.polymarket.order has no configured route for polymarket fetch",
+        ),
+        (
+            "[platforms.polymarket]\norder = []\n",
+            polymarket_history,
+            "platforms.polymarket.order has no configured route for polymarket history",
+        ),
+        (
+            "[providers.xai]\nkeys = [\"xai-key\"]\n[platforms.x]\norder = []\n",
+            x_search,
+            "platforms.x.order has no configured route for x search",
+        ),
+        (
+            SCHOLAR_WITHOUT_ORDER,
+            scholar_search,
+            "platforms.scholar.order has no configured route for scholar search",
+        ),
+        (
+            SCHOLAR_WITHOUT_ORDER,
+            scholar_cited_by,
+            "platforms.scholar.order has no configured route for scholar cited_by",
+        ),
+        (
+            "",
+            x_search,
+            "platforms.x.order has no configured route for x search; set providers.xai.keys",
+        ),
+        (
+            "",
+            x_ask,
+            "platforms.x.order has no configured route for x ask; set providers.xai.keys",
+        ),
+        (
+            "[providers.youtube_api]\nkeys = [\"youtube-key\"]\n",
+            youtube_ask,
+            "platforms.youtube.order has no configured route for youtube ask; set providers.gemini_api.keys",
+        ),
+        (
+            "",
+            scholar_search,
+            "platforms.scholar.order has no configured route for scholar search; set providers.serpapi.keys",
+        ),
+        (
+            "",
+            scholar_cited_by,
+            "platforms.scholar.order has no configured route for scholar cited_by; set providers.serpapi.keys",
+        ),
+    ];
+
+    for (document, plan, message) in cases {
+        let runtime = runtime_config_from_toml(document).expect("valid configuration");
+
+        assert_eq!(
+            plan(&runtime),
+            Err(PlatformPreflightError::Config(message.to_owned())),
+            "over:\n{document}"
+        );
+    }
+}
+
+#[test]
+fn a_cursor_whose_route_lost_its_keys_is_an_argument_error() {
+    let runtime = runtime_config_from_toml("").expect("valid configuration");
+    let scholar = runtime.platforms.get(Platform::Scholar);
+    let search_cursor = page_cursor::encode(
+        ProviderId::Serpapi,
+        search_request(PlatformSearchOptions::Scholar(
+            ScholarSearchOptions::default(),
+        ))
+        .at_page("20".into()),
+    );
+    let cited_by_cursor =
+        page_cursor::encode(ProviderId::Serpapi, cited_by_request().at_page("20".into()));
+
+    let refusals = [
+        plan_cursor_search(scholar, &search_cursor).map(drop),
+        plan_cursor_cited_by(scholar, &runtime.platform_routes, &cited_by_cursor).map(drop),
+    ];
+
+    assert_eq!(
+        refusals,
+        ["search", "cited_by"].map(|operation| Err(PlatformPreflightError::Argument(format!(
+            "the cursor route `serpapi` is no longer available for scholar {operation}; search again without --cursor"
+        ))))
     );
 }

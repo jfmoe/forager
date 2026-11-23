@@ -214,9 +214,18 @@ fn decode_cursor(cursor: &str) -> Result<(ProviderId, PageRequest), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PageRequest, decode_cursor, encode};
-    use crate::catalog::ProviderId;
-    use crate::types::{ArxivSearchOptions, PlatformSearchOptions, PlatformSearchRequest};
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use serde_json::{Value, json};
+
+    use super::{PageRequest, decode, decode_cursor, encode};
+    use crate::catalog::{PlatformOperation, ProviderId};
+    use crate::types::{
+        ArxivSearchOptions, CITED_BY, Platform, PlatformSearchOptions, PlatformSearchRequest,
+        PolymarketSearchOptions, ScholarCitedByRequest,
+    };
+
+    const SEARCH: &str = PlatformOperation::Search.as_str();
 
     fn request() -> PlatformSearchRequest {
         PlatformSearchRequest {
@@ -232,17 +241,28 @@ mod tests {
 
     #[test]
     fn a_cursor_restores_the_route_and_the_complete_request() {
-        let cursor = encode(ProviderId::ArxivApi, request());
+        let polymarket = PlatformSearchRequest {
+            query: "fed rate".into(),
+            limit: 3,
+            options: PlatformSearchOptions::Polymarket(PolymarketSearchOptions {
+                include_closed: true,
+            }),
+            page: Some("2".into()),
+        };
 
-        let decoded = decode_cursor(&cursor);
+        for (route, prefix, request) in [
+            (ProviderId::ArxivApi, "v1.arxiv_api.", request()),
+            (ProviderId::PolymarketApi, "v1.polymarket_api.", polymarket),
+        ] {
+            let cursor = encode(route, request.clone());
 
-        assert_eq!(
-            (cursor.starts_with("v1.arxiv_api."), decoded),
-            (
-                true,
-                Ok((ProviderId::ArxivApi, PageRequest::Search(request())))
-            )
-        );
+            let decoded = decode_cursor(&cursor);
+
+            assert_eq!(
+                (cursor.starts_with(prefix), decoded),
+                (true, Ok((route, PageRequest::Search(request))))
+            );
+        }
     }
 
     #[test]
@@ -267,6 +287,107 @@ mod tests {
                 Some("the cursor cannot be decoded; search again without --cursor".into()),
                 Some("the cursor cannot be decoded; search again without --cursor".into()),
             ]
+        );
+    }
+
+    /// A cursor of `route` whose payload is `request` as written.
+    fn cursor_of(route: &str, request: &Value) -> String {
+        format!("v1.{route}.{}", URL_SAFE_NO_PAD.encode(request.to_string()))
+    }
+
+    fn scholar_search_cursor(fields: &Value) -> String {
+        let mut request = json!({"query": "momentum", "limit": 20, "options": {"platform": "scholar"}, "page": "20"});
+        request["options"]
+            .as_object_mut()
+            .expect("options")
+            .extend(fields.as_object().expect("option fields").clone());
+        cursor_of("serpapi", &request)
+    }
+
+    fn cited_by_cursor(fields: &Value) -> String {
+        let mut request =
+            json!({"cited": 18_208_131_694_456_651_388_u64, "limit": 20, "page": "20"});
+        request
+            .as_object_mut()
+            .expect("request")
+            .extend(fields.as_object().expect("request fields").clone());
+        cursor_of("serpapi", &request)
+    }
+
+    #[test]
+    fn a_cursor_runs_only_as_the_platform_operation_that_issued_it() {
+        let arxiv = cursor_of(
+            "arxiv_api",
+            &json!({"query": "x", "limit": 2, "options": {"platform": "arxiv"}, "page": "2"}),
+        );
+        let refusals = [
+            decode::<ScholarCitedByRequest>(
+                &scholar_search_cursor(&json!({})),
+                Platform::Scholar,
+                CITED_BY,
+            )
+            .err(),
+            decode::<PlatformSearchRequest>(
+                &cited_by_cursor(&json!({})),
+                Platform::Scholar,
+                SEARCH,
+            )
+            .err(),
+            decode::<PlatformSearchRequest>(&cited_by_cursor(&json!({})), Platform::Arxiv, SEARCH)
+                .err(),
+            decode::<PlatformSearchRequest>(&arxiv, Platform::Ssrn, SEARCH).err(),
+        ];
+
+        assert_eq!(
+            refusals,
+            [
+                "the cursor belongs to scholar search, not scholar cited_by",
+                "the cursor belongs to scholar cited_by, not scholar search",
+                "the cursor belongs to scholar cited_by, not arxiv search",
+                "the cursor belongs to arxiv search, not ssrn search",
+            ]
+            .map(|message| Some(message.to_owned()))
+        );
+    }
+
+    #[test]
+    fn a_cursor_whose_request_breaks_the_rules_of_its_operation_is_refused() {
+        let refusals = [
+            decode::<PlatformSearchRequest>(
+                &scholar_search_cursor(&json!({"year_from": 2025, "year_to": 2024})),
+                Platform::Scholar,
+                SEARCH,
+            )
+            .err(),
+            decode::<ScholarCitedByRequest>(
+                &cited_by_cursor(&json!({"sort": "date", "year_from": 2020})),
+                Platform::Scholar,
+                CITED_BY,
+            )
+            .err(),
+        ];
+
+        assert_eq!(
+            refusals,
+            [
+                "invalid cursor: --year-from must not be later than --year-to",
+                "invalid cursor: --sort date cannot be combined with --year-from or --year-to",
+            ]
+            .map(|message| Some(message.to_owned()))
+        );
+    }
+
+    #[test]
+    fn a_cursor_with_a_field_its_operation_does_not_have_cannot_be_decoded() {
+        let refusal = decode::<ScholarCitedByRequest>(
+            &cited_by_cursor(&json!({"review_only": true})),
+            Platform::Scholar,
+            CITED_BY,
+        );
+
+        assert_eq!(
+            refusal.err().as_deref(),
+            Some("the cursor cannot be decoded; search again without --cursor")
         );
     }
 }

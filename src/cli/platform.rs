@@ -656,10 +656,16 @@ fn parse_platform(arguments: &[&str]) -> Result<PlatformCommand, clap::Error> {
 /// The arXiv commands' argument rules, proven by parsing their definition in process.
 #[cfg(test)]
 mod arxiv_tests {
+    use clap::error::ErrorKind;
+
     use super::{
-        ArxivCommand, ArxivSearchArgs, PlatformCommand, arxiv_search_input, parse_platform,
+        ArxivCommand, ArxivSearchArgs, PageInput, PlatformCommand, arxiv_search_input,
+        parse_platform,
     };
     use crate::app::AppError;
+    use crate::app::args::OutputFormat;
+
+    const CURSOR: &str = "v1.arxiv_api.eyJxdWVyeSI6IngiLCJsaW1pdCI6Miwib3B0aW9ucyI6eyJwbGF0Zm9ybSI6ImFyeGl2In0sInBhZ2UiOiIyIn0";
 
     fn search_args(arguments: &[&str]) -> Result<ArxivSearchArgs, clap::Error> {
         let search = ["arxiv", "search"]
@@ -723,5 +729,46 @@ mod arxiv_tests {
                 "expected an argument error about {message:?}, got {result:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_cursor_conflicts_with_an_explicit_query_option_or_limit() {
+        for arguments in [
+            &["x", "--cursor", CURSOR][..],
+            &["--cursor", CURSOR, "--category", "cs.AI"],
+            &["--cursor", CURSOR, "--sort", "relevance"],
+            &["--cursor", CURSOR, "--limit", "10"],
+        ] {
+            let error = search_args(arguments).expect_err("the parser refuses the combination");
+
+            assert_eq!(
+                error.kind(),
+                ErrorKind::ArgumentConflict,
+                "arguments: {arguments:?}\n{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_cursor_takes_the_general_flags_and_names_the_page_to_run() {
+        let arguments = search_args(&[
+            "--cursor",
+            CURSOR,
+            "--timeout",
+            "30",
+            "--format",
+            "markdown",
+        ])
+        .expect("the parser accepts general flags beside a cursor");
+
+        let (input, format, common) = arxiv_search_input(arguments).expect("a page to run");
+        let PageInput::Cursor(cursor) = input else {
+            panic!("a search with --cursor runs the page its cursor names");
+        };
+
+        assert_eq!(
+            (cursor.as_str(), format, common.timeout),
+            (CURSOR, OutputFormat::Markdown, 30)
+        );
     }
 }
