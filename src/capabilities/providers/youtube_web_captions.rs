@@ -272,6 +272,15 @@ pub(super) fn srv1_cues(xml: &str) -> Result<Vec<Cue>, Srv1Error> {
     if xml.trim().is_empty() {
         return Err(Srv1Error::Empty);
     }
+    // The deserializer ignores the root's name, so any other document would read as one with
+    // no cues and be reported as a soft block.
+    if let Some(root) = root_name(xml)
+        && root != "transcript"
+    {
+        return Err(Srv1Error::Invalid(format!(
+            "srv1 caption XML has root `{root}`, not `transcript`"
+        )));
+    }
     let document = quick_xml::de::from_str::<Srv1>(xml)
         .map_err(|error| Srv1Error::Invalid(format!("invalid srv1 caption XML: {error}")))?;
     let mut cues = Vec::new();
@@ -288,6 +297,23 @@ pub(super) fn srv1_cues(xml: &str) -> Result<Vec<Cue>, Srv1Error> {
         Err(Srv1Error::Empty)
     } else {
         Ok(cues)
+    }
+}
+
+/// The name of the document's root element, or `None` when the document has none before it
+/// ends or turns malformed, which the deserializer then reports.
+fn root_name(xml: &str) -> Option<String> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(xml);
+    loop {
+        match reader.read_event() {
+            Ok(Event::Start(element) | Event::Empty(element)) => {
+                return Some(element.name().into_inner().to_owned());
+            }
+            Ok(Event::Eof) | Err(_) => return None,
+            Ok(_) => {}
+        }
     }
 }
 
@@ -527,5 +553,19 @@ mod tests {
             srv1_cues(&srv1().replace(r#"start="1.2""#, r#"start="-1""#)),
             Err(Srv1Error::Invalid(_))
         ));
+    }
+
+    #[test]
+    fn a_well_formed_document_that_is_not_a_transcript_is_invalid_not_empty() {
+        let page =
+            "<html><head><title>Sorry</title></head><body><p>Try again later.</p></body></html>";
+        let other = r#"<?xml version="1.0" encoding="utf-8" ?><error><code>403</code></error>"#;
+
+        for body in [page, other] {
+            assert!(
+                matches!(srv1_cues(body), Err(Srv1Error::Invalid(_))),
+                "{body}"
+            );
+        }
     }
 }
