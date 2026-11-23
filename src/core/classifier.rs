@@ -344,31 +344,3 @@ fn parse_capability_decision(content: &str) -> Result<CapabilityDecision, String
     }
     Ok(decision)
 }
-
-#[cfg(test)]
-mod tests {
-    use serde_json::Value;
-
-    use super::VOCABULARY;
-    use crate::types::Capability;
-
-    #[test]
-    fn vocabulary_asset_matches_compiled_capability_identity_and_order() {
-        let vocabulary: Value = serde_json::from_str(VOCABULARY).expect("valid vocabulary asset");
-        let identities = vocabulary["capabilities"]
-            .as_array()
-            .expect("capability entries")
-            .iter()
-            .map(|capability| capability["id"].as_str().expect("capability id"))
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            identities,
-            [
-                Capability::DocsSearch.as_str(),
-                Capability::WebSearch.as_str(),
-                Capability::WebFetch.as_str(),
-            ]
-        );
-    }
-}

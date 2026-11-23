@@ -626,7 +626,7 @@ mod tests {
     #[test]
     fn configured_credentials_collects_every_pool_without_debug_leakage() {
         let mut config = Config::default();
-        config.classifier.keys = vec![Secret::from("classifier-canary")];
+        config.providers.openai.keys = vec![Secret::from("openai-canary")];
         config.providers.xai.keys = vec![Secret::from("xai-canary")];
         config.providers.exa.keys = vec![Secret::from("exa-canary")];
         config.providers.context7.keys = vec![Secret::from("context7-canary")];

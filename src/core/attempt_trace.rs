@@ -259,12 +259,12 @@ mod tests {
 
     #[test]
     fn identity_fallback_occurred_ignores_a_seam_transition() {
-        let mut classifier = attempt("classifier", AttemptErrorKind::Runtime);
-        classifier.target = AttemptTarget::seam("classifier");
-        classifier.model = Some("classifier-model".into());
+        let mut web_search = attempt("tavily", AttemptErrorKind::Runtime);
+        web_search.target = AttemptTarget::seam("web_search");
+        web_search.model = Some("web-search-model".into());
         let main_search = attempt("fixture", AttemptErrorKind::Network);
 
-        assert!(!identity_fallback_occurred(&[classifier, main_search]));
+        assert!(!identity_fallback_occurred(&[web_search, main_search]));
     }
 
     #[test]

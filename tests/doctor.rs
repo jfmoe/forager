@@ -76,7 +76,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
 fn doctor_provider_rejects_values_outside_the_compiled_registry() {
     let environment = RunEnvironment::new("");
 
-    let output = environment.run(&["doctor", "--provider", "classifier"]);
+    let output = environment.run(&["doctor", "--provider", "not_a_provider"]);
 
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());

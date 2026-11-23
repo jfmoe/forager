@@ -177,7 +177,8 @@ mod tests {
         apply_env_value(&mut config, "retry.max_wait", "92").expect("integer");
         apply_env_value(&mut config, "retry.multiplier", "2.5").expect("float");
         apply_env_value(&mut config, "search.backends", r#"["xai"]"#).expect("strings");
-        apply_env_value(&mut config, "classifier.keys", r#"["first", "second"]"#).expect("secrets");
+        apply_env_value(&mut config, "providers.exa.keys", r#"["first", "second"]"#)
+            .expect("secrets");
 
         let expected_backends = vec!["xai".to_owned()];
         assert_eq!(
@@ -187,7 +188,7 @@ mod tests {
                 config.retry.max_wait,
                 config.retry.multiplier,
                 config.search.backends.as_slice(),
-                config.classifier.keys.len(),
+                config.providers.exa.keys.len(),
             ),
             ("off", false, 92, 2.5, expected_backends.as_slice(), 2)
         );
