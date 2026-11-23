@@ -274,7 +274,7 @@ fn exa_search_projects_only_requested_highlights() {
 fn exa_search_rejects_a_non_http_result_url() {
     let fixture = Fixture::start_json(
         200,
-        r#"{"results":[{"id":"exa-result-id","title":"Invalid","url":"context7:/rust-lang/rust"}]}"#,
+        r#"{"results":[{"id":"exa-result-id","title":"Invalid","url":"ftp://example.test/result"}]}"#,
     );
 
     let output = run(&fixture, &["exa", "search", "invalid URL"], &["only-key"]);

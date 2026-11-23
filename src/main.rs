@@ -860,9 +860,9 @@ mod tests {
 
     const PROVIDERS: [&str; 9] = [
         "arxiv_api",
-        "context7",
         "exa",
         "firecrawl",
+        "hn_api",
         "jina",
         "openai",
         "serpapi",
