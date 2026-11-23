@@ -293,32 +293,22 @@ pub(super) fn srv1_cues(xml: &str) -> Result<Vec<Cue>, Srv1Error> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
+    use super::super::tests::caption_tracks;
     use super::{Srv1Error, TRANSCRIBE_HINT, TrackList, srv1_cues, srv1_url};
     use crate::providers::transcript::Cue;
+    use crate::samples::sample;
 
     fn tracks(tracks: &[(&str, bool)], default_track: Option<usize>) -> TrackList {
-        let caption_tracks = tracks
-            .iter()
-            .map(|(language, asr)| {
-                let mut track = json!({
-                    "baseUrl": format!("https://www.youtube.com/api/timedtext?lang={language}"),
-                    "languageCode": language,
-                    "name": {"runs": [{"text": language}]}
-                });
-                if *asr {
-                    track["kind"] = json!("asr");
-                }
-                track
-            })
-            .collect::<Vec<_>>();
-        serde_json::from_value(json!({
-            "captionTracks": caption_tracks,
-            "audioTracks": [{"defaultCaptionTrackIndex": default_track}],
-            "defaultAudioTrackIndex": 0
-        }))
+        serde_json::from_value(caption_tracks(
+            "https://www.youtube.com",
+            tracks,
+            default_track,
+        ))
         .expect("track list")
+    }
+
+    fn srv1() -> String {
+        sample("youtube_web/srv1.xml")
     }
 
     fn pick(list: &TrackList, languages: &[&str]) -> Result<(String, bool), String> {
@@ -473,11 +463,16 @@ mod tests {
 
     #[test]
     fn srv1_cues_unescape_html_inside_xml_and_skip_blank_cues() {
-        let xml = r#"<?xml version="1.0" encoding="utf-8" ?><transcript><text start="1.2" dur="2.16">All right, so here we are, in front of the
-elephants</text><text start="3" dur="1"> </text><text start="12.616" dur="1.751">and that&amp;#39;s &lt;i&gt;cool&lt;/i&gt;</text><text start="19">end</text></transcript>"#;
+        let xml = srv1()
+            .replace(
+                "that&amp;#39;s cool",
+                "that&amp;#39;s &lt;i&gt;cool&lt;/i&gt;",
+            )
+            .replace("(baaaaaaaaaaahhh!!)", " ")
+            .replace(r#"start="16.881" dur="2""#, r#"start="16.881""#);
 
         assert_eq!(
-            srv1_cues(xml),
+            srv1_cues(&xml),
             Ok(vec![
                 Cue::from_seconds(
                     1.2,
@@ -485,19 +480,37 @@ elephants</text><text start="3" dur="1"> </text><text start="12.616" dur="1.751"
                     "All right, so here we are, in front of the elephants"
                 )
                 .expect("cue"),
+                Cue::from_seconds(
+                    5.318,
+                    7.974,
+                    "the cool thing about these guys is that they have really..."
+                )
+                .expect("cue"),
+                Cue::from_seconds(7.974, 12.616, "really really long trunks").expect("cue"),
                 Cue::from_seconds(12.616, 14.367, "and that's cool").expect("cue"),
-                Cue::from_seconds(19.0, 19.0, "end").expect("cue"),
+                Cue::from_seconds(16.881, 16.881, "and that's pretty much all there is to say")
+                    .expect("cue"),
             ])
         );
     }
 
     #[test]
     fn an_empty_srv1_body_or_one_without_text_is_empty_and_garbage_is_invalid() {
-        let results = [
-            srv1_cues(""),
-            srv1_cues("<?xml version=\"1.0\" ?><transcript></transcript>"),
-            srv1_cues("<transcript><text start=\"1\" dur=\"1\">\n</text></transcript>"),
-        ];
+        // Every cue of the stored track, its text a line break.
+        let blank = srv1()
+            .split_inclusive("</text>")
+            .map(|part| match part.strip_suffix("</text>") {
+                Some(cue) => format!("{}\n</text>", &cue[..=cue.rfind('>').expect("cue tag")]),
+                None => part.to_owned(),
+            })
+            .collect::<String>();
+        let without_cues = {
+            let xml = srv1();
+            let start = xml.find("<text ").expect("the stored track has cues");
+            let end = xml.rfind("</text>").expect("the stored cues end") + "</text>".len();
+            format!("{}{}", &xml[..start], &xml[end..])
+        };
+        let results = [srv1_cues(""), srv1_cues(&without_cues), srv1_cues(&blank)];
 
         assert_eq!(
             results,
@@ -507,12 +520,11 @@ elephants</text><text start="3" dur="1"> </text><text start="12.616" dur="1.751"
                 Err(Srv1Error::Empty)
             ]
         );
+        let xml = srv1();
+        let truncated = &xml[..xml.find("</transcript>").expect("the stored track ends")];
+        assert!(matches!(srv1_cues(truncated), Err(Srv1Error::Invalid(_))));
         assert!(matches!(
-            srv1_cues("<html>blocked"),
-            Err(Srv1Error::Invalid(_))
-        ));
-        assert!(matches!(
-            srv1_cues("<transcript><text start=\"-1\">x</text></transcript>"),
+            srv1_cues(&srv1().replace(r#"start="1.2""#, r#"start="-1""#)),
             Err(Srv1Error::Invalid(_))
         ));
     }

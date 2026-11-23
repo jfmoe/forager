@@ -400,9 +400,7 @@ fn requested_languages_read_the_first_publisher_track_in_their_order() {
                 &player_with_tracks(origin, &[("en", true), ("en", false), ("de", false)], 1)
                     .to_string(),
             ),
-            srv1_response(
-                r#"<transcript><text start="1.2" dur="2">Also gut, hier sind wir.</text></transcript>"#,
-            ),
+            srv1_response(&srv1()),
         ]
     });
 
@@ -417,9 +415,9 @@ fn requested_languages_read_the_first_publisher_track_in_their_order() {
         (
             query(&requests[2]).get("lang").cloned(),
             markdown.contains("- Transcript: `de`, captions the publisher uploaded\n"),
-            markdown.trim_end().ends_with(
-                "[00:01](https://www.youtube.com/watch?v=jNQXAC9IVRw&t=1s) Also gut, hier sind wir."
-            ),
+            markdown
+                .trim_end()
+                .ends_with("and that's pretty much all there is to say"),
         ),
         (Some("de".to_owned()), true, true),
         "{markdown}"
@@ -454,11 +452,7 @@ fn an_abstract_fetch_inlines_the_description_and_its_chapters() {
 
 #[test]
 fn a_rate_limited_watch_page_is_rate_limited_and_names_the_egress_ip() {
-    let fixture = Fixture::start_sequence(vec![Response::new(
-        429,
-        "text/html",
-        "<html>Too many</html>",
-    )]);
+    let fixture = Fixture::start_sequence(vec![Response::new(429, "text/html", "")]);
 
     let error = fetch(&fixture.url, ContentDepth::Metadata, &[])
         .map(|_| ())
@@ -601,22 +595,24 @@ fn an_empty_track_body_is_a_runtime_failure_about_a_soft_block() {
 
 #[test]
 fn the_watch_page_gives_its_innertube_key_and_embedded_player_response() {
-    let page = r#"<script>var ytInitialPlayerResponse = {"videoDetails": {"videoId": "jNQXAC9IVRw", "title": "a;b}"}};var meta = 1;</script><script>ytcfg.set({"INNERTUBE_API_KEY": "AIza_Key-1","X":"y"})</script>"#;
+    // A `;` or a `}` inside a string does not end the embedded player response.
+    let page = watch_page_with(|embedded| embedded["videoDetails"]["title"] = json!("a;b}"));
+    let without_a_key = [
+        watch_page().replace(STORED_KEY, ""),
+        watch_page().replace(STORED_KEY, "a b"),
+        sample("youtube_web/bot-check.html"),
+    ];
 
-    let embedded = embedded_player_response(page)
+    let embedded = embedded_player_response(&page)
         .and_then(|player| player.video_details)
         .and_then(|details| details.title);
 
     assert_eq!(
-        (innertube_key(page), embedded.as_deref()),
-        (Some("AIza_Key-1"), Some("a;b}"))
+        (innertube_key(&page), embedded.as_deref()),
+        (Some(STORED_KEY), Some("a;b}"))
     );
     assert_eq!(
-        [
-            innertube_key(r#""INNERTUBE_API_KEY":"""#),
-            innertube_key(r#""INNERTUBE_API_KEY":"a b""#),
-            innertube_key("<html></html>"),
-        ],
+        without_a_key.each_ref().map(|page| innertube_key(page)),
         [None, None, None]
     );
 }
