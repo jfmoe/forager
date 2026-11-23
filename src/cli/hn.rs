@@ -210,6 +210,21 @@ pub(in crate::app) fn run(command: HnCommand) -> Result<CommandOutput, AppError>
 }
 
 fn hn_search(arguments: HnSearchArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = hn_search_input(arguments)?;
+    search(Platform::Hn, input, format, &common)
+}
+
+/// Builds the page a search asks for and checks its cross-field rules before any request.
+fn hn_search_input(
+    arguments: HnSearchArgs,
+) -> Result<
+    (
+        PageInput<PlatformSearchRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let HnSearchArgs {
         query,
         sort,
@@ -247,10 +262,26 @@ fn hn_search(arguments: HnSearchArgs) -> Result<CommandOutput, AppError> {
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    search(Platform::Hn, input, format, &common)
+    Ok((input, format, common))
 }
 
 fn hn_fetch(arguments: HnFetchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, content_dir, common) = hn_fetch_input(arguments)?;
+    fetch(Platform::Hn, request, format, content_dir, &common)
+}
+
+/// Reads the item ref before any request.
+fn hn_fetch_input(
+    arguments: HnFetchArgs,
+) -> Result<
+    (
+        PlatformFetchRequest,
+        ContentOutputFormat,
+        Option<PathBuf>,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let HnFetchArgs {
         reference,
         depth,
@@ -261,7 +292,7 @@ fn hn_fetch(arguments: HnFetchArgs) -> Result<CommandOutput, AppError> {
     let reference = PlatformRef::parse(Platform::Hn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    fetch(Platform::Hn, request, format, content_dir, &common)
+    Ok((request, format, content_dir, common))
 }
 
 fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
