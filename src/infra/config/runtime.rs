@@ -7,7 +7,7 @@ use super::route_config::{
     BrowserRouteRuntimeConfig, BrowserRuntimeConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig,
 };
-use super::schema::{Config, FieldRef, SCHEMA};
+use super::schema::{Config, FieldRef, Providers, SCHEMA};
 use super::seam_config::{
     DocsSearchRuntimeConfig, ExaRuntimeConfig, MainSearchProviders, MainSearchRuntimeConfig,
     OpenaiRuntimeConfig, SeamEntry, WebFetchProviderConfig, WebFetchRuntimeConfig, WebProviders,
@@ -306,6 +306,8 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             .then(|| resolve_path("browser.path", &config.browser.path, &config_dir))
             .transpose()?,
     };
+    let platform_routes = platform_routes(&config.providers, &browser);
+    let xai = platform_routes.xai.clone();
     let tavily = WebFetchProviderConfig {
         url: config.providers.tavily.url,
         keys: config.providers.tavily.keys,
@@ -328,62 +330,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         url: config.providers.exa.url,
         keys: config.providers.exa.keys,
         timeout_seconds: config.providers.exa.timeout,
-    };
-    let xai = XaiRuntimeConfig {
-        url: config.providers.xai.url,
-        keys: config.providers.xai.keys,
-        model: config.providers.xai.model,
-        tools: config.providers.xai.tools,
-    };
-    let platform_routes = PlatformRoutesRuntimeConfig {
-        arxiv_api: HttpRouteRuntimeConfig {
-            url: config.providers.arxiv_api.url,
-            timeout_seconds: config.providers.arxiv_api.timeout,
-        },
-        ssrn_crossref: HttpRouteRuntimeConfig {
-            url: config.providers.ssrn_crossref.url,
-            timeout_seconds: config.providers.ssrn_crossref.timeout,
-        },
-        serpapi: KeyedHttpRouteRuntimeConfig {
-            url: config.providers.serpapi.url,
-            keys: config.providers.serpapi.keys,
-            timeout_seconds: config.providers.serpapi.timeout,
-        },
-        xiaohongshu_browser: BrowserRouteRuntimeConfig {
-            timeout_seconds: config.providers.xiaohongshu_browser.timeout,
-            browser: browser.clone(),
-        },
-        xai: xai.clone(),
-        hn_api: HnRouteRuntimeConfig {
-            url: config.providers.hn_api.url,
-            firebase_url: config.providers.hn_api.firebase_url,
-            timeout_seconds: config.providers.hn_api.timeout,
-        },
-        youtube_api: KeyedHttpRouteRuntimeConfig {
-            url: config.providers.youtube_api.url,
-            keys: config.providers.youtube_api.keys,
-            timeout_seconds: config.providers.youtube_api.timeout,
-        },
-        youtube_web: HttpRouteRuntimeConfig {
-            url: config.providers.youtube_web.url,
-            timeout_seconds: config.providers.youtube_web.timeout,
-        },
-        gemini_api: ModelRouteRuntimeConfig {
-            url: config.providers.gemini_api.url,
-            keys: config.providers.gemini_api.keys,
-            model: config.providers.gemini_api.model,
-            timeout_seconds: config.providers.gemini_api.timeout,
-        },
-        polymarket_api: PolymarketRouteRuntimeConfig {
-            url: config.providers.polymarket_api.url,
-            clob_url: config.providers.polymarket_api.clob_url,
-            data_url: config.providers.polymarket_api.data_url,
-            timeout_seconds: config.providers.polymarket_api.timeout,
-        },
-        reddit_browser: BrowserRouteRuntimeConfig {
-            timeout_seconds: config.providers.reddit_browser.timeout,
-            browser: browser.clone(),
-        },
     };
     let openai = OpenaiRuntimeConfig {
         url: config.providers.openai.url,
@@ -470,6 +416,78 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         ssl_verify: config.http.ssl_verify,
         browser,
     })
+}
+
+/// Projects the sections of every platform route, including the main-search backend that also
+/// reads X, onto their runtime configuration.
+fn platform_routes(
+    providers: &Providers,
+    browser: &BrowserRuntimeConfig,
+) -> PlatformRoutesRuntimeConfig {
+    PlatformRoutesRuntimeConfig {
+        arxiv_api: HttpRouteRuntimeConfig {
+            url: providers.arxiv_api.url.clone(),
+            timeout_seconds: providers.arxiv_api.timeout,
+        },
+        ssrn_crossref: HttpRouteRuntimeConfig {
+            url: providers.ssrn_crossref.url.clone(),
+            timeout_seconds: providers.ssrn_crossref.timeout,
+        },
+        serpapi: KeyedHttpRouteRuntimeConfig {
+            url: providers.serpapi.url.clone(),
+            keys: providers.serpapi.keys.clone(),
+            timeout_seconds: providers.serpapi.timeout,
+        },
+        xiaohongshu_browser: BrowserRouteRuntimeConfig {
+            timeout_seconds: providers.xiaohongshu_browser.timeout,
+            browser: browser.clone(),
+        },
+        xai: XaiRuntimeConfig {
+            url: providers.xai.url.clone(),
+            keys: providers.xai.keys.clone(),
+            model: providers.xai.model.clone(),
+            tools: providers.xai.tools.clone(),
+        },
+        hn_api: HnRouteRuntimeConfig {
+            url: providers.hn_api.url.clone(),
+            firebase_url: providers.hn_api.firebase_url.clone(),
+            timeout_seconds: providers.hn_api.timeout,
+        },
+        youtube_api: KeyedHttpRouteRuntimeConfig {
+            url: providers.youtube_api.url.clone(),
+            keys: providers.youtube_api.keys.clone(),
+            timeout_seconds: providers.youtube_api.timeout,
+        },
+        youtube_web: HttpRouteRuntimeConfig {
+            url: providers.youtube_web.url.clone(),
+            timeout_seconds: providers.youtube_web.timeout,
+        },
+        gemini_api: ModelRouteRuntimeConfig {
+            url: providers.gemini_api.url.clone(),
+            keys: providers.gemini_api.keys.clone(),
+            model: providers.gemini_api.model.clone(),
+            timeout_seconds: providers.gemini_api.timeout,
+        },
+        polymarket_api: PolymarketRouteRuntimeConfig {
+            url: providers.polymarket_api.url.clone(),
+            clob_url: providers.polymarket_api.clob_url.clone(),
+            data_url: providers.polymarket_api.data_url.clone(),
+            timeout_seconds: providers.polymarket_api.timeout,
+        },
+        reddit_browser: BrowserRouteRuntimeConfig {
+            timeout_seconds: providers.reddit_browser.timeout,
+            browser: browser.clone(),
+        },
+    }
+}
+
+/// The runtime configuration of every platform route under the default configuration.
+#[cfg(test)]
+pub(crate) fn default_platform_routes() -> PlatformRoutesRuntimeConfig {
+    platform_routes(
+        &Config::default().providers,
+        &BrowserRuntimeConfig { path: None },
+    )
 }
 
 fn platform_entries(

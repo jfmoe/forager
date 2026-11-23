@@ -1,19 +1,20 @@
 use reqwest::Client;
 
 use super::constructors::{credentials, route_limiter};
+use super::route_declaration::{PlatformRoute, RouteAdapter, RouteContext};
 use super::{
-    ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
-    PlatformSearch, PolymarketApi, ProviderId, RedditBrowser, Serpapi, SsrnCrossref,
-    SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    browser, browser_preflight, hn_api, polymarket_api, reddit_browser, serpapi, ssrn_crossref,
-    web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
+    ArxivApi, DocsSearch, GeminiApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
+    PlatformSearch, PolymarketApi, ProviderId, Serpapi, SsrnCrossref, SupplementalSearch, WebFetch,
+    WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, browser, browser_preflight,
+    hn_api, polymarket_api, reddit_browser, serpapi, ssrn_crossref, web_fetch, xai,
+    xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
 use crate::config::{
-    BrowserRouteRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig,
-    HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig,
-    ModelRouteRuntimeConfig, PlatformRouteConfig, PolymarketRouteRuntimeConfig, RuntimeConfig,
-    WebFetchProviderConfig, provider_keys_key,
+    BrowserRouteRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
+    KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
+    PlatformRouteConfig, PolymarketRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
+    provider_keys_key,
 };
 use crate::net::RetryPolicy;
 use crate::providers::browser::BrowserLogin;
@@ -148,17 +149,11 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::Xai(config) => {
             Box::new(super::build_xai(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::HnApi(config) => {
-            Box::new(build_hn_api(config, client, retry_policy, deadline))
-        }
         PlatformRouteConfig::YoutubeApi(config) => {
             Box::new(build_youtube_api(config, client, retry_policy, deadline))
         }
         PlatformRouteConfig::PolymarketApi(config) => {
             Box::new(build_polymarket_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::RedditBrowser(config) => {
-            Box::new(build_reddit_browser(config, deadline))
         }
         PlatformRouteConfig::YoutubeWeb(_) => {
             unreachable!("youtube_web serves fetch only, so planning never selects it for search")
@@ -168,6 +163,16 @@ pub(crate) fn build_platform_search(
                 "gemini_api serves model operations only, so planning never selects it for search"
             )
         }
+        declared => declared_route(
+            declared,
+            RouteContext {
+                client,
+                retry_policy,
+                deadline,
+            },
+        )
+        .into_search()
+        .expect("planning selects a route for search only when its adapter checks search requests"),
     }
 }
 
@@ -193,9 +198,6 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::Xai(config) => {
             Box::new(super::build_xai(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::HnApi(config) => {
-            Box::new(build_hn_api(config, client, retry_policy, deadline))
-        }
         PlatformRouteConfig::YoutubeApi(config) => {
             Box::new(build_youtube_api(config, client, retry_policy, deadline))
         }
@@ -205,14 +207,21 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::PolymarketApi(config) => {
             Box::new(build_polymarket_api(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::RedditBrowser(config) => {
-            Box::new(build_reddit_browser(config, deadline))
-        }
         PlatformRouteConfig::GeminiApi(_) => {
             unreachable!(
                 "gemini_api serves model operations only, so planning never selects it for fetch"
             )
         }
+        declared => declared_route(
+            declared,
+            RouteContext {
+                client,
+                retry_policy,
+                deadline,
+            },
+        )
+        .into_fetch()
+        .expect("planning selects a route for fetch only when its adapter checks fetch requests"),
     }
 }
 
@@ -339,9 +348,16 @@ pub(crate) async fn hn_stories(
     let PlatformRouteConfig::HnApi(config) = config else {
         unreachable!("planning selects only stories routes")
     };
-    build_hn_api(config, client, retry_policy, deadline)
-        .stories(request)
-        .await
+    hn_api::HnApi::build(
+        config,
+        RouteContext {
+            client,
+            retry_policy,
+            deadline,
+        },
+    )
+    .stories(request)
+    .await
 }
 
 /// Reads the Price History of one outcome of a Polymarket market through a history route.
@@ -369,18 +385,23 @@ pub(crate) async fn platform_route_extra_checks(
     deadline: Deadline,
 ) -> Vec<(&'static str, Result<(), ProviderError>)> {
     match config {
-        PlatformRouteConfig::HnApi(config) => vec![(
-            "firebase",
-            build_hn_api(config, client, retry_policy, deadline)
-                .probe_firebase()
-                .await,
-        )],
         PlatformRouteConfig::PolymarketApi(config) => {
             let route = build_polymarket_api(config, client, retry_policy, deadline);
             vec![
                 ("clob", route.probe_clob().await),
                 ("data", route.probe_data().await),
             ]
+        }
+        declared if declared_adapter(declared.route()).is_some() => {
+            let route = declared_route(
+                declared,
+                RouteContext {
+                    client,
+                    retry_policy,
+                    deadline,
+                },
+            );
+            route.extra_checks().await
         }
         _ => Vec::new(),
     }
@@ -425,21 +446,6 @@ fn build_arxiv_api(
         client,
         route_limiter(ProviderId::ArxivApi)
             .expect("arxiv_api registration declares an access policy"),
-        retry_policy,
-        deadline,
-    )
-}
-
-fn build_hn_api(
-    config: HnRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> HnApi {
-    HnApi::new(
-        config,
-        client,
-        route_limiter(ProviderId::HnApi).expect("hn_api registration declares an access policy"),
         retry_policy,
         deadline,
     )
@@ -512,15 +518,6 @@ fn build_youtube_web(
     )
 }
 
-fn build_reddit_browser(config: BrowserRouteRuntimeConfig, deadline: Deadline) -> RedditBrowser {
-    RedditBrowser::new(
-        config,
-        route_limiter(ProviderId::RedditBrowser)
-            .expect("reddit_browser registration declares an access policy"),
-        deadline,
-    )
-}
-
 fn build_ssrn_crossref(
     config: HttpRouteRuntimeConfig,
     client: Client,
@@ -559,6 +556,27 @@ fn build_serpapi(
     Serpapi::new(config, client, credentials, retry_policy, deadline)
 }
 
+/// Builds a platform route from its route declaration.
+fn declared_route(config: PlatformRouteConfig, context: RouteContext) -> Box<dyn PlatformRoute> {
+    match config {
+        PlatformRouteConfig::HnApi(config) => (hn_api::DECLARATION.build)(config, context),
+        PlatformRouteConfig::RedditBrowser(config) => {
+            (reddit_browser::DECLARATION.build)(config, context)
+        }
+        other => unreachable!("{} has no route declaration", other.route().name()),
+    }
+}
+
+/// Returns the adapter of a route that has a route declaration, or `None` for any other
+/// provider.
+fn declared_adapter(id: ProviderId) -> Option<RouteAdapter> {
+    match id {
+        ProviderId::HnApi => Some(hn_api::DECLARATION.adapter),
+        ProviderId::RedditBrowser => Some(reddit_browser::DECLARATION.adapter),
+        _ => None,
+    }
+}
+
 /// Returns whether a platform search route can run the request with every explicit option, or
 /// `None` for a provider that has no platform search adapter.
 pub(crate) fn platform_search_support(
@@ -571,11 +589,9 @@ pub(crate) fn platform_search_support(
         ProviderId::Serpapi => serpapi::search_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
         ProviderId::Xai => xai::search_support(request),
-        ProviderId::HnApi => hn_api::search_support(request),
         ProviderId::YoutubeApi => youtube_api::search_support(request),
         ProviderId::PolymarketApi => polymarket_api::search_support(request),
-        ProviderId::RedditBrowser => reddit_browser::search_support(request),
-        _ => return None,
+        _ => (declared_adapter(id)?.search_support?)(request),
     };
     Some(transport_support(id).and(route))
 }
@@ -592,12 +608,10 @@ pub(crate) fn platform_fetch_support(
         ProviderId::Serpapi => serpapi::fetch_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
         ProviderId::Xai => xai::fetch_support(request),
-        ProviderId::HnApi => hn_api::fetch_support(request),
         ProviderId::YoutubeApi => youtube_api::fetch_support(request),
         ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
         ProviderId::PolymarketApi => polymarket_api::fetch_support(request),
-        ProviderId::RedditBrowser => reddit_browser::fetch_support(request),
-        _ => return None,
+        _ => (declared_adapter(id)?.fetch_support?)(request),
     };
     Some(transport_support(id).and(route))
 }
@@ -704,8 +718,7 @@ pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
         }
         let page = match registration.id {
             ProviderId::XiaohongshuBrowser => xiaohongshu_browser::LOGIN_PAGE,
-            ProviderId::RedditBrowser => reddit_browser::LOGIN_PAGE,
-            _ => return None,
+            _ => declared_adapter(registration.id)?.login_page?,
         };
         Some(BrowserLogin {
             route: registration.id,

@@ -4,8 +4,8 @@ use std::pin::Pin;
 use chrono::{Datelike, Local, Weekday};
 
 use super::{
-    ArxivApi, Exa, ExaSearchRequest, HnApi, Openai, PolymarketApi, RedditBrowser, SearchType,
-    Serpapi, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    ArxivApi, Exa, ExaSearchRequest, Openai, PolymarketApi, SearchType, Serpapi, SsrnCrossref,
+    SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
     DocumentationSearchOutcome, ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest,
@@ -165,16 +165,6 @@ impl PlatformSearch for Xai {
     }
 }
 
-impl PlatformSearch for HnApi {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(HnApi::search(self, request))
-    }
-}
-
 impl PlatformSearch for PolymarketApi {
     fn search<'a>(
         &'a self,
@@ -233,16 +223,6 @@ impl PlatformFetch for Serpapi {
     }
 }
 
-impl PlatformFetch for RedditBrowser {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(RedditBrowser::fetch(self, request))
-    }
-}
-
 impl PlatformFetch for XiaohongshuBrowser {
     fn fetch<'a>(
         &'a self,
@@ -260,26 +240,6 @@ impl PlatformFetch for Xai {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(Xai::fetch_post(self, request))
-    }
-}
-
-impl PlatformFetch for HnApi {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(HnApi::fetch(self, request))
-    }
-}
-
-impl PlatformSearch for RedditBrowser {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(RedditBrowser::search(self, request))
     }
 }
 

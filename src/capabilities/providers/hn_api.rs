@@ -7,6 +7,8 @@
 //! request failure fails `stories`. Every request to either endpoint follows the route's one
 //! access policy.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use chrono::DateTime;
@@ -19,14 +21,18 @@ use crate::config::HnRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
+use crate::providers::route_declaration::{
+    ExtraCheck, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{
     Trail, acquire_window, other_platform_message, parameter_error, utc_second,
 };
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, HnItemData,
     HnItemType, HnRef, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
-    PlatformItemData, PlatformRef, ProviderError,
+    PlatformItemData, PlatformRef, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
 };
 
 #[path = "hn_markup.rs"]
@@ -43,6 +49,51 @@ use thread::{ThreadNode, ThreadRoot};
 
 const ROUTE: ProviderId = ProviderId::HnApi;
 const PLATFORM: Platform = Platform::Hn;
+
+/// The route's declaration: Search and Fetch of the catalog, and the Firebase endpoint as a
+/// doctor check beyond the search probe.
+pub(crate) const DECLARATION: RouteDeclaration<HnRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(HnApi::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for HnApi {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+
+    fn extra_checks(&self) -> Pin<Box<dyn Future<Output = Vec<ExtraCheck>> + Send + '_>> {
+        Box::pin(async { vec![("firebase", self.probe_firebase().await)] })
+    }
+}
+
+impl PlatformSearch for HnApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(HnApi::search(self, request))
+    }
+}
+
+impl PlatformFetch for HnApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(HnApi::fetch(self, request))
+    }
+}
 
 /// Returns whether the route can fetch at the requested depth; it never sends a request. The
 /// item type is unknown until the item is read, so a comment asked for its full text fails
@@ -95,20 +146,15 @@ pub(crate) struct HnApi {
 }
 
 impl HnApi {
-    pub(crate) fn new(
-        config: HnRouteRuntimeConfig,
-        client: Client,
-        limiter: RateLimiter,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares.
+    pub(crate) fn build(config: HnRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
             config,
-            client,
+            client: context.client,
             credentials: CredentialPool::new(ROUTE.name(), Vec::new()),
-            limiter,
-            retry_policy,
-            deadline,
+            limiter: route_limiter(ROUTE).expect("hn_api registration declares an access policy"),
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

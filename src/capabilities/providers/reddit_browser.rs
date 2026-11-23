@@ -9,6 +9,8 @@
 //! it decodes the projection, recognizes a verification page or a logged-out session, and maps
 //! the records to platform items, without a browser.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::Url;
@@ -21,9 +23,13 @@ use crate::net::AttemptFailure;
 use crate::providers::browser::{CaptureLevel, Exchange, RequestMethod, runtime};
 use crate::providers::browser_route::{BrowserRoute, PageReading, single_attempt};
 use crate::providers::execution::ExecutionSettings;
+use crate::providers::route_declaration::{PlatformRoute, RouteAdapter, RouteDeclaration};
 use crate::providers::shared::utc_second;
-use crate::rate_limit::RateLimiter;
-use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Platform};
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
+use crate::types::{
+    AttemptErrorKind, AttemptTarget, Deadline, Platform, PlatformFetchOutcome,
+    PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+};
 
 const ROUTE: ProviderId = ProviderId::RedditBrowser;
 const SITE_HOST: &str = "www.reddit.com";
@@ -53,12 +59,53 @@ pub(crate) struct RedditBrowser {
     browser: BrowserRoute,
 }
 
+/// The route's declaration: Search and Fetch of the catalog, and the login into the Reddit
+/// Browser Profile.
+pub(crate) const DECLARATION: RouteDeclaration<BrowserRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(RedditBrowser::build(config, context.deadline)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: Some(LOGIN_PAGE),
+    },
+};
+
+impl PlatformRoute for RedditBrowser {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformSearch for RedditBrowser {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(RedditBrowser::search(self, request))
+    }
+}
+
+impl PlatformFetch for RedditBrowser {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(RedditBrowser::fetch(self, request))
+    }
+}
+
 impl RedditBrowser {
-    pub(crate) fn new(
-        config: BrowserRouteRuntimeConfig,
-        limiter: RateLimiter,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares. A browser route
+    /// sends no HTTP request of its own, so the client and the retry policy do not reach it.
+    fn build(config: BrowserRouteRuntimeConfig, deadline: Deadline) -> Self {
+        let limiter =
+            route_limiter(ROUTE).expect("reddit_browser registration declares an access policy");
         Self {
             browser: BrowserRoute::new(ROUTE, config, limiter, deadline),
         }
