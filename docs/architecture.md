@@ -49,7 +49,7 @@ A Platform is a dimension beside the Capability Seams, not another seam (ADR-001
 
 Each Platform Route is declared once, in its own adapter: how it is built from its runtime configuration, the request checks planning runs before it chooses the route, and what doctor and the browser login add for it. The built route hands out its own seam implementations, extra endpoint checks and per-key account checks. The provider factory reaches a route only through that declaration, with one lookup by route configuration and one by provider identity.
 
-Every match on the provider identity, or on a configuration keyed by it, in the provider factory and the runtime configuration names each case, and a lint scoped to those modules keeps it so. The runtime configuration holds one named field per route instead of a list. Either way a provider that one of them misses is a compile error, not a run that reports an unknown provider.
+Every module that dispatches on the provider identity, on a configuration keyed by it, or on a paged operation names each case in its matches, and a lint in each such module keeps it so. The runtime configuration holds one named field per route. A provider or paged operation that a dispatch site misses is therefore a compile error.
 
 ## How a request flows
 
