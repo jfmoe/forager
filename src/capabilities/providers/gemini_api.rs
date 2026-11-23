@@ -7,6 +7,8 @@
 //! reads the platform itself: core checks the video through the platform's fetch chain first
 //! and hands the item it read to the route.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::{Client, RequestBuilder};
@@ -19,10 +21,16 @@ use crate::credentials::CredentialPool;
 use crate::net::{
     AttemptFailure, RetryPolicy, combine_diagnostics, read_complete_protocol, send_provider_request,
 };
+use crate::providers::constructors::credentials;
 use crate::providers::execution::{
     ExecutionOutcome, ExecutionSettings, execute_pinned, execute_v2,
 };
+use crate::providers::key_account::KeyAccount;
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{Refusal, acquire_window};
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::redact::Secret;
 use crate::types::{
@@ -39,6 +47,31 @@ const KEY_HEADER: &str = "x-goog-api-key";
 const VIDEO_MIME_TYPE: &str = "video/*";
 const ASK_INSTRUCTION: &str = "Answer the question below from this video alone: from what it shows and what it says. Mark every moment you rely on as mm:ss, or h:mm:ss from the first hour on. If you cannot watch the video, say so instead of answering.";
 
+/// The route's declaration: neither Search nor Fetch of the catalog, only Ask and Transcribe,
+/// and an account probe that lists the models with every key.
+pub(crate) const DECLARATION: RouteDeclaration<ModelRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(GeminiApi::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: None,
+        fetch_support: None,
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for GeminiApi {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        None
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        None
+    }
+
+    fn accounts(&self) -> Option<Pin<Box<dyn Future<Output = Vec<KeyAccount>> + Send + '_>>> {
+        Some(Box::pin(self.key_accounts()))
+    }
+}
+
 pub(crate) struct GeminiApi {
     config: ModelRouteRuntimeConfig,
     client: Client,
@@ -49,21 +82,16 @@ pub(crate) struct GeminiApi {
 }
 
 impl GeminiApi {
-    pub(crate) fn new(
-        config: ModelRouteRuntimeConfig,
-        client: Client,
-        credentials: CredentialPool,
-        limiter: RateLimiter,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares.
+    pub(crate) fn build(mut config: ModelRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
+            credentials: credentials(ROUTE, &mut config.keys),
             config,
-            client,
-            credentials,
-            limiter,
-            retry_policy,
-            deadline,
+            client: context.client,
+            limiter: route_limiter(ROUTE)
+                .expect("gemini_api registration declares an access policy"),
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 
@@ -133,8 +161,9 @@ impl GeminiApi {
     }
 
     /// Lists the models with every key in pool order; each check sends only its own key, so the
-    /// persistent credential cursor does not move and no model quota is spent.
-    pub(crate) async fn accounts(&self) -> Vec<Result<(), ProviderError>> {
+    /// persistent credential cursor does not move and no model quota is spent. The model list
+    /// reports no quota.
+    async fn key_accounts(&self) -> Vec<KeyAccount> {
         let url = format!("{}/models", self.base_url());
         let mut accounts = Vec::with_capacity(self.credentials.len());
         for index in 0..self.credentials.len() {
@@ -152,7 +181,10 @@ impl GeminiApi {
                 },
             )
             .await;
-            accounts.push(result.map(drop));
+            accounts.push(KeyAccount {
+                quota: None,
+                failure: result.err(),
+            });
         }
         accounts
     }

@@ -47,6 +47,10 @@ Each Capability Seam has one trait with its own outcome type. A provider is one 
 
 A Platform is a dimension beside the Capability Seams, not another seam (ADR-0019). A Platform Route is a provider, and one route can serve both a seam and a platform. The platform catalog is the only source of which routes belong to which platform. A platform can have several routes that split its evidence into layers; one layer never falls back to another (ADR-0028).
 
+Each Platform Route is declared once, in its own adapter: how it is built from its runtime configuration, the request checks planning runs before it chooses the route, and what doctor and the browser login add for it. The built route hands out its own seam implementations, extra endpoint checks and per-key account checks. The provider factory reaches a route only through that declaration, with one lookup by route configuration and one by provider identity.
+
+Every match on the provider identity, or on a configuration keyed by it, in the provider factory and the runtime configuration names each case, and a lint scoped to those modules keeps it so. The runtime configuration holds one named field per route instead of a list. Either way a provider that one of them misses is a compile error, not a run that reports an unknown provider.
+
 ## How a request flows
 
 **Search.** The caller's capability declaration is authoritative, and a search without one runs main search only (ADR-0004). Main search and the supporting capabilities then fan out inside one deadline (ADR-0016). Their attempts are merged, and dispatch writes one journal record at the terminal state (ADR-0002).
@@ -86,8 +90,8 @@ Invariants that hold for every command:
 
 ## Extension points
 
-- **A provider** is registered once, in the provider registry; it also needs its constructor in the provider factory and its configuration leaves.
-- **A platform or route** needs a catalog entry, its type leaf, the route adapter and the registration points that the platform checklist test names. Run that test; each failure says what is missing.
+- **A provider** is registered once, in the provider registry, and needs its configuration section, leaves and runtime configuration. The compiler then names each match in the provider factory and the runtime configuration that must place it.
+- **A platform or route** needs a catalog entry, its type leaf, the route adapter with its one route declaration, its configuration section and runtime configuration, and the registration points that the platform checklist test names, such as an access-window test, sample refs and a live case for each operation. The compiler names the factory's two lookups. Run the checklist test; each failure says what is missing.
 - **A platform operation served by one route** is an inherent method on that route. The provider factory declares the operation's route set, and `core/` adds one orchestration entry for it. When a second route appears, the operation becomes a trait.
 - **A command** is placed by kind:
   - the bare verb is the smart pipeline;

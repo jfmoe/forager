@@ -10,6 +10,7 @@ use std::pin::Pin;
 use reqwest::Client;
 
 use super::browser::LoginPage;
+use super::key_account::KeyAccount;
 use super::{PlatformFetch, PlatformSearch};
 use crate::net::RetryPolicy;
 use crate::types::{Deadline, PlatformFetchRequest, PlatformSearchRequest, ProviderError};
@@ -38,6 +39,12 @@ pub(crate) trait PlatformRoute: Send + Sync {
     /// passed. Most routes combine none.
     fn extra_checks(&self) -> Pin<Box<dyn Future<Output = Vec<ExtraCheck>> + Send + '_>> {
         Box::pin(std::future::ready(Vec::new()))
+    }
+
+    /// Checks the account of every configured key, or `None` for a route whose registration
+    /// declares no account probe.
+    fn accounts(&self) -> Option<Pin<Box<dyn Future<Output = Vec<KeyAccount>> + Send + '_>>> {
+        None
     }
 }
 

@@ -9,6 +9,8 @@
 //! API, the only source of it. Every request to any endpoint follows the route's one access
 //! policy.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::Client;
@@ -22,9 +24,13 @@ use crate::net::{
     AttemptFailure, RetryPolicy, read_complete_protocol_with_reasons, send_provider_request,
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
+use crate::providers::route_declaration::{
+    ExtraCheck, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{
     Refusal, Trail, acquire_window, other_platform_message, parameter_error,
 };
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
@@ -45,6 +51,56 @@ const ROUTE: ProviderId = ProviderId::PolymarketApi;
 const PLATFORM: Platform = Platform::Polymarket;
 /// Gamma search refuses a page past 100 with HTTP 422 (measured 2026-10-24).
 const MAX_SEARCH_PAGE: u64 = 100;
+
+/// The route's declaration: Search and Fetch of the catalog, and the CLOB and Data API
+/// endpoints as doctor checks beyond the search probe.
+pub(crate) const DECLARATION: RouteDeclaration<PolymarketRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(PolymarketApi::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for PolymarketApi {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+
+    fn extra_checks(&self) -> Pin<Box<dyn Future<Output = Vec<ExtraCheck>> + Send + '_>> {
+        Box::pin(async {
+            vec![
+                ("clob", self.probe_clob().await),
+                ("data", self.probe_data().await),
+            ]
+        })
+    }
+}
+
+impl PlatformSearch for PolymarketApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(PolymarketApi::search(self, request))
+    }
+}
+
+impl PlatformFetch for PolymarketApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(PolymarketApi::fetch(self, request))
+    }
+}
 
 /// Returns whether the route can run the search; it never sends a request. Gamma refuses a
 /// page past the last one it serves, so such a cursor fails here.
@@ -153,20 +209,16 @@ pub(crate) struct PolymarketApi {
 }
 
 impl PolymarketApi {
-    pub(crate) fn new(
-        config: PolymarketRouteRuntimeConfig,
-        client: Client,
-        limiter: RateLimiter,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares.
+    pub(crate) fn build(config: PolymarketRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
             config,
-            client,
+            client: context.client,
             credentials: CredentialPool::new(ROUTE.name(), Vec::new()),
-            limiter,
-            retry_policy,
-            deadline,
+            limiter: route_limiter(ROUTE)
+                .expect("polymarket_api registration declares an access policy"),
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

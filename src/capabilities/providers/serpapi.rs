@@ -5,6 +5,8 @@
 //! parameters, response decoding, and support checks; the account module owns the free
 //! per-key quota report.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::Client;
@@ -15,17 +17,72 @@ use crate::catalog::ProviderId;
 use crate::config::KeyedHttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, ProviderResponseBody, RetryPolicy, read_complete_protocol};
+use crate::providers::constructors::credentials;
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
+use crate::providers::key_account::KeyAccount;
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::redacted_urls_message;
+use crate::providers::{PlatformFetch, PlatformSearch};
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderError};
+use crate::types::{
+    AttemptErrorKind, AttemptTarget, Deadline, PlatformFetchOutcome, PlatformFetchRequest,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+};
 
 const ROUTE: ProviderId = ProviderId::Serpapi;
 #[path = "serpapi_account.rs"]
 mod account;
 #[path = "serpapi_scholar.rs"]
 mod scholar;
+pub(crate) use account::KeyQuota;
 pub(crate) use scholar::{cited_by_support, fetch_support, search_support};
+
+/// The route's declaration: Search and Fetch of the catalog, and an account probe that reads
+/// every key's quota.
+pub(crate) const DECLARATION: RouteDeclaration<KeyedHttpRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(Serpapi::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for Serpapi {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+
+    fn accounts(&self) -> Option<Pin<Box<dyn Future<Output = Vec<KeyAccount>> + Send + '_>>> {
+        Some(Box::pin(self.key_accounts()))
+    }
+}
+
+impl PlatformSearch for Serpapi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(Serpapi::search(self, request))
+    }
+}
+
+impl PlatformFetch for Serpapi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(Serpapi::fetch(self, request))
+    }
+}
 
 pub(crate) struct Serpapi {
     url: String,
@@ -58,20 +115,16 @@ fn refusal(kind: AttemptErrorKind, message: String) -> AttemptFailure {
 }
 
 impl Serpapi {
-    pub(crate) fn new(
-        config: KeyedHttpRouteRuntimeConfig,
-        client: Client,
-        credentials: CredentialPool,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route; SerpApi limits throughput per account, so the route follows no access
+    /// policy of its own.
+    pub(crate) fn build(mut config: KeyedHttpRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
+            credentials: credentials(ROUTE, &mut config.keys),
             url: config.url,
             timeout_seconds: config.timeout_seconds,
-            client,
-            credentials,
-            retry_policy,
-            deadline,
+            client: context.client,
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

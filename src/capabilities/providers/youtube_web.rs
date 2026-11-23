@@ -9,6 +9,8 @@
 //! request whose answer it reads. The client and request shape follow youtube-transcript-api;
 //! when YouTube breaks the route, its fix is the reference.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::header::ACCEPT_LANGUAGE;
@@ -21,11 +23,15 @@ use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{
     Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
 };
 use crate::providers::transcript::Transcript;
 use crate::providers::youtube_transcript::YoutubeVideo;
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
@@ -61,6 +67,36 @@ fn player_body(video_id: &str) -> serde_json::Value {
         "context": {"client": {"clientName": PLAYER_CLIENT_NAME, "clientVersion": PLAYER_CLIENT_VERSION}},
         "videoId": video_id,
     })
+}
+
+/// The route's declaration: Fetch of the catalog only, so doctor probes it with a fetch.
+pub(crate) const DECLARATION: RouteDeclaration<HttpRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(YoutubeWeb::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: None,
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for YoutubeWeb {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        None
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformFetch for YoutubeWeb {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(YoutubeWeb::fetch(self, request))
+    }
 }
 
 /// Returns whether the route can fetch the request; it never sends a request.
@@ -113,18 +149,16 @@ pub(crate) struct YoutubeWeb {
 }
 
 impl YoutubeWeb {
-    pub(crate) fn new(
-        config: HttpRouteRuntimeConfig,
-        client: Client,
-        limiter: RateLimiter,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares. The route never
+    /// retries, so the shared retry policy does not reach it.
+    fn build(config: HttpRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
             config,
-            client,
+            client: context.client,
             credentials: CredentialPool::new(ROUTE.name(), Vec::new()),
-            limiter,
-            deadline,
+            limiter: route_limiter(ROUTE)
+                .expect("youtube_web registration declares an access policy"),
+            deadline: context.deadline,
         }
     }
 

@@ -2,6 +2,8 @@
 //! to the SSRN DOI prefix.
 
 use std::fmt::Write as _;
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::Client;
@@ -14,20 +16,64 @@ use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
 use crate::providers::markup::{fold_whitespace, markup_paragraphs, markup_text};
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{
     acquire_window, other_platform_message, parameter_error, redacted_urls_message,
 };
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
     PlatformFetchOutcome, PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef,
-    ProviderError, SsrnItemData, SsrnRef,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SsrnItemData, SsrnRef,
 };
 
 const ROUTE: ProviderId = ProviderId::SsrnCrossref;
 #[path = "ssrn_crossref_search.rs"]
 mod search;
 pub(crate) use search::search_support;
+
+/// The route's declaration: Search and Fetch of the catalog.
+pub(crate) const DECLARATION: RouteDeclaration<HttpRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(SsrnCrossref::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for SsrnCrossref {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformSearch for SsrnCrossref {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(SsrnCrossref::search(self, request))
+    }
+}
+
+impl PlatformFetch for SsrnCrossref {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(SsrnCrossref::fetch(self, request))
+    }
+}
 
 /// Returns whether the route can fetch at the requested depth; it never sends a request.
 pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String> {
@@ -52,20 +98,16 @@ pub(crate) struct SsrnCrossref {
 }
 
 impl SsrnCrossref {
-    pub(crate) fn new(
-        config: HttpRouteRuntimeConfig,
-        client: Client,
-        limiter: RateLimiter,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares.
+    fn build(config: HttpRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
             config,
-            client,
+            client: context.client,
             credentials: CredentialPool::new(ROUTE.name(), Vec::new()),
-            limiter,
-            retry_policy,
-            deadline,
+            limiter: route_limiter(ROUTE)
+                .expect("ssrn_crossref registration declares an access policy"),
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

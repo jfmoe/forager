@@ -283,13 +283,8 @@ async fn run_probe(
         DoctorProbe::DocsSearch { name, transport } => {
             let provider_config = config::docs_provider_config(provider, &config.exa)
                 .expect("probe registration belongs to the docs-search catalog");
-            let adapter = providers::build_docs_search(
-                provider,
-                provider_config,
-                client,
-                retry_policy,
-                deadline,
-            );
+            let adapter =
+                providers::build_docs_search(provider_config, client, retry_policy, deadline);
             one_check(adapter.search("forager doctor", 1).await, name, transport)
         }
         DoctorProbe::PlatformSearch {
@@ -356,15 +351,10 @@ async fn probe_main_search_backend(
         .collect::<Vec<_>>();
     let provider_config = config::main_provider_config(provider, &config.main_search_providers())
         .expect("probe registration belongs to the main-search catalog");
-    let result = providers::build_main_search(
-        provider,
-        provider_config,
-        client.clone(),
-        retry_policy,
-        deadline,
-    )
-    .probe(probe_search_request())
-    .await;
+    let result =
+        providers::build_main_search(provider_config, client.clone(), retry_policy, deadline)
+            .probe(probe_search_request())
+            .await;
     let mut outcome = one_check(result, name, transport);
     for (platform, route_config) in platform_routes {
         if outcome.failure.is_some() {
@@ -552,9 +542,8 @@ fn account_outcome(
 
 /// Reports a key's quota: nothing for a service that reports none, and every field `null` when
 /// the check could not read it.
-fn quota_status(quota: KeyQuota) -> Option<QuotaStatus> {
-    let read = match quota {
-        KeyQuota::Unreported => return None,
+fn quota_status(quota: Option<KeyQuota>) -> Option<QuotaStatus> {
+    let read = match quota? {
         KeyQuota::Unread => None,
         KeyQuota::Read(quota) => Some(quota),
     };

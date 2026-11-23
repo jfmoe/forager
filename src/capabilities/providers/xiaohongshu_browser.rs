@@ -6,6 +6,9 @@
 //! rendered. Judging the observation classifies the page facts, checks that the responses
 //! answer the request, and decodes them into items; it never touches a browser.
 
+use std::future::Future;
+use std::pin::Pin;
+
 use chrono::{DateTime, FixedOffset, SecondsFormat};
 #[cfg(test)]
 use serde::Deserialize;
@@ -16,10 +19,13 @@ use crate::net::AttemptFailure;
 use crate::providers::browser::runtime;
 use crate::providers::browser_route::{BrowserRoute, single_attempt};
 use crate::providers::execution::ExecutionSettings;
-use crate::rate_limit::RateLimiter;
+use crate::providers::route_declaration::{PlatformRoute, RouteAdapter, RouteDeclaration};
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{
-    AccessToken, AttemptErrorKind, AttemptTarget, Deadline, Platform, XiaohongshuRef,
+    AccessToken, AttemptErrorKind, AttemptTarget, Deadline, Platform, PlatformFetchOutcome,
+    PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    XiaohongshuRef,
 };
 
 const ROUTE: ProviderId = ProviderId::XiaohongshuBrowser;
@@ -60,12 +66,53 @@ pub(crate) struct XiaohongshuBrowser {
     browser: BrowserRoute,
 }
 
+/// The route's declaration: Search and Fetch of the catalog, and the login into the
+/// Xiaohongshu Browser Profile.
+pub(crate) const DECLARATION: RouteDeclaration<BrowserRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(XiaohongshuBrowser::build(config, context.deadline)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: Some(LOGIN_PAGE),
+    },
+};
+
+impl PlatformRoute for XiaohongshuBrowser {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformSearch for XiaohongshuBrowser {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(XiaohongshuBrowser::search(self, request))
+    }
+}
+
+impl PlatformFetch for XiaohongshuBrowser {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(XiaohongshuBrowser::fetch(self, request))
+    }
+}
+
 impl XiaohongshuBrowser {
-    pub(crate) fn new(
-        config: BrowserRouteRuntimeConfig,
-        limiter: RateLimiter,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares. A browser route
+    /// sends no HTTP request of its own, so the client and the retry policy do not reach it.
+    pub(crate) fn build(config: BrowserRouteRuntimeConfig, deadline: Deadline) -> Self {
+        let limiter = route_limiter(ROUTE)
+            .expect("xiaohongshu_browser registration declares an access policy");
         Self {
             browser: BrowserRoute::new(ROUTE, config, limiter, deadline),
         }
