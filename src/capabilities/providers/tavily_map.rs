@@ -67,17 +67,13 @@ impl TavilyMap {
             move |credential, _| async move { self.send_once(request_ref, &credential).await },
         )
         .await?;
-        let response = execution.value;
+        let site = execution.value;
         Ok(MapOutcome {
             provider: "tavily",
             url: redact_urls(&request.url, &self.credentials),
-            base_url: redact_urls(&response.base_url, &self.credentials),
-            results: response
-                .results
-                .iter()
-                .map(|url| redact_urls(url, &self.credentials))
-                .collect(),
-            response_time: response.response_time,
+            base_url: site.base_url,
+            results: site.results,
+            response_time: site.response_time,
             attempts: if request.verbose {
                 execution.attempts
             } else {
@@ -101,21 +97,13 @@ impl TavilyMap {
         let response = send_provider_request(request, &self.credentials).await?;
         let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
         let status = body.status;
-        let response: TavilyMapResponse =
-            serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
+        let site =
+            decode_site(&body.text, &self.credentials).map_err(|message| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status),
-                message: redacted_urls_message(
-                    &format!("invalid Tavily map response: {error}"),
-                    &self.credentials,
-                ),
+                message,
             })?;
-        response.validate().map_err(|message| AttemptFailure {
-            kind: AttemptErrorKind::Runtime,
-            status: Some(status),
-            message: message.into(),
-        })?;
-        Ok((Some(status), response))
+        Ok((Some(status), site))
     }
 }
 
@@ -151,13 +139,34 @@ struct TavilyMapResponse {
     response_time: f64,
 }
 
+/// Decodes a successful map body into the mapped site, with its URLs redacted as the outcome
+/// shows them.
+fn decode_site(text: &str, credentials: &CredentialPool) -> Result<TavilyMapResponse, String> {
+    let response: TavilyMapResponse = serde_json::from_str(text).map_err(|error| {
+        redacted_urls_message(
+            &format!("invalid Tavily map response: {error}"),
+            credentials,
+        )
+    })?;
+    response.validate()?;
+    Ok(TavilyMapResponse {
+        base_url: redact_urls(&response.base_url, credentials),
+        results: response
+            .results
+            .iter()
+            .map(|url| redact_urls(url, credentials))
+            .collect(),
+        response_time: response.response_time,
+    })
+}
+
 impl TavilyMapResponse {
-    fn validate(&self) -> Result<(), &'static str> {
+    fn validate(&self) -> Result<(), String> {
         if !is_http_url(&self.base_url) {
-            return Err("base_url must be an HTTP(S) URL with a host");
+            return Err("base_url must be an HTTP(S) URL with a host".into());
         }
         if self.results.iter().any(|url| !is_http_url(url)) {
-            return Err("results must contain only HTTP(S) URLs with a host");
+            return Err("results must contain only HTTP(S) URLs with a host".into());
         }
         Ok(())
     }
