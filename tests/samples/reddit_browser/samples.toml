@@ -1,0 +1,75 @@
+# Recorded observations of the `reddit_browser` route's page logic: local pages reconstructed from
+# the logged-in site's pages, and the projections the route's scripts read from them. Each `.json`
+# is the output of the operation's projection script on the `.html` of the same name, which the
+# real-browser projection tests check; each record names one file in this directory.
+
+[[sample]]
+file = "search.html"
+shape = "Global search results page of a logged-in session: the `shreddit-app` login attribute, four post results with their nested tracking records, title links, timestamps and counter rows, and the lazily loaded next-page fragment; post, author and snippet values are fake"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "search.json"
+shape = "Search projection of `search.html`: the page facts, the no-results and next-page markers, and the four result records"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "captcha.html"
+shape = "The site's verification page `Prove your humanity`, served instead of a subreddit search page: a form holding a reCAPTCHA widget, without `shreddit-app`; the site key is fake"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "captcha.json"
+shape = "Search projection of `captcha.html`: the verification page facts and no results"
+variant_of = "search.json"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "post.html"
+shape = "Text post page of a logged-in session: the screen-view record, the post element with its attributes and body, the comment tree's sort, and nested comments with a deleted one; post, author, comment and account values are fake"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "post.json"
+shape = "Post projection of `post.html`: the page facts, the screen-view record's ID and adult flag, the post record, the comment sort and six comment records"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "big-post.html"
+shape = "Gallery post page without text whose comment tree marks more comments to load, sorted by top"
+variant_of = "post.html"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "big-post.json"
+shape = "Post projection of `big-post.html`: a gallery post record, one comment and the more-comments marker"
+variant_of = "post.json"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "missing-post.html"
+shape = "Post page of a logged-in session that shows no post element, as for an adult post the account's setting hides: only the screen-view record of an adult post"
+variant_of = "post.html"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "missing-post.json"
+shape = "Post projection of `missing-post.html`: the page facts and the screen-view record, without a post or comments"
+variant_of = "post.json"
+origin = "hand-written"
+observed = 2026-11-21
+
+[[sample]]
+file = "home.html"
+shape = "Home page document of a logged-in session, as the login wait captures it: the `shreddit-app` start tag marked `user-logged-in=\"true\"`"
+origin = "hand-written"
+observed = 2026-11-22

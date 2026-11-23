@@ -21,7 +21,7 @@ These tests are marked `#[ignore]`, so the full test suite lists them as skipped
 cargo nextest run --locked --profile real-browser --run-ignored only
 ```
 
-- The Reddit projection tests (one for the search page, one for the post page) run the in-page projection script on local pages (`tests/fixtures/reddit_browser/*.html`) and assert that its output equals the JSON fixture the judgement tests read. After changing a projection script or a local page, run them with `FORAGER_WRITE_PROJECTIONS=1` to rewrite the JSON, then review the diff.
+- The Reddit projection tests (one for the search page, one for the post page) run the in-page projection script on local pages stored as samples (`tests/samples/reddit_browser/*.html`) and assert that its output equals the stored JSON projection the judgement tests read. After changing a projection script or a local page, run them with `FORAGER_WRITE_PROJECTIONS=1` to rewrite the JSON, then review the diff and update the samples' records.
 - They need the installed Managed Browser (`forager browser install`), or another browser executable named by `FORAGER_REAL_BROWSER_PATH`. Without a browser the tests fail with the reason; they never pass silently.
 - The tests open only static pages served on this machine, visit no real site, need no login, and each uses its own temporary Browser Profile.
 
@@ -65,7 +65,7 @@ Every live operation acts as the user's account. These are hard boundaries:
 - The login state stays in the Browser Profile. Do not read, copy or export its cookies, tokens or any of its files (the profile is in `$XDG_STATE_HOME/forager/browser/<platform>`, or `~/.local/state/forager/browser/<platform>` when that is unset), and do not copy the profile elsewhere to experiment.
 - Read only the requests the page itself makes and the page state through read-only scripts. Page Logic sends no API request of its own and does not patch `fetch`, XHR or WebSocket; it changes page state only through native input.
 - After a risk signal, do not retry, and do not try again with another profile, browser or fingerprint.
-- Commits and live-test records never contain an Access Token (`xsec_token`), a cookie, an account identifier, or a real user's note or user ID; fixtures use fake values for these.
+- Commits and live-test records never contain an Access Token (`xsec_token`), a cookie, an account identifier, or a real user's note or user ID; samples use fake values for these.
 
 ## Known behaviour
 

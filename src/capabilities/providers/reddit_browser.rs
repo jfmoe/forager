@@ -402,6 +402,12 @@ mod tests {
 
     use super::document_status;
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
+    use crate::samples::sample;
+
+    /// The stored projection or page `name` of `tests/samples/reddit_browser/`.
+    pub(super) fn stored(name: &str) -> String {
+        sample(&format!("reddit_browser/{name}"))
+    }
 
     fn exchange(url: &str, status: u16) -> Exchange {
         Exchange {
@@ -451,9 +457,10 @@ mod tests {
         assert_eq!(status, None);
     }
 
-    /// Runs the projection `script` on each local page of `projected` (the path, the file the
-    /// server serves it from, and the projection fixture it must yield), with the server's origin
-    /// written as Reddit's; with `FORAGER_WRITE_PROJECTIONS` set, it writes the fixtures instead.
+    /// Runs the projection `script` on each local page of `projected` (the path, the sample the
+    /// server serves it from, and the stored projection of `tests/samples/reddit_browser/` it must
+    /// yield), with the server's origin written as Reddit's; with `FORAGER_WRITE_PROJECTIONS` set,
+    /// it writes the stored projections instead.
     #[cfg(unix)]
     pub(super) fn check_projections(
         served: crate::providers::real_browser::FixturePages,
@@ -473,14 +480,19 @@ mod tests {
             let projection = serde_json::to_string_pretty(&projection)
                 .expect("a JSON value serializes")
                 .replace(pages.origin(), super::SITE_ORIGIN);
-            let file = format!("{}/tests/fixtures/{expected}", env!("CARGO_MANIFEST_DIR"));
             if std::env::var_os("FORAGER_WRITE_PROJECTIONS").is_some() {
+                let file = format!(
+                    "{}/tests/samples/reddit_browser/{expected}",
+                    env!("CARGO_MANIFEST_DIR")
+                );
                 std::fs::write(&file, format!("{projection}\n")).expect("write the projection");
                 continue;
             }
-            let fixture = std::fs::read_to_string(&file)
-                .unwrap_or_else(|error| panic!("read {file}: {error}"));
-            assert_eq!(projection.trim_end(), fixture.trim_end(), "{served}");
+            assert_eq!(
+                projection.trim_end(),
+                stored(expected).trim_end(),
+                "{served}"
+            );
         }
     }
 }
