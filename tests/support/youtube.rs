@@ -74,18 +74,6 @@ pub(crate) fn zoo_video(description: &str) -> Value {
     samples::zoo_video(description)
 }
 
-pub(crate) fn api_error(
-    status: u16,
-    reason: &str,
-    info_reason: Option<&str>,
-    message: &str,
-) -> Response {
-    Response::json(
-        status,
-        &samples::api_error(status, reason, info_reason, message).to_string(),
-    )
-}
-
 pub(crate) fn payload(output: &Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
         panic!(
@@ -163,8 +151,6 @@ pub(crate) fn comment_thread(top: &Value, total_reply_count: u64, replies: &[Val
 
 /// The "Essence of linear algebra" playlist, which holds videos of its own channel.
 pub(crate) const LINEAR_ALGEBRA: &str = "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
-pub(crate) const THREE_BLUE_ONE_BROWN: &str = "UCYO_jab_esuFRV4b17AJtAw";
-pub(crate) const THREE_BLUE_ONE_BROWN_UPLOADS: &str = "UUYO_jab_esuFRV4b17AJtAw";
 
 pub(crate) fn playlist_items_page(items: &[Value], next_page_token: Option<&str>) -> Response {
     json(&samples::playlist_items_page(items, next_page_token))
@@ -178,17 +164,4 @@ pub(crate) fn playlist_item(
     description: &str,
 ) -> Value {
     samples::playlist_item(playlist, position, video_id, title, description)
-}
-
-pub(crate) fn unreadable_playlist_item(
-    playlist: &str,
-    position: u64,
-    video_id: &str,
-    title: &str,
-) -> Value {
-    samples::unreadable_playlist_item(playlist, position, video_id, title)
-}
-
-pub(crate) fn channels_page(channels: &[(&str, &str)]) -> Response {
-    json(&samples::channels_page(channels))
 }

@@ -939,4 +939,101 @@ mod tests {
             Some(("youtube_api,gemini_api".to_owned(), Some("read".to_owned())))
         );
     }
+
+    /// The YouTube API route's videos, the only paged operation whose route resolves its
+    /// collection.
+    mod youtube_api {
+        use std::time::Duration;
+
+        use serde_json::{Value, json};
+
+        use super::super::{plan_cursor_videos, plan_videos, run_videos};
+        use crate::config::runtime_config_from_toml;
+        use crate::fixture_server::{Fixture, Response, block_on, path, query};
+        use crate::net::{RetryPolicy, build_client};
+        use crate::samples::sample;
+        use crate::types::{
+            Deadline, Platform, PlatformSearchPage, ProviderError, YoutubeCollection,
+            YoutubeVideosRequest,
+        };
+
+        fn stored(name: &str) -> Value {
+            serde_json::from_str(&sample(&format!("youtube_api/{name}")))
+                .expect("stored youtube_api sample")
+        }
+
+        fn run(plan: super::super::VideosPlan) -> Result<PlatformSearchPage, ProviderError> {
+            block_on(run_videos(
+                plan,
+                build_client(true).expect("build client"),
+                RetryPolicy::new(1, 1.0, Duration::ZERO),
+                Deadline::new(Duration::from_secs(10)),
+                false,
+            ))
+        }
+
+        #[test]
+        fn a_videos_cursor_continues_the_channel_a_handle_resolved_to_without_another_lookup() {
+            let mut continued = stored("playlist-items.json");
+            continued["nextPageToken"] = json!("EAAaBlBUOkNBRQ");
+            let api = Fixture::start_sequence(
+                [
+                    stored("channels.json"),
+                    continued,
+                    stored("playlist-items.json"),
+                ]
+                .iter()
+                .map(|body| Response::json(200, &body.to_string()))
+                .collect(),
+            );
+            let runtime = runtime_config_from_toml(&format!(
+                "[providers.youtube_api]\nurl = \"{}/youtube/v3\"\nkeys = [\"yt-key\"]\n",
+                api.url
+            ))
+            .expect("valid configuration");
+            let config = runtime.platforms.get(Platform::Youtube);
+            let request = YoutubeVideosRequest {
+                collection: YoutubeCollection::Handle("@3blue1brown".to_owned()),
+                limit: 1,
+                page: None,
+            };
+
+            let first = run(plan_videos(config, &runtime.platform_routes, request).expect("plan"))
+                .expect("the first page succeeds");
+            let cursor = first.next_cursor.clone().expect("a later page");
+            let second =
+                run(plan_cursor_videos(config, &runtime.platform_routes, &cursor).expect("plan"))
+                    .expect("the later page succeeds");
+            let sent = api
+                .finish_all()
+                .iter()
+                .map(|request| (path(request), query(request).remove("pageToken")))
+                .collect::<Vec<_>>();
+            let collection = |page: &PlatformSearchPage| {
+                serde_json::to_value(&page.collection).expect("serialize")["ref"].clone()
+            };
+
+            assert_eq!(
+                (
+                    collection(&first),
+                    collection(&second),
+                    second.next_cursor,
+                    sent
+                ),
+                (
+                    json!("youtube:channel/UCYO_jab_esuFRV4b17AJtAw"),
+                    json!("youtube:channel/UCYO_jab_esuFRV4b17AJtAw"),
+                    None,
+                    vec![
+                        ("/youtube/v3/channels".to_owned(), None),
+                        ("/youtube/v3/playlistItems".to_owned(), None),
+                        (
+                            "/youtube/v3/playlistItems".to_owned(),
+                            Some("EAAaBlBUOkNBRQ".to_owned())
+                        ),
+                    ],
+                )
+            );
+        }
+    }
 }

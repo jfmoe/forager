@@ -580,3 +580,267 @@ mod youtube_web_tests {
         }
     }
 }
+
+/// The argument rules of the `youtube_api` commands, proven by parsing their definition in
+/// process.
+#[cfg(test)]
+mod youtube_api_tests {
+    use chrono::NaiveDate;
+    use clap::error::ErrorKind;
+
+    use super::super::{PageInput, PlatformCommand, parse_platform};
+    use super::{
+        YoutubeCommand, youtube_comments_input, youtube_fetch_input, youtube_search_input,
+        youtube_videos_input,
+    };
+    use crate::app::AppError;
+    use crate::types::{
+        ContentDepth, PlatformRef, PlatformSearchOptions, PlatformSearchRequest, YoutubeCollection,
+        YoutubeCommentSort, YoutubeCommentsRequest, YoutubeDuration, YoutubeRef,
+        YoutubeSearchOptions, YoutubeSort, YoutubeVideosRequest,
+    };
+
+    const ZOO: &str = "jNQXAC9IVRw";
+    const CHANNEL: &str = "UCYO_jab_esuFRV4b17AJtAw";
+    const PLAYLIST: &str = "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
+
+    fn youtube(arguments: &[&str]) -> Result<YoutubeCommand, clap::Error> {
+        let command = std::iter::once("youtube").chain(arguments.iter().copied());
+        match parse_platform(&command.collect::<Vec<_>>())? {
+            PlatformCommand::Youtube { command } => Ok(command),
+            _ => unreachable!("the arguments name youtube"),
+        }
+    }
+
+    fn parsed(arguments: &[&str]) -> YoutubeCommand {
+        youtube(arguments)
+            .unwrap_or_else(|error| panic!("the parser accepts {arguments:?}: {error}"))
+    }
+
+    /// The first page a search asks for, or the argument error its checks raise.
+    fn search_request(arguments: &[&str]) -> Result<PlatformSearchRequest, AppError> {
+        let search = std::iter::once("search").chain(arguments.iter().copied());
+        let YoutubeCommand::Search(parsed) = parsed(&search.collect::<Vec<_>>()) else {
+            unreachable!("the arguments name youtube search")
+        };
+        match youtube_search_input(parsed)?.0 {
+            PageInput::Request(request) => Ok(request),
+            PageInput::Cursor(_) => panic!("the arguments name no cursor"),
+        }
+    }
+
+    fn comments_request(arguments: &[&str]) -> Result<YoutubeCommentsRequest, AppError> {
+        let comments = std::iter::once("comments").chain(arguments.iter().copied());
+        let YoutubeCommand::Comments(parsed) = parsed(&comments.collect::<Vec<_>>()) else {
+            unreachable!("the arguments name youtube comments")
+        };
+        youtube_comments_input(parsed).map(|(request, ..)| request)
+    }
+
+    fn videos_request(arguments: &[&str]) -> Result<YoutubeVideosRequest, AppError> {
+        let videos = std::iter::once("videos").chain(arguments.iter().copied());
+        let YoutubeCommand::Videos(parsed) = parsed(&videos.collect::<Vec<_>>()) else {
+            unreachable!("the arguments name youtube videos")
+        };
+        match youtube_videos_input(parsed)?.0 {
+            PageInput::Request(request) => Ok(request),
+            PageInput::Cursor(_) => panic!("the arguments name no cursor"),
+        }
+    }
+
+    fn fetch_reference_and_depth(
+        arguments: &[&str],
+    ) -> Result<(PlatformRef, ContentDepth), AppError> {
+        let fetch = std::iter::once("fetch").chain(arguments.iter().copied());
+        let YoutubeCommand::Fetch(parsed) = parsed(&fetch.collect::<Vec<_>>()) else {
+            unreachable!("the arguments name youtube fetch")
+        };
+        youtube_fetch_input(parsed).map(|(request, ..)| (request.reference, request.depth))
+    }
+
+    fn is_argument_error<T: std::fmt::Debug>(result: &Result<T, AppError>) -> bool {
+        matches!(result, Err(AppError::Argument(_)))
+    }
+
+    fn video(id: &str) -> YoutubeRef {
+        YoutubeRef::video(id).expect("a video ID")
+    }
+
+    // Search.
+
+    #[test]
+    fn every_search_option_reaches_the_request() {
+        let request = search_request(&[
+            "attention -music",
+            "--sort",
+            "views",
+            "--from",
+            "2024-01-01",
+            "--to",
+            "2024-01-31",
+            "--duration",
+            "long",
+            "--channel",
+            &format!("https://www.youtube.com/channel/{CHANNEL}"),
+            "--has-captions",
+            "--limit",
+            "10",
+        ])
+        .expect("valid options");
+
+        assert_eq!(
+            (request.query, request.limit, request.options, request.page),
+            (
+                "attention -music".to_owned(),
+                10,
+                PlatformSearchOptions::Youtube(YoutubeSearchOptions {
+                    sort: YoutubeSort::Views,
+                    from: NaiveDate::from_ymd_opt(2024, 1, 1),
+                    to: NaiveDate::from_ymd_opt(2024, 1, 31),
+                    duration: Some(YoutubeDuration::Long),
+                    channel: Some(CHANNEL.to_owned()),
+                    has_captions: true,
+                }),
+                None,
+            )
+        );
+    }
+
+    #[test]
+    fn a_search_without_options_asks_for_twenty_results_by_relevance() {
+        let request = search_request(&["attention"]).expect("a query alone is valid");
+
+        assert_eq!(
+            (request.limit, request.options),
+            (
+                20,
+                PlatformSearchOptions::Youtube(YoutubeSearchOptions::default())
+            )
+        );
+    }
+
+    #[test]
+    fn malformed_dates_fail_to_parse_and_reversed_dates_are_argument_errors() {
+        let malformed = [
+            &["search", "attention", "--from", "2024-02-30"][..],
+            &["search", "attention", "--to", "2024-1-31"],
+        ]
+        .map(|arguments| youtube(arguments).err().map(|error| error.kind()));
+        let reversed = search_request(&["attention", "--from", "2024-02-01", "--to", "2024-01-31"]);
+
+        assert_eq!(
+            (malformed, is_argument_error(&reversed)),
+            ([Some(ErrorKind::ValueValidation); 2], true),
+            "{reversed:?}"
+        );
+    }
+
+    // Comments.
+
+    #[test]
+    fn comments_read_the_video_of_a_watch_url_with_their_limit_and_order() {
+        let request = comments_request(&[
+            &format!("https://www.youtube.com/watch?v={ZOO}&t=4"),
+            "--limit",
+            "2",
+            "--sort",
+            "time",
+        ])
+        .expect("valid arguments");
+        let defaults = comments_request(&[&format!("youtube:{ZOO}")]).expect("a ref alone");
+
+        assert_eq!(
+            [
+                (request.video, request.limit, request.sort),
+                (defaults.video, defaults.limit, defaults.sort),
+            ],
+            [
+                (video(ZOO), 2, YoutubeCommentSort::Time),
+                (video(ZOO), 20, YoutubeCommentSort::Relevance),
+            ]
+        );
+    }
+
+    #[test]
+    fn comments_of_a_playlist_or_a_channel_are_argument_errors() {
+        let results = [
+            comments_request(&[&format!("youtube:playlist/{PLAYLIST}")]),
+            comments_request(&[&format!("youtube:channel/{CHANNEL}")]),
+        ];
+
+        assert!(results.iter().all(is_argument_error), "{results:?}");
+    }
+
+    // Videos.
+
+    #[test]
+    fn videos_read_a_playlist_url_or_a_handle_with_their_limit() {
+        let playlist = videos_request(&[
+            &format!("https://www.youtube.com/playlist?list={PLAYLIST}"),
+            "--limit",
+            "2",
+        ])
+        .expect("a playlist URL");
+        let handle =
+            videos_request(&["https://www.youtube.com/@3blue1brown/videos"]).expect("a handle");
+
+        assert_eq!(
+            [
+                (playlist.collection, playlist.limit, playlist.page),
+                (handle.collection, handle.limit, handle.page),
+            ],
+            [
+                (
+                    YoutubeCollection::Ref(YoutubeRef::playlist(PLAYLIST).expect("playlist")),
+                    2,
+                    None
+                ),
+                (
+                    YoutubeCollection::Handle("@3blue1brown".to_owned()),
+                    20,
+                    None
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn videos_of_a_video_or_an_unknown_url_are_argument_errors() {
+        let results = [
+            videos_request(&[&format!("youtube:{ZOO}")]),
+            videos_request(&["https://www.youtube.com/c/3blue1brown"]),
+        ];
+
+        assert!(results.iter().all(is_argument_error), "{results:?}");
+    }
+
+    // Fetch.
+
+    #[test]
+    fn a_fetch_reads_the_video_of_a_short_url_at_full_text_by_default() {
+        let short = fetch_reference_and_depth(&[&format!("https://youtu.be/{ZOO}?t=3")]);
+        let metadata =
+            fetch_reference_and_depth(&[&format!("youtube:{ZOO}"), "--depth", "metadata"]);
+
+        assert_eq!(
+            [short.ok(), metadata.ok()],
+            [
+                Some((PlatformRef::Youtube(video(ZOO)), ContentDepth::FullText)),
+                Some((PlatformRef::Youtube(video(ZOO)), ContentDepth::Metadata)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_fetch_of_a_playlist_a_channel_or_a_handle_is_an_argument_error() {
+        let results = [
+            fetch_reference_and_depth(&[&format!(
+                "https://www.youtube.com/playlist?list={PLAYLIST}"
+            )]),
+            fetch_reference_and_depth(&[&format!("youtube:channel/{CHANNEL}")]),
+            fetch_reference_and_depth(&["https://www.youtube.com/@3blue1brown"]),
+        ];
+
+        assert!(results.iter().all(is_argument_error), "{results:?}");
+    }
+}
