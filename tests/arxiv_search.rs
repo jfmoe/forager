@@ -1,40 +1,18 @@
 mod support;
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 use std::fs;
 use std::process::Output;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-use support::{Fixture, Response, RunEnvironment};
+use support::samples::sample;
+use support::{Fixture, Response, RunEnvironment, arxiv_feed};
 
+/// A page of `total` results holding the stored entry once for each of `ids`.
 fn feed(total: u64, ids: &[&str]) -> String {
-    let mut entries = String::new();
-    for id in ids {
-        let _ = write!(
-            entries,
-            r#"<entry>
-    <id>http://arxiv.org/abs/{id}</id>
-    <title>Paper {id}</title>
-    <summary>Abstract of {id}.</summary>
-    <published>2024-01-02T18:59:59Z</published>
-    <updated>2024-01-03T00:00:00Z</updated>
-    <author><name>Ada Lovelace</name></author>
-    <link href="https://arxiv.org/pdf/{id}" rel="related" type="application/pdf" title="pdf"/>
-    <arxiv:primary_category term="cs.AI"/>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>"#
-        );
-    }
-    format!(
-        r#"<?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
-  <opensearch:totalResults>{total}</opensearch:totalResults>
-  {entries}
-</feed>"#
-    )
+    arxiv_feed::page(&sample("arxiv_api/feed.xml"), total, ids)
 }
 
 fn atom(status: u16, body: &str) -> Response {
@@ -89,16 +67,16 @@ fn search_returns_abstract_depth_items_with_refs_and_metadata() {
                     "ref": "arxiv:2401.01234v2",
                     "url": "https://arxiv.org/abs/2401.01234v2",
                     "depth": "abstract",
-                    "title": "Paper 2401.01234v2",
-                    "authors": ["Ada Lovelace"],
+                    "title": "Dark Matter Halos & Galaxies",
+                    "authors": ["Ada Lovelace", "Alan Turing"],
                     "published": "2024-01-02T18:59:59Z",
-                    "abstract": "Abstract of 2401.01234v2.",
-                    "updated": "2024-01-03T00:00:00Z",
-                    "primary_category": "cs.AI",
-                    "categories": ["cs.AI"],
-                    "doi": null,
-                    "journal_ref": null,
-                    "comment": null,
+                    "abstract": "First line\n  second line.",
+                    "updated": "2024-02-03T04:05:06Z",
+                    "primary_category": "astro-ph.CO",
+                    "categories": ["astro-ph.CO", "hep-ph"],
+                    "doi": "10.1000/example",
+                    "journal_ref": "Phys. Rev. D 1 (2024)",
+                    "comment": "12 pages, 3 figures",
                     "pdf_url": "https://arxiv.org/pdf/2401.01234v2"
                 }],
                 "next_cursor": null
