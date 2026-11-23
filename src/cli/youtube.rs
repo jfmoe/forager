@@ -327,6 +327,22 @@ fn youtube_search(arguments: YoutubeSearchArgs) -> Result<CommandOutput, AppErro
 }
 
 fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, content_dir, common) = youtube_fetch_input(arguments)?;
+    fetch(Platform::Youtube, request, format, content_dir, &common)
+}
+
+/// The fetch a YouTube fetch asks for, checked before any configuration is read.
+fn youtube_fetch_input(
+    arguments: YoutubeFetchArgs,
+) -> Result<
+    (
+        PlatformFetchRequest,
+        ContentOutputFormat,
+        Option<PathBuf>,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let YoutubeFetchArgs {
         reference,
         depth,
@@ -344,7 +360,7 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
         ..PlatformFetchRequest::new(PlatformRef::Youtube(video), depth.into())
     };
     request.validate().map_err(AppError::Argument)?;
-    fetch(Platform::Youtube, request, format, content_dir, &common)
+    Ok((request, format, content_dir, common))
 }
 
 fn youtube_comments(arguments: YoutubeCommentsArgs) -> Result<CommandOutput, AppError> {
