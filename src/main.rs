@@ -307,11 +307,19 @@ fn emit_rendered(rendered: Result<RenderedOutput, String>) -> ExitCode {
 }
 
 fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> ExitCode {
-    emit_rendered(rendered.map(|mut rendered| {
+    emit_rendered(with_attempt_log(rendered, attempt_log))
+}
+
+/// Appends the attempt log to the diagnostics of `rendered`, leaving its stdout as it is.
+fn with_attempt_log(
+    rendered: Result<RenderedOutput, String>,
+    attempt_log: Option<String>,
+) -> Result<RenderedOutput, String> {
+    rendered.map(|mut rendered| {
         rendered.stderr =
             app::combine_diagnostics([rendered.stderr.take(), attempt_log].into_iter().flatten());
         rendered
-    }))
+    })
 }
 
 fn append_extra_sources_markdown(markdown: &mut String, extra_sources: &[SearchCandidate]) {
