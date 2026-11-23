@@ -430,6 +430,34 @@ mod tests {
     }
 
     #[test]
+    fn an_operation_on_a_note_without_an_access_token_is_refused_with_how_to_get_one() {
+        let inputs = [
+            format!("xiaohongshu:{NOTE}"),
+            format!("https://www.xiaohongshu.com/explore/{NOTE}"),
+            format!("https://www.xiaohongshu.com/discovery/item/{NOTE}?xsec_source=pc_search"),
+        ];
+
+        let messages = ["fetch", "comments"].map(|operation| {
+            inputs
+                .clone()
+                .map(|input| XiaohongshuRef::parse_accessible(&input, operation).map(|_| ()))
+        });
+
+        let refused = |operation: &str| {
+            Err(format!(
+                "xiaohongshu {operation} needs the note's access token: pass the `access_url` of a xiaohongshu search result, or the full note URL with its `xsec_token` copied from the browser"
+            ))
+        };
+        assert_eq!(
+            messages,
+            [
+                [(); 3].map(|()| refused("fetch")),
+                [(); 3].map(|()| refused("comments")),
+            ]
+        );
+    }
+
+    #[test]
     fn short_links_and_rednote_links_are_rejected_with_their_own_hints() {
         let messages = [
             "http://xhslink.com/a/AbCdEfG",
