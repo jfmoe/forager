@@ -1,0 +1,15 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "DOI": "10.2139/ssrn.2042750",
+    "title": ["Risk Premia Harvesting Through Dual Momentum"],
+    "author": [{"given": "Gary", "family": "Antonacci", "sequence": "first"}],
+    "abstract": "<jats:p>Momentum is the premier market anomaly.</jats:p>",
+    "published": {"date-parts": [[2012, 4]]},
+    "type": "posted-content",
+    "created": {"date-parts": [[2012, 4, 25]], "date-time": "2012-04-25T11:01:44Z"},
+    "resource": {"primary": {"URL": "https://www.ssrn.com/abstract=2042750"}}
+  }
+}
