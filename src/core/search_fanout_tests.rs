@@ -635,6 +635,37 @@ fn web_search_candidates_join_the_extra_sources_unless_main_search_cited_them() 
     );
 }
 
+#[test]
+fn an_untitled_web_search_result_becomes_a_candidate_with_a_null_title() {
+    let mut body: Value =
+        serde_json::from_str(&sample("firecrawl/search.json")).expect("stored JSON");
+    body["data"]["web"][0]
+        .as_object_mut()
+        .expect("stored result")
+        .remove("title");
+    body["data"]["web"][0]["url"] = json!("https://example.test/untitled");
+    let firecrawl = Fixture::start_sequence(vec![Response::json(200, &body.to_string())]);
+    let document = format!(
+        "{}[capabilities.web_search]\norder = [\"firecrawl\"]\n",
+        providers_document(&[("firecrawl", &firecrawl.url)]),
+    );
+
+    let branch = declared_branch("web_search", "Current information", &document);
+    firecrawl.finish();
+
+    assert_eq!(
+        serde_json::to_value(&branch.sources).expect("encode candidates"),
+        json!([{
+            "provider": "firecrawl",
+            "capability": "web_search",
+            "title": null,
+            "url": "https://example.test/untitled",
+            "summary": "Firecrawl summary",
+            "provider_data": {}
+        }])
+    );
+}
+
 fn sample_result() -> Value {
     let body: Value = serde_json::from_str(&sample("tavily/search.json")).expect("stored JSON");
     body["results"][0].clone()
