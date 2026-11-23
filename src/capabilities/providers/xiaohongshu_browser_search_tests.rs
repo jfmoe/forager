@@ -17,8 +17,8 @@ use crate::types::{
 
 const RESULTS_URL: &str =
     "https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1&source=web_explore_feed";
-const ROOT_SEARCH_ID: &str = "2fhpxs5cks5vx6nvw1ar4";
-const FILTERED_SEARCH_ID: &str = "2fhpxs5cks5vx6nvw1ar4@2fhpxsfv1qadn0lsg9txa";
+const ROOT_SEARCH_ID: &str = "2fakesearch0root00001";
+const FILTERED_SEARCH_ID: &str = "2fakesearch0root00001@2fakesearch0filter001";
 const MORE_RESULTS: &str = "Xiaohongshu has more results than this command returned; Xiaohongshu search cannot continue from a cursor, so raise --limit (up to 100) to read more in one command";
 
 fn at(date: (i32, u32, u32), time: (u32, u32)) -> NaiveDateTime {
@@ -48,7 +48,7 @@ fn note(n: u32) -> Value {
         "note_card": {
             "type": "normal",
             "display_title": format!("手冲咖啡 {n}"),
-            "user": {"user_id": "5ff0e6410000000001008400", "nickname": "豆子", "xsec_token": "ABuser="},
+            "user": {"user_id": "00000000000000000000a001", "nickname": "豆子", "xsec_token": "ABuser="},
             "interact_info": {"liked": false, "liked_count": "1.2万", "collected": false, "collected_count": "356", "comment_count": "89", "shared_count": "12"},
             "cover": {"url_default": "https://sns-webpic-qc.xhscdn.com/cover.jpg"},
             "image_list": [{"width": 1080, "height": 1440}],
@@ -67,7 +67,7 @@ fn note_ref(n: u32) -> String {
 
 fn hot_query() -> Value {
     json!({
-        "id": "hot_query_2fhpxs5cks5vx6nvw1ar4",
+        "id": "hot_query_2fakesearch0root00001",
         "model_type": "hot_query",
         "hot_query": {"queries": [{"name": "咖啡豆推荐", "search_word": "咖啡豆推荐"}]}
     })
@@ -208,7 +208,7 @@ fn the_pages_after_the_last_filter_click_decode_into_note_items() {
                 "authors": ["豆子"],
                 "published": "2025-06-13",
                 "note_type": "image",
-                "author_id": "5ff0e6410000000001008400",
+                "author_id": "00000000000000000000a001",
                 "likes": "1.2万",
                 "collects": "356",
                 "comments": "89",

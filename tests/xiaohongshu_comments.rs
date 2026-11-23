@@ -11,7 +11,7 @@ use std::process::Output;
 use support::RunEnvironment;
 use support::browser::{StandIn, mark_logged_in};
 
-const NOTE_ID: &str = "6a9d4f5f00000000260323c4";
+const NOTE_ID: &str = "66f0a1b2c3d4e5f607200001";
 const TOKEN: &str = "ABfakeTOKENcanary4242=";
 /// The token without its padding, which no URL encoding changes.
 const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
