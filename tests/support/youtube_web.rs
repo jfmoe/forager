@@ -1,4 +1,4 @@
-//! `youtube_web` fixtures for the command contract tests, served from the stored samples in
+//! `youtube_web` upstream answers for the command contract tests, served from the stored samples in
 //! `tests/samples/youtube_web/`.
 
 use super::Response;
