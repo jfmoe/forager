@@ -57,6 +57,10 @@ use reddit::RedditCommand;
 mod youtube;
 use youtube::YoutubeCommand;
 
+#[cfg(test)]
+#[path = "platform_arxiv_tests.rs"]
+mod arxiv_tests;
+
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]

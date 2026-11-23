@@ -1,0 +1,101 @@
+# Writing and running tests
+
+Each rule is proven once, at the cheapest layer that can observe it breaking. Place a test by the question it answers, not by where similar tests happen to be.
+
+## Which layer a test belongs to
+
+| Layer | Answers | Proves |
+| --- | --- | --- |
+| In-crate tests | Did my change break forager's own logic? | Decisions; response decoding against stored samples; request construction and HTTP semantics against the local fixture server; validation and argument rules; pacing, back-off and deadlines; the platform-independent rules of planning, fallback and attribution |
+| Binary unit tests | Does the binary present a result correctly? | Rendering of command outputs and the mapping from errors to exit codes |
+| Command contract tests | Does the real binary keep its outer contract? | Each command's outer path and the items of the [outer checklist](#the-outer-checklist) |
+| Rule tests | Do the repository's documents and layout follow their rules? | The repository rules and the product skill contract |
+| Real-browser tests | Do the browser transport and Page Logic work in the Managed Browser? | Off by default; [`browser-routes.md`](browser-routes.md) runs them |
+
+Start in the crate and move outward only when the rule is a fact of the outer layer.
+
+- **Decoding** goes next to the adapter: give a stored sample to the adapter's highest in-process function that takes an upstream body, or, for a browser route, to the Page Logic judgement that takes an observation. Start no server, because no HTTP fact is under test.
+- **Request construction and HTTP semantics** (status mapping, headers, query encoding, redirects, deadlines) go through the real HTTP stack against the shared fixture server, in the crate. Build the route as the provider factory does, or run the orchestration over a configuration document.
+- **Validation before any request** stays in the crate. Argument rules (conflicts, ranges, defaults) are proven by parsing the command's definition in process, which covers the argument wiring without spawning the binary.
+- **Platform-independent rules** (an empty or unusable route set, a missing key, cursor tampering and resumption, opt-in hints, fallback and attribution) are proven once, in the module that implements them, not once per platform.
+- **A command contract test** spawns the binary and proves only what nothing cheaper can: the command's outer path or an outer checklist item. A test whose rule is not on the checklist belongs in the crate.
+
+### Waiting on real time
+
+No in-crate test waits on real time, because a suite that sleeps grows slower with every test and its duration stops reflecting work.
+
+- In the test build, a route's limiter has no minimum interval, so a test that builds routes through the provider factory or the orchestration never waits on an Access Policy. Nothing outside the test build can build such a limiter, so no release can bypass an Access Policy.
+- A test about pacing holds `paced_limiters()` while it builds the route, and either runs on the paused Tokio clock or is arranged so that a window fails at once instead of being awaited.
+- A test may combine the paused clock with a real loopback socket only when it waits for the request to arrive before it advances the clock. Otherwise the paused clock jumps ahead while the response is in flight and the outcome depends on scheduling.
+- Deadlines inside the crate use sub-second values on the paused clock.
+- The spawned binary keeps production pacing, so a command contract test pays one interval for every paced request after the first. Pick the operation that makes the fewest paced requests.
+
+## Selecting a subset
+
+A test's path names what it belongs to. A *word* is one `_`-separated part of a module name in the test's path, or of the name of the test binary. In the crate, a provider's tests live in its adapter's modules, which carry the provider ID, and a platform's types live in `types::platform_<platform>`; a command contract test file's name starts with the platform it exercises. Because placement sets the words, moving a test to the right module is enough to make the filters find it.
+
+One filter selects a provider's or a platform's tests, with `IDS` replaced:
+
+```sh
+cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/) | binary(/(^|_)(IDS)(_|$)/)'
+```
+
+- **A provider:** its ID, plus each platform that it is the only route of. The `xai` provider is `xai|x`, because it is the X platform's only route; `youtube_web` is `youtube_web`, because YouTube has other routes.
+- **A platform:** its ID, plus each of its routes that serves nothing else. Google Scholar is `scholar|serpapi`. X is `x` alone: the `xai` route also backs main search, and listing it would select main-search tests.
+
+The routes of each platform are in the platform catalog and in the product skill. Words match whole, so the X filter never selects `xai`, and `hn` never selects a module that merely starts with the letters.
+
+## Upstream samples
+
+The sample store is `tests/samples/<provider>/`. Every upstream body a test replays comes from there, and the in-crate tests and the command contract tests read the same file, so an upstream change is fixed in one place. Tests locate samples relative to the crate root, because the runner does not fix the working directory.
+
+- A *shape* is one response structure of one upstream endpoint, and it is stored once. Derive a variant (an error, an empty result, another page) from the base sample inside the test, or store it as a named variant whose record says `variant_of`.
+- Each directory's `samples.toml` has one record per sample: `file`, `shape`, `origin` (`captured` or `hand-written`), the `observed` date and, for a captured sample only, `obtained`, which says how it was captured. A repository rule fails, naming the sample, when a sample has no record or a record names no sample.
+- `observed` is the date the shape was seen at the upstream. For a hand-written sample of unknown basis, it is the date the sample was written, and its origin is `hand-written`.
+
+### Adding or refreshing a sample
+
+1. Capture the response with a request a user of the route could make, or write the sample by hand from an observation.
+2. Before committing, remove every key, token, account identifier and personal content, replacing each with a fake value of the same form. The repository is public and a published sample cannot be taken back.
+3. Never commit a page behind a login as captured. Commit only a hand-written reconstruction based on what you observed, so no account's content or identifiers leave the machine.
+4. Trim the sample to the fields the route reads and the structure around them, so a reader can see what the route depends on.
+5. Write or update its record: the new `observed` date and, for a captured sample, how it was `obtained`.
+6. Run the route's subset; a refreshed sample that changes a test's expected values belongs in its own commit that says what the upstream changed.
+
+## The outer checklist
+
+Only the real binary can prove these facts, and each has at least one command contract test. Before moving or retiring a command contract test, make sure every item it proves keeps another test.
+
+- Each exit code: 0, 2, 3, 4 and 5.
+- Each output format (JSON, Markdown, content) for each kind of output that offers it: search results, platform items, fetched bodies.
+- Writing the result to an output file, and the receipt.
+- A failed command still printing its failure payload as JSON on stdout.
+- Environment variable overrides of configuration.
+- The preflight output of a configuration error.
+- The Search Result Journal being written when it is on and not written when it is off.
+- The file names and the default location of a content directory.
+- Environment isolation: the spawned binary reads only the configuration and state the test gives it, and a route its configuration missed fails instead of reaching a site.
+
+Every command keeps at least one command contract test, and every platform keeps at least one successful path that its offline stand-in can produce. The browser platforms' stand-in does not speak the browser protocol, so for them the contract layer keeps the outermost path it can prove (preflight, launch arguments, refusal and timeout); their successful path is proven by the Page Logic tests in the crate and by the real-browser tests.
+
+## What each layer does not prove
+
+- **No offline layer** proves that an upstream still behaves as its sample shows. A sample is frozen at its `observed` date.
+- **In-crate tests** do not prove exit codes, rendering, output files, environment overrides or the journal; the binary's outer path owns those.
+- **Binary unit tests** do not prove argument parsing or anything that needs a process.
+- **Command contract tests** do not prove decoding detail, because they replay a few samples, and do not prove a browser platform's successful path.
+- **Real-browser tests** run against local pages, so they prove Page Logic's scripts, not a real site.
+
+## Retiring or rewriting a test
+
+A test may be retired or rewritten when it:
+
+- is **fragile**: a behavior-preserving refactor forces edits, because it asserts private fields, internal names or call order;
+- is a **change detector**: it mirrors the implementation and asserts no result, so it fails on every change and catches no bug;
+- is **tautological**: it computes its expected value the way the code does, so it agrees with any bug;
+- is **erratic**: its result depends on timing, arrival order, the wall clock or shared state, so a red run means nothing;
+- is **slow**: most of its time is setup or waiting rather than the rule;
+- is **duplicated**: another test proves the same rule with the same oracle and input class, so a rule change would edit both;
+- proves **the wrong thing**: framework glue, a configuration literal, or that a retired behavior is absent.
+
+Each retirement, and each change to an expected value, is its own commit. Its message names the rule the test proved and what proves it now, or why the rule needs no proof, so a reviewer can check that no proof was lost. A commit that moves tests changes no expected value, and a behavior test is never weakened to make a move easier.

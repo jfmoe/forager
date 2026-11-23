@@ -54,8 +54,12 @@ mod platform_precheck;
 mod providers;
 #[path = "capabilities/rate_limit.rs"]
 mod rate_limit;
+// Shared with the command contract tests, like the fixture server.
 #[path = "infra/redact.rs"]
 mod redact;
+#[cfg(test)]
+#[path = "../tests/support/samples.rs"]
+mod samples;
 #[path = "core/search_fanout.rs"]
 mod search_fanout;
 #[path = "infra/secure_fs.rs"]

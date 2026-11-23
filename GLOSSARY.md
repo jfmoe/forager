@@ -344,3 +344,21 @@ The description of one change, kept in a GitHub issue and closed when the change
 is never the source of a current fact: on delivery, what a CLI user can observe goes into the
 product skill, how it works stays in the code, and a hard-to-reverse trade-off goes into an ADR.
 _Avoid_: standing spec, spec chapter
+
+**Upstream Sample**:
+One stored body of one upstream response, or one recorded observation of a browser route, that
+tests replay instead of reaching the upstream. Its record says whether it was captured from a real
+response or written by hand, and when its shape was seen. A sample shows how the upstream answered
+then; it never proves the upstream still answers that way.
+_Avoid_: fixture (the local server that serves a sample), mock, golden file
+
+**Shape**:
+One response structure of one upstream endpoint. Each shape is stored once as an Upstream Sample;
+an error, an empty result or another page of the same endpoint is a variant of that shape.
+_Avoid_: response type, endpoint
+
+**Command Contract Test**:
+A test that spawns the real forager binary and proves only what nothing cheaper can: a command's
+outer path, or an exit code, output format, output file, environment override, journal or isolation
+fact. A rule that a test in the crate can observe is not a command contract.
+_Avoid_: end-to-end test, integration test, offline end-to-end test

@@ -82,6 +82,16 @@ fn deserialize(content: &str, path: &Path) -> Result<Config, ConfigError> {
     })
 }
 
+/// Reads a configuration document as a file at `path` would be read, without the environment's
+/// overrides.
+#[cfg(test)]
+pub(super) fn parse_document(content: &str, path: &Path) -> Result<Config, ConfigError> {
+    let mut config = deserialize(content, path)?;
+    normalize_credentials(&mut config);
+    validate(&config, path, content)?;
+    Ok(config)
+}
+
 pub(super) fn diagnostic_without_source(detail: &str) -> String {
     detail
         .lines()

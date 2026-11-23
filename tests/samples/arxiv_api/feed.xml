@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/feed</id>
+  <title>arXiv Query</title>
+  <opensearch:itemsPerPage>1</opensearch:itemsPerPage>
+  <opensearch:totalResults>42</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2401.01234v2</id>
+    <title>Dark   Matter
+      Halos &amp; Galaxies</title>
+    <updated>2024-02-03T04:05:06Z</updated>
+    <link href="https://arxiv.org/abs/2401.01234v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2401.01234v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  First line
+  second line.
+</summary>
+    <category term="astro-ph.CO" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="hep-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-01-02T18:59:59Z</published>
+    <arxiv:comment>12 pages,
+      3 figures</arxiv:comment>
+    <arxiv:journal_ref>Phys. Rev. D 1 (2024)</arxiv:journal_ref>
+    <arxiv:primary_category term="astro-ph.CO"/>
+    <author>
+      <name>Ada  Lovelace</name>
+    </author>
+    <author>
+      <name>Alan Turing</name>
+    </author>
+    <arxiv:doi>10.1000/example</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1000/example" title="doi"/>
+  </entry>
+</feed>

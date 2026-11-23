@@ -4,6 +4,8 @@
 mod links;
 #[path = "repository_rules/retired.rs"]
 mod retired;
+#[path = "repository_rules/samples.rs"]
+mod samples;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -83,6 +85,65 @@ fn misplaced_docs(paths: &[String]) -> Vec<String> {
         })
         .cloned()
         .collect()
+}
+
+#[test]
+fn every_sample_has_a_metadata_record_and_every_record_names_a_sample() {
+    let store = root().join("tests/samples");
+    let mut found = Vec::new();
+    for entry in fs::read_dir(&store).expect("read the sample store") {
+        let path = entry.expect("sample store entry").path();
+        let name = file_name(&path).to_owned();
+        if !path.is_dir() {
+            found.push(format!(
+                "{name}: samples live in a directory named after their provider"
+            ));
+            continue;
+        }
+        let entries = fs::read_dir(&path)
+            .expect("read a provider's samples")
+            .map(|entry| {
+                let path = entry.expect("sample entry").path();
+                file_name(&path).to_owned()
+            })
+            .collect::<Vec<_>>();
+        let manifest = fs::read_to_string(path.join(samples::MANIFEST)).ok();
+        found.extend(samples::violations(&name, &entries, manifest.as_deref()));
+    }
+
+    assert!(
+        found.is_empty(),
+        "the sample store breaks its rule; give each sample a record in its directory's {} as \
+         docs/agents/testing.md describes: {found:#?}",
+        samples::MANIFEST
+    );
+}
+
+#[test]
+fn a_sample_without_a_record_and_a_record_without_a_sample_are_reported() {
+    let manifest = r#"
+[[sample]]
+file = "page.json"
+shape = "a search page"
+origin = "captured"
+observed = 2026-01-02
+obtained = "one anonymous request"
+
+[[sample]]
+file = "gone.json"
+shape = "a search page"
+origin = "hand-written"
+observed = 2026-01-02
+"#;
+    let entries = ["samples.toml", "page.json", "unrecorded.json"].map(str::to_owned);
+
+    assert_eq!(
+        samples::violations("example_api", &entries, Some(manifest)),
+        [
+            "example_api/unrecorded.json: no metadata record in samples.toml",
+            "example_api/samples.toml: the record of `gone.json` names no sample in example_api/",
+        ]
+    );
 }
 
 #[test]

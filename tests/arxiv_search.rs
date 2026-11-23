@@ -10,16 +10,6 @@ use serde_json::{Value, json};
 
 use support::{Fixture, Response, RunEnvironment};
 
-const ERROR_FEED: &str = r#"<?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
-  <opensearch:totalResults>1</opensearch:totalResults>
-  <entry>
-    <id>https://arxiv.org/api/errors</id>
-    <title>Error</title>
-    <summary>Invalid query string: '('</summary>
-  </entry>
-</feed>"#;
-
 fn feed(total: u64, ids: &[&str]) -> String {
     let mut entries = String::new();
     for id in ids {
@@ -78,142 +68,6 @@ fn query_pairs(request: &str) -> BTreeMap<String, String> {
         .query_pairs()
         .map(|(name, value)| (name.into_owned(), value.into_owned()))
         .collect()
-}
-
-/// Runs one search against a fresh fixture and returns the query the fixture received.
-fn wire_query(arguments: &[&str]) -> BTreeMap<String, String> {
-    let fixture = Fixture::start_sequence(vec![atom(200, &feed(0, &[]))]);
-    let environment = RunEnvironment::new(&config(&fixture.url));
-
-    let output = search(&environment, arguments);
-
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "arguments: {arguments:?}\nstderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    query_pairs(&fixture.finish())
-}
-
-fn expected_query(search_query: &str, overrides: &[(&str, &str)]) -> BTreeMap<String, String> {
-    let mut expected = BTreeMap::from([
-        ("search_query".to_owned(), search_query.to_owned()),
-        ("start".to_owned(), "0".to_owned()),
-        ("max_results".to_owned(), "10".to_owned()),
-        ("sortBy".to_owned(), "relevance".to_owned()),
-        ("sortOrder".to_owned(), "descending".to_owned()),
-    ]);
-    for (name, value) in overrides {
-        expected.insert((*name).to_owned(), (*value).to_owned());
-    }
-    expected
-}
-
-/// CLI arguments, the expected `search_query`, and other query parameters that differ from the
-/// defaults.
-type WireCase = (
-    &'static [&'static str],
-    &'static str,
-    &'static [(&'static str, &'static str)],
-);
-
-#[test]
-fn every_search_parameter_has_a_fixed_wire_encoding() {
-    let cases: [WireCase; 16] = [
-        (&["dark matter"], r#"all:"dark" AND all:"matter""#, &[]),
-        (
-            &[r#""world  model" robot"#],
-            r#"all:"world model" AND all:"robot""#,
-            &[],
-        ),
-        (
-            &[r#"a"b c"d "" "\e""#],
-            r#"all:"a" AND all:"b c" AND all:"d" AND all:"e""#,
-            &[],
-        ),
-        (&[r#""ti:(foo) AND bar""#], r#"all:"ti:(foo) AND bar""#, &[]),
-        (
-            &[r#"ti:(foo) AND "bar""#],
-            r#"all:"ti:(foo)" AND all:"AND" AND all:"bar""#,
-            &[],
-        ),
-        (&["--category", "q-fin.PM"], "cat:q-fin.PM", &[]),
-        (
-            &["--category", "cs.AI", "--category", "cs.CL"],
-            "(cat:cs.AI OR cat:cs.CL)",
-            &[],
-        ),
-        (
-            &["--author", "Geoffrey  Hinton"],
-            r#"au:"Geoffrey Hinton""#,
-            &[],
-        ),
-        (
-            &["--title", "attention is all"],
-            r#"ti:"attention is all""#,
-            &[],
-        ),
-        (
-            &[
-                "x",
-                "--submitted-from",
-                "2024-01-01",
-                "--submitted-to",
-                "2024-01-31",
-            ],
-            r#"all:"x" AND submittedDate:[202401010000 TO 202401312359]"#,
-            &[],
-        ),
-        (
-            &["x", "--submitted-from", "2024-01-01"],
-            r#"all:"x" AND submittedDate:[202401010000 TO 999912312359]"#,
-            &[],
-        ),
-        (
-            &["x", "--submitted-to", "2024-01-31"],
-            r#"all:"x" AND submittedDate:[199101010000 TO 202401312359]"#,
-            &[],
-        ),
-        (
-            &["x", "--sort", "submitted"],
-            r#"all:"x""#,
-            &[("sortBy", "submittedDate")],
-        ),
-        (
-            &["x", "--sort", "updated"],
-            r#"all:"x""#,
-            &[("sortBy", "lastUpdatedDate")],
-        ),
-        (
-            &["x", "--limit", "25"],
-            r#"all:"x""#,
-            &[("max_results", "25")],
-        ),
-        (
-            &[
-                "llm",
-                "--category",
-                "cs.CL",
-                "--author",
-                "Lewis",
-                "--title",
-                "retrieval",
-                "--submitted-from",
-                "2020-05-01",
-            ],
-            r#"all:"llm" AND cat:cs.CL AND au:"Lewis" AND ti:"retrieval" AND submittedDate:[202005010000 TO 999912312359]"#,
-            &[],
-        ),
-    ];
-
-    for (arguments, search_query, overrides) in cases {
-        assert_eq!(
-            wire_query(arguments),
-            expected_query(search_query, overrides),
-            "arguments: {arguments:?}"
-        );
-    }
 }
 
 #[test]
@@ -312,85 +166,6 @@ fn cursors_page_through_results_and_restore_the_original_request() {
     );
 }
 
-#[test]
-fn a_full_page_that_reaches_the_total_has_no_next_cursor() {
-    let (page, _) = page(
-        &["neutrino", "--limit", "2"],
-        &feed(2, &["2401.00001v1", "2401.00002v1"]),
-    );
-
-    assert_eq!(page["next_cursor"], Value::Null);
-}
-
-#[test]
-fn a_legitimate_empty_feed_is_an_empty_success() {
-    let (page, _) = page(&["no such words"], &feed(0, &[]));
-
-    assert_eq!(
-        (&page["items"], &page["next_cursor"]),
-        (&json!([]), &Value::Null)
-    );
-}
-
-#[test]
-fn an_atom_error_entry_fails_with_the_arxiv_message() {
-    for status in [400, 200] {
-        let fixture = Fixture::start_sequence(vec![atom(status, ERROR_FEED)]);
-        let environment = RunEnvironment::new(&config(&fixture.url));
-
-        let output = search(&environment, &["x", "--verbose"]);
-        fixture.finish();
-        let payload = payload(&output);
-
-        assert_eq!(
-            (
-                output.status.code(),
-                &payload["error_kind"],
-                &payload["message"],
-                &payload["provider_attempts"][0]["platform"],
-            ),
-            (
-                Some(4),
-                &Value::String("parameter".into()),
-                &Value::String("arXiv rejected the request: Invalid query string: '('".into()),
-                &Value::String("arxiv".into()),
-            ),
-            "status: {status}"
-        );
-    }
-}
-
-#[test]
-fn search_runs_without_credentials_and_records_an_anonymous_attempt() {
-    let fixture = Fixture::start_sequence(vec![atom(200, &feed(1, &["2401.01234v2"]))]);
-    let environment = RunEnvironment::new(&config(&fixture.url));
-
-    let output = search(&environment, &["electron", "--verbose"]);
-    let request = fixture.finish();
-    let attempt = &payload(&output)["provider_attempts"][0];
-
-    assert_eq!(
-        (
-            output.status.code(),
-            request.to_ascii_lowercase().contains("authorization:"),
-            &attempt["provider"],
-            &attempt["credential_index"],
-            &attempt["rotation_count"],
-            &attempt["disposition"],
-            &attempt["anonymous"],
-        ),
-        (
-            Some(0),
-            false,
-            &Value::String("arxiv_api".into()),
-            &json!(0),
-            &json!(0),
-            &Value::String("succeeded".into()),
-            &json!(true),
-        )
-    );
-}
-
 fn assert_preflight_exit(config: &str, arguments: &[&str], exit_code: i32, message: &str) {
     let fixture = Fixture::start_canary();
     let environment = RunEnvironment::new(&config.replace("{url}", &fixture.url));
@@ -459,37 +234,6 @@ fn a_cursor_accepts_general_flags() {
 }
 
 #[test]
-fn a_cursor_with_a_page_position_the_route_did_not_issue_is_an_argument_error() {
-    assert_preflight_exit(
-        "[providers.arxiv_api]\nurl = \"{url}\"\n",
-        &[
-            "--cursor",
-            "v1.arxiv_api.eyJxdWVyeSI6IngiLCJsaW1pdCI6Miwib3B0aW9ucyI6eyJwbGF0Zm9ybSI6ImFyeGl2In0sInBhZ2UiOiJib2d1cyJ9",
-        ],
-        2,
-        "invalid arXiv page position `bogus`",
-    );
-}
-
-#[test]
-fn a_successful_response_that_is_not_an_arxiv_feed_is_a_runtime_failure() {
-    let fixture = Fixture::start_sequence(vec![Response::new(
-        200,
-        "text/html",
-        "<html><body>Maintenance</body></html>",
-    )]);
-    let environment = RunEnvironment::new(&config(&fixture.url));
-
-    let output = search(&environment, &["x"]);
-    fixture.finish();
-
-    assert_eq!(
-        (output.status.code(), &payload(&output)["error_kind"]),
-        (Some(4), &Value::String("runtime".into()))
-    );
-}
-
-#[test]
 fn an_undecodable_cursor_is_an_argument_error() {
     assert_preflight_exit(
         "[providers.arxiv_api]\nurl = \"{url}\"\n",
@@ -506,55 +250,6 @@ fn a_cursor_whose_route_left_the_order_is_an_argument_error() {
         &["--cursor", CURSOR],
         2,
         "no longer available",
-    );
-}
-
-#[test]
-fn invalid_option_values_are_argument_errors() {
-    for (arguments, message) in [
-        (&["x", "--sort", "newest"][..], "invalid value"),
-        (&["x", "--limit", "0"], "invalid value"),
-        (&["x", "--limit", "101"], "invalid value"),
-        (&["x", "--submitted-from", "2024-13-01"], "calendar date"),
-        (
-            &["x", "--category", "cs.AI OR all:x"],
-            "invalid arXiv category",
-        ),
-        (&["x", "--author", " "], "--author must contain"),
-        (&[r#""world model"#], "unmatched double quote"),
-    ] {
-        assert_preflight_exit(
-            "[providers.arxiv_api]\nurl = \"{url}\"\n",
-            arguments,
-            2,
-            message,
-        );
-    }
-}
-
-#[test]
-fn a_reversed_date_range_is_an_argument_error() {
-    assert_preflight_exit(
-        "[providers.arxiv_api]\nurl = \"{url}\"\n",
-        &[
-            "x",
-            "--submitted-from",
-            "2024-02-01",
-            "--submitted-to",
-            "2024-01-01",
-        ],
-        2,
-        "--submitted-from must not be later than --submitted-to",
-    );
-}
-
-#[test]
-fn a_search_without_query_or_filter_is_an_argument_error() {
-    assert_preflight_exit(
-        "[providers.arxiv_api]\nurl = \"{url}\"\n",
-        &["--submitted-from", "2024-01-01"],
-        2,
-        "needs a query or at least one of --category, --author, --title",
     );
 }
 
