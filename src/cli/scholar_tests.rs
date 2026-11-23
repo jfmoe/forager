@@ -277,7 +277,7 @@ fn urls_that_name_no_single_cluster_are_argument_errors_before_any_request() {
         "https://scholar.google.com/scholar?cluster=18208131694456651388&cites=18208131694456651388",
         "https://scholar.google.com/scholar?cluster=1&cluster=2",
         "https://scholar.google.com/scholar?cluster=18446744073709551616",
-        "https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en",
+        "https://scholar.google.com/citations?user=zz9fakeAAAAJ&hl=en",
     ] {
         let parsed = fetch_args(&[input]).expect("the parser accepts any reference");
 

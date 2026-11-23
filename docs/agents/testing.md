@@ -59,7 +59,7 @@ The sample store is `tests/samples/<provider>/`. Every upstream body a test repl
 ### Adding or refreshing a sample
 
 1. Capture the response with a request a user of the route could make, or write the sample by hand from an observation.
-2. Before committing, remove every key, token, account identifier and personal content, replacing each with a fake value of the same form. The repository is public and a published sample cannot be taken back.
+2. Before committing, remove every key, token, account identifier and personal content, replacing each with a fake value of the same form. The repository is public and a published sample cannot be taken back. A private person's identifiers and content are always replaced; an official organisation's account and a public figure's well-known public content may stay, because publishing them again exposes no one.
 3. Never commit a page behind a login as captured. Commit only a hand-written reconstruction based on what you observed, so no account's content or identifiers leave the machine.
 4. Trim the sample to the fields the route reads and the structure around them, so a reader can see what the route depends on.
 5. Write or update its record: the new `observed` date and, for a captured sample, how it was `obtained`.
