@@ -50,6 +50,15 @@ terminal state, whether it succeeded, failed or timed out. Provider-direct comma
 diagnostics and other dedicated operations are not Default Search Invocations.
 _Avoid_: successful search, provider search, all commands
 
+**Multi-source Investigation**:
+An investigation that the calling agent runs itself: it splits a question that one ordinary search
+cannot settle, calls forager several times across searches and direct retrieval, and judges each
+source on whether it bears on the question. forager has no command or pipeline for it, and every
+call it receives is an ordinary search or a direct retrieval. An ordinary search is a single
+Default Search Invocation whose answer and candidates only orient the caller; splitting,
+escalating and judging evidence happen in the caller.
+_Avoid_: deep research, research pipeline, forager-side planning
+
 **Search Result Journal**:
 The local record, on by default and in order of occurrence, of the result and the execution of
 every Default Search Invocation. The result side holds the query, the answer and the sources; the
@@ -70,14 +79,16 @@ _Avoid_: per-call-site interpretation, raw attempt scan
 **Caller Capability Declaration**:
 The complete and authoritative capability set that a caller declares for one ordinary
 `forager search`; an empty set is a valid declaration. A search without a declaration is an empty
-declaration and runs main search only. forager never adds to it from local rules, URL recognition
-or strict validation. A declaration names Capability Seams and never selects providers.
+declaration and runs main search only. forager never adds to it from local rules or URL
+recognition. A declaration names Capability Seams and never selects providers.
 _Avoid_: provider override, router hint, capability patch
 
 **Capability Vocabulary**:
-The single vocabulary that owns each capability's identity, order, selection meaning and example
-phrases. `--capabilities` validation and the forager skill's contract consume it; provider
-fallback and routing control flow are not part of it.
+The single vocabulary of the capabilities a caller may declare: each one's identity, canonical
+order, selection meaning and example phrases. Identity and order are compiled into the CLI, and
+`--capabilities` validation reads them there; the product skill's vocabulary file adds selection
+meaning and example phrases, and a product skill contract test binds its identities and order to
+the compiled ones. Provider fallback and routing control flow are not part of it.
 _Avoid_: Skill capability list, routing rules DSL, provider registry
 
 **Citation Binding**:

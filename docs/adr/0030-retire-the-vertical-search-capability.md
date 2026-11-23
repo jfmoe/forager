@@ -29,9 +29,9 @@ heavy use and little contribution:
 
 ## Rejected alternatives
 
-- **Removing AnySearch but keeping an empty vertical search slot.** The classifier and the
-  documents would keep offering an option that can never be covered, and every selection would
-  only produce a capability gap. Reintroducing the capability through a new ADR costs less.
+- **Removing AnySearch but keeping an empty vertical search slot.** Callers and the
+  documents would be offered a capability that can never be covered, and every declaration of it
+  would only produce a capability gap. Reintroducing the capability through a new ADR costs less.
 - **Routing the queries it served to platforms automatically.** Documentation Search and Web
   Search now cover those queries, and platforms are called only by explicit command (ADR-0019).
 

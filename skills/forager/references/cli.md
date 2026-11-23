@@ -85,7 +85,7 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `QUERY` | Search request passed to the main-search pipeline. | Required |
-| `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omitting it is the same as `none`: forager never adds a capability the caller did not declare. | Omitted (`none`) |
+| `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omitting it runs main search only, like `none`: forager never adds a capability the caller did not declare. | Omitted (`none`) |
 | `--model ID` | Override the model of the first main-search backend that runs; a fallback backend keeps its configured model. | Configured model |
 | `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search uses 1; an explicit `1..=20` is the exact target. | `0` |
 | `--fallback MODE` | Use `auto` or `off` for provider fallback. | `search.fallback`, normally `auto` |

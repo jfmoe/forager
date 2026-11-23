@@ -18,7 +18,7 @@ pub enum AttemptDisposition {
 #[serde(untagged)]
 /// The execution boundary associated with a provider attempt.
 pub enum AttemptTarget {
-    /// A canonical research capability seam.
+    /// A canonical capability seam.
     Seam { seam: &'static str },
     /// A provider-specific operation outside the capability vocabulary.
     Operation { operation: &'static str },

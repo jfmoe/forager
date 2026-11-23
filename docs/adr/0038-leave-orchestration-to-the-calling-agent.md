@@ -14,11 +14,11 @@ search only (ADR-0004).
 
 forager does not keep a second Documentation Search provider behind Exa. Context7 is retired as a
 provider and as direct commands, and Exa alone serves a declared Documentation Search. The
-capability seam and its order stay, and a result with no consumable candidate still counts as a
-failed attempt rather than an empty success, so a provider added to the order later is reached
-when Exa finds nothing usable.
+Documentation Search capability seam has a provider order, and a result with no consumable
+candidate counts as a failed attempt rather than an empty success, so a provider added to the
+order later is reached when Exa finds nothing usable.
 
-These rules of the agent layer stay in force:
+The agent layer follows these rules:
 
 - **Cost ladder.** Every request goes down `direct retrieval → ordinary search → multi-source
   investigation` and takes the cheapest branch that can finish it. Escalation happens only on an
