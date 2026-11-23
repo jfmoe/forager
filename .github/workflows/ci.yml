@@ -2,12 +2,6 @@ name: CI
 
 on:
   pull_request:
-    # A pull request that changes only documentation runs docs.yml instead; pushes to main always
-    # run this workflow. skills/ stays included because the binary and its tests read it.
-    paths:
-      - "**"
-      - "!*.md"
-      - "!docs/**"
   push:
     branches:
       - main
@@ -20,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  linux:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,20 +22,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo nextest run --profile ci --all-targets --all-features --locked
 
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test --locked
-
-  windows-permissions:
+  windows:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -49,4 +37,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test --test config_permissions --test release_artifact_gate --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo nextest run --profile ci --locked --test config_permissions --test release_artifact_gate
