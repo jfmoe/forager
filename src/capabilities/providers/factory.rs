@@ -14,9 +14,9 @@ use super::route_declaration::{
 };
 use super::{
     DocsSearch, KeyAccount, MainSearch, PlatformFetch, PlatformSearch, ProviderId,
-    SupplementalSearch, WebFetch, WebSearch, arxiv, browser, browser_preflight, gemini_api, hn_api,
-    polymarket_api, reddit_browser, serpapi, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
-    youtube_api, youtube_web,
+    SupplementalSearch, WebFetch, WebSearch, arxiv_api, browser, browser_preflight, gemini_api,
+    hn_api, polymarket_api, reddit_browser, serpapi, ssrn_crossref, web_fetch, xai,
+    xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{
     ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations, route_platform,
@@ -150,7 +150,7 @@ fn route_context(client: Client, retry_policy: RetryPolicy, deadline: Deadline) 
 /// Builds a platform route from its route declaration.
 fn declared_route(config: PlatformRouteConfig, context: RouteContext) -> Box<dyn PlatformRoute> {
     match config {
-        PlatformRouteConfig::ArxivApi(config) => (arxiv::DECLARATION.build)(config, context),
+        PlatformRouteConfig::ArxivApi(config) => (arxiv_api::DECLARATION.build)(config, context),
         PlatformRouteConfig::SsrnCrossref(config) => {
             (ssrn_crossref::DECLARATION.build)(config, context)
         }
@@ -179,7 +179,7 @@ fn declared_route(config: PlatformRouteConfig, context: RouteContext) -> Box<dyn
 /// Returns the adapter of a platform route, or `None` for a provider that is no platform route.
 fn declared_adapter(id: ProviderId) -> Option<RouteAdapter> {
     match id {
-        ProviderId::ArxivApi => Some(arxiv::DECLARATION.adapter),
+        ProviderId::ArxivApi => Some(arxiv_api::DECLARATION.adapter),
         ProviderId::SsrnCrossref => Some(ssrn_crossref::DECLARATION.adapter),
         ProviderId::Serpapi => Some(serpapi::DECLARATION.adapter),
         ProviderId::XiaohongshuBrowser => Some(xiaohongshu_browser::DECLARATION.adapter),

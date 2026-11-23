@@ -314,31 +314,33 @@ impl ArxivApi {
         let response = send_provider_request(request, &self.credentials).await?;
         let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
         let status = body.status;
-        let failure = |kind, message: String| AttemptFailure {
+        let page = read_feed(&body.text).map_err(|(kind, message)| AttemptFailure {
             kind,
             status: Some(status),
             message: redacted_urls_message(&message, &self.credentials),
-        };
-        let feed =
-            decode_feed(&body.text).map_err(|error| failure(AttemptErrorKind::Runtime, error))?;
-        if let Some(message) = feed.error_message() {
-            return Err(failure(AttemptErrorKind::Parameter, message));
-        }
-        let total_results = feed.total_results;
-        let items = feed
-            .entries
-            .into_iter()
-            .map(Entry::into_item)
-            .collect::<Result<_, _>>()
-            .map_err(|error| failure(AttemptErrorKind::Runtime, error))?;
-        Ok((
-            Some(status),
-            FeedPage {
-                items,
-                total_results,
-            },
-        ))
+        })?;
+        Ok((Some(status), page))
     }
+}
+
+/// Reads a successful Query API body: an error entry is the request's fault, and a body that
+/// is not an arXiv feed, or an entry that cannot be mapped, is a runtime failure.
+fn read_feed(text: &str) -> Result<FeedPage, (AttemptErrorKind, String)> {
+    let feed = decode_feed(text).map_err(|error| (AttemptErrorKind::Runtime, error))?;
+    if let Some(message) = feed.error_message() {
+        return Err((AttemptErrorKind::Parameter, message));
+    }
+    let total_results = feed.total_results;
+    let items = feed
+        .entries
+        .into_iter()
+        .map(Entry::into_item)
+        .collect::<Result<_, _>>()
+        .map_err(|error| (AttemptErrorKind::Runtime, error))?;
+    Ok(FeedPage {
+        items,
+        total_results,
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

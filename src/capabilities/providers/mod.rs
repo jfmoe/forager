@@ -1,4 +1,4 @@
-mod arxiv;
+mod arxiv_api;
 mod browser;
 mod browser_profile;
 mod browser_route;

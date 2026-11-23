@@ -291,26 +291,29 @@ impl RuntimeConfig {
     }
 }
 
-// Runtime assembly mirrors the complete validated configuration surface in one place.
-#[expect(clippy::too_many_lines)]
 pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let loaded = load_effective_config()?;
-    let config = loaded.config;
+    let config_dir = ConfigLocation::discover()?.config_dir;
+    assemble(loaded.config, &config_dir)
+}
+
+// Runtime assembly mirrors the complete validated configuration surface in one place.
+#[expect(clippy::too_many_lines)]
+fn assemble(config: Config, config_dir: &Path) -> Result<RuntimeConfig, ConfigError> {
     let fallback = config
         .search
         .fallback
         .parse()
         .map_err(ConfigError::Message)?;
-    let config_dir = ConfigLocation::discover()?.config_dir;
     let journal = JournalRuntimeConfig {
         enabled: config.journal.enabled,
-        dir: resolve_journal_dir(&config.journal.dir, &config_dir)?,
+        dir: resolve_journal_dir(&config.journal.dir, config_dir)?,
         retention_days: config.journal.retention_days,
         credentials: configured_credentials(&config),
     };
     let browser = BrowserRuntimeConfig {
         path: (!config.browser.path.is_empty())
-            .then(|| resolve_path("browser.path", &config.browser.path, &config_dir))
+            .then(|| resolve_path("browser.path", &config.browser.path, config_dir))
             .transpose()?,
     };
     let platform_routes = platform_routes(&config.providers, &browser);
