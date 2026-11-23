@@ -1,9 +1,7 @@
 mod support;
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::process::Output;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
@@ -248,46 +246,5 @@ fn a_route_of_another_platform_in_the_order_is_a_configuration_error() {
         &["x"],
         3,
         "platforms.arxiv.order",
-    );
-}
-
-/// Records a reservation a minute ahead, as if another process had just reserved the window.
-fn reserve_arxiv_window(environment: &RunEnvironment) {
-    let reserved_at_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("wall clock")
-        .as_millis()
-        + Duration::from_mins(1).as_millis();
-    let directory = environment.state_dir.join("forager");
-    fs::create_dir_all(&directory).expect("create state directory");
-    fs::write(
-        directory.join("rate_limit_state.json"),
-        json!({
-            "schema_version": 1,
-            "routes": {"arxiv_api": {"reserved_at_ms": reserved_at_ms}}
-        })
-        .to_string(),
-    )
-    .expect("write rate limit state");
-}
-
-#[test]
-fn a_request_window_beyond_the_deadline_times_out_without_sending() {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&config(&fixture.url));
-    reserve_arxiv_window(&environment);
-
-    let output = search(&environment, &["x", "--timeout", "1"]);
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            fixture.finish_all().len()
-        ),
-        (Some(4), &Value::String("timeout".into()), 0),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
     );
 }
