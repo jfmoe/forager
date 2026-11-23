@@ -162,9 +162,10 @@ fn read_state(path: &Path) -> io::Result<(Value, Option<String>)> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::fs::{self, OpenOptions};
 
-    use serde_json::json;
+    use fs2::FileExt;
+    use serde_json::{Value, json};
     use tempfile::tempdir;
 
     use super::{CredentialPool, claim_persistent_index};
@@ -245,6 +246,66 @@ mod tests {
                 Some("credential cursor state was corrupt and has been reset"),
                 1,
             )
+        );
+    }
+
+    #[test]
+    fn a_corrupt_provider_cursor_is_reset_alone_and_the_repair_persists() {
+        let directory = tempdir().expect("create state directory");
+        let path = directory.path().join("credential_pool_state.json");
+        fs::write(
+            &path,
+            r#"{"schema_version":1,"providers":{"exa":{"next_index":"bad"},"other":{"next_index":7}}}"#,
+        )
+        .expect("write corrupt provider cursor");
+
+        let (index, diagnostic) = claim_persistent_index(&path, "exa", 2).expect("claim cursor");
+        let state: Value = serde_json::from_slice(&fs::read(&path).expect("read repaired state"))
+            .expect("parse repaired state");
+
+        assert_eq!(
+            (index, diagnostic.as_deref(), &state["providers"]),
+            (
+                0,
+                Some("credential cursor for exa was reset"),
+                &json!({"exa": {"next_index": 1}, "other": {"next_index": 7}}),
+            )
+        );
+    }
+
+    #[test]
+    fn a_busy_cursor_lock_falls_back_to_optimistic_selection() {
+        let directory = tempdir().expect("create state directory");
+        let path = directory.path().join("credential_pool_state.json");
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(path.with_extension("lock"))
+            .expect("open credential lock");
+        lock.lock_exclusive().expect("hold credential lock");
+        let pool = CredentialPool::in_state_file(
+            "exa",
+            vec!["first".into(), "second".into()],
+            Some(path.clone()),
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("test runtime");
+
+        let selection = runtime.block_on(pool.claim());
+        FileExt::unlock(&lock).expect("release credential lock");
+
+        assert_eq!(
+            (
+                selection.index,
+                selection
+                    .diagnostic
+                    .is_some_and(|diagnostic| diagnostic.contains("optimistic selection")),
+                path.exists(),
+            ),
+            (0, true, false)
         );
     }
 

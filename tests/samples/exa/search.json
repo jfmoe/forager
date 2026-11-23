@@ -1,0 +1,15 @@
+{
+  "results": [
+    {
+      "id": "https://example.test/result",
+      "title": "Fixture result",
+      "url": "https://example.test/result?api_key=source-secret&safe=1#fragment",
+      "publishedDate": "2026-07-25T00:00:00.000Z",
+      "author": "Example",
+      "text": "Fixture body first-key",
+      "highlights": ["Fixture highlight first-key", "Secondary detail"],
+      "image": "https://example.test/image.png",
+      "favicon": "https://example.test/favicon.ico"
+    }
+  ]
+}
