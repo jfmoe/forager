@@ -38,7 +38,7 @@ pub(crate) use platform::{
 pub use platform::{
     ContentDepth, Platform, PlatformAskResult, PlatformCollection, PlatformCommentsPage,
     PlatformContent, PlatformFetchResult, PlatformItem, PlatformItemData, PlatformRef,
-    PlatformRefError, PlatformSearchOptions, PlatformSearchPage, TranscriptInfo, TranscriptSource,
+    PlatformSearchOptions, PlatformSearchPage, TranscriptInfo, TranscriptSource,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
 pub use platform_hn::{
@@ -51,9 +51,8 @@ pub(crate) use platform_polymarket::{
 };
 pub use platform_polymarket::{
     PolymarketBasis, PolymarketEventFields, PolymarketEventLink, PolymarketItemData,
-    PolymarketKind, PolymarketMarket, PolymarketMarketFields, PolymarketOutcome,
-    PolymarketPriceSource, PolymarketRef, PolymarketSearchOptions, PolymarketStatus,
-    PolymarketTopMarket,
+    PolymarketKind, PolymarketMarket, PolymarketMarketFields, PolymarketPriceSource, PolymarketRef,
+    PolymarketSearchOptions, PolymarketStatus, PolymarketTopMarket,
 };
 pub(crate) use platform_polymarket_history::{
     HISTORY, PolymarketHistoryOutcome, PolymarketHistoryRequest,

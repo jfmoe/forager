@@ -176,10 +176,6 @@ impl SearchCandidate {
 pub struct SearchOutcome {
     #[serde(skip)]
     pub provider: &'static str,
-    #[serde(skip)]
-    pub query: String,
-    #[serde(skip)]
-    pub model: String,
     pub answer: String,
     pub sources: Vec<Source>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

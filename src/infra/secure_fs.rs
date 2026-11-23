@@ -137,46 +137,6 @@ pub(crate) fn has_private_permissions(path: &Path, _expected: u32) -> io::Result
         }))
 }
 
-#[cfg(not(any(unix, windows)))]
-pub(crate) fn has_private_permissions(_path: &Path, _expected: u32) -> io::Result<bool> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "private configuration permissions are unavailable",
-    ))
-}
-
-#[cfg(not(any(unix, windows)))]
-pub fn ensure_private_directory(_path: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "private configuration permissions are unavailable",
-    ))
-}
-
-#[cfg(not(any(unix, windows)))]
-pub fn create_private_file(_path: &Path) -> io::Result<File> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "private configuration permissions are unavailable",
-    ))
-}
-
-#[cfg(not(any(unix, windows)))]
-pub(crate) fn create_new_private_file(_path: &Path) -> io::Result<File> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "private configuration permissions are unavailable",
-    ))
-}
-
-#[cfg(not(any(unix, windows)))]
-pub(crate) fn restrict_private_file(_path: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "private configuration permissions are unavailable",
-    ))
-}
-
 #[cfg(windows)]
 fn restrict_windows_acl(path: &Path) -> io::Result<()> {
     use winapi::um::winnt::{FILE_ALL_ACCESS, PSID};

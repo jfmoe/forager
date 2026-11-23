@@ -213,9 +213,9 @@ impl PlatformRef {
         }
     }
 
+    #[cfg(test)]
     /// Returns the platform-owned entity kind of this ref; a platform may have several.
-    #[must_use]
-    pub const fn kind(&self) -> &'static str {
+    pub(crate) const fn kind(&self) -> &'static str {
         match self {
             Self::Arxiv(_) | Self::Ssrn(_) | Self::Scholar(_) => "paper",
             Self::Xiaohongshu(_) => "note",

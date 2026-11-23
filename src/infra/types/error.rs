@@ -11,7 +11,6 @@ pub enum ErrorKind {
     RateLimited,
     QuotaExhausted,
     Parameter,
-    Config,
     Timeout,
     Network,
     Quality,
@@ -21,8 +20,6 @@ pub enum ErrorKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// The transport or content family used to map terminal errors to exit behavior.
-///
-/// Preflight configuration errors have no family; see [`ErrorKind::family`].
 pub enum ErrorFamily {
     Transport,
     Content,
@@ -38,11 +35,10 @@ impl ErrorKind {
     }
 
     #[must_use]
-    pub fn family(self) -> Option<ErrorFamily> {
+    pub fn family(self) -> ErrorFamily {
         match self {
-            Self::Config => None,
-            Self::Quality | Self::Evidence => Some(ErrorFamily::Content),
-            _ => Some(ErrorFamily::Transport),
+            Self::Quality | Self::Evidence => ErrorFamily::Content,
+            _ => ErrorFamily::Transport,
         }
     }
 
@@ -53,7 +49,6 @@ impl ErrorKind {
             Self::RateLimited => "rate_limited",
             Self::QuotaExhausted => "quota_exhausted",
             Self::Parameter => "parameter",
-            Self::Config => "config",
             Self::Timeout => "timeout",
             Self::Network => "network",
             Self::Quality => "quality",
@@ -228,7 +223,7 @@ mod tests {
                     error,
                     name,
                     Value::String(name.to_owned()),
-                    Some(family),
+                    family,
                     retryable,
                     rotates,
                 ),
