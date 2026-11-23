@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -19,6 +20,7 @@ pub(crate) struct Fixture {
     handle: thread::JoinHandle<Vec<String>>,
     stop: Option<mpsc::Sender<()>>,
     expected_requests: Option<usize>,
+    arrived: Option<Arc<AtomicBool>>,
 }
 
 impl Fixture {
@@ -46,6 +48,7 @@ impl Fixture {
             handle,
             stop: Some(stop),
             expected_requests: None,
+            arrived: None,
         }
     }
 
@@ -102,6 +105,7 @@ impl Fixture {
                     handle,
                     stop: Some(stop),
                     expected_requests: Some(expected_requests),
+                    arrived: None,
                 }
             })
             .collect()
@@ -130,6 +134,7 @@ impl Fixture {
             handle,
             stop: Some(stop),
             expected_requests: Some(expected_requests),
+            arrived: None,
         }
     }
 
@@ -183,6 +188,7 @@ impl Fixture {
             handle,
             stop: Some(stop),
             expected_requests: Some(expected_requests),
+            arrived: None,
         }
     }
 
@@ -217,6 +223,31 @@ impl Fixture {
             handle,
             stop: Some(stop),
             expected_requests: None,
+            arrived: None,
+        }
+    }
+
+    /// Accepts one request and never answers it, holding the connection open until the fixture
+    /// is finished, for a test that runs past a deadline with [`advance_after_request`].
+    pub(crate) fn start_unanswered() -> Self {
+        let listener = fixture_listener("unanswered fixture");
+        let address = listener.local_addr().expect("unanswered fixture address");
+        let (stop, stopped) = mpsc::channel::<()>();
+        let arrived = Arc::new(AtomicBool::new(false));
+        let server_arrived = Arc::clone(&arrived);
+        let handle = thread::spawn(move || {
+            let mut stream = accept_request(&listener, ACCEPT_DEADLINE, 1, 0);
+            let request = read_request(&mut stream);
+            server_arrived.store(true, Ordering::Release);
+            let _ = stopped.recv();
+            vec![request]
+        });
+        Self {
+            url: format!("http://{address}"),
+            handle,
+            stop: Some(stop),
+            expected_requests: Some(1),
+            arrived: Some(arrived),
         }
     }
 
@@ -259,6 +290,7 @@ impl Fixture {
             handle,
             stop: Some(stop),
             expected_requests: None,
+            arrived: None,
         }
     }
 
@@ -645,6 +677,12 @@ pub(crate) fn header(request: &str, name: &str) -> Option<String> {
         })
 }
 
+/// The JSON body of a request the fixture server recorded.
+pub(crate) fn request_json(request: &str) -> serde_json::Value {
+    let (_, body) = request.split_once("\r\n\r\n").expect("request body");
+    serde_json::from_str(body).expect("request JSON")
+}
+
 /// The decoded query parameters of a request the fixture server recorded.
 pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
     let target = request.split_whitespace().nth(1).expect("request target");
@@ -653,6 +691,39 @@ pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
         .query_pairs()
         .map(|(name, value)| (name.into_owned(), value.into_owned()))
         .collect()
+}
+
+/// Runs `operation` on the paused clock until `fixture`, started with
+/// [`Fixture::start_unanswered`], holds its request, then advances the clock by `elapsed` and
+/// returns the outcome. Waiting for the request first keeps the clock from passing a deadline
+/// while the request is still in flight, so the outcome does not depend on scheduling.
+pub(crate) fn advance_after_request<T>(
+    fixture: &Fixture,
+    elapsed: Duration,
+    operation: impl Future<Output = T>,
+) -> T {
+    let arrived = fixture
+        .arrived
+        .as_ref()
+        .expect("only an unanswered fixture reports its request");
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .start_paused(true)
+        .build()
+        .expect("paused test runtime")
+        .block_on(async {
+            let mut operation = std::pin::pin!(operation);
+            while !arrived.load(Ordering::Acquire) {
+                let polled = futures_util::poll!(operation.as_mut());
+                assert!(
+                    polled.is_pending(),
+                    "the operation ended before the fixture received its request"
+                );
+                tokio::task::yield_now().await;
+            }
+            tokio::time::advance(elapsed).await;
+            operation.await
+        })
 }
 
 /// Runs `future` to completion on a current-thread runtime, for an in-crate test that drives a

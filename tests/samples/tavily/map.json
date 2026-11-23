@@ -1,0 +1,8 @@
+{
+  "base_url": "https://docs.example.test",
+  "results": [
+    "https://docs.example.test/api?token=source-secret#fragment",
+    "https://docs.example.test/guides"
+  ],
+  "response_time": 0.42
+}
