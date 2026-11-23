@@ -58,87 +58,49 @@ pub(crate) fn supports(capability: &str, provider: &str) -> bool {
     by_seam(capability).is_some_and(|catalog| catalog.contains(id))
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub(crate) enum ProviderId {
-    Xai,
-    Openai,
-    Exa,
-    Tavily,
-    Firecrawl,
-    Jina,
-    ArxivApi,
-    SsrnCrossref,
-    Serpapi,
-    XiaohongshuBrowser,
-    HnApi,
-    YoutubeApi,
-    YoutubeWeb,
-    GeminiApi,
-    PolymarketApi,
-    RedditBrowser,
+/// Defines the provider identity once: the enumeration, the list of every identity and each
+/// identity's configuration name. The parser is derived from the list and the names.
+macro_rules! provider_ids {
+    ($($variant:ident => $name:literal,)+) => {
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        pub(crate) enum ProviderId {
+            $($variant,)+
+        }
+
+        impl ProviderId {
+            pub(crate) const ALL: [Self; [$($name),+].len()] = [$(Self::$variant),+];
+
+            pub(crate) const fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $name,)+
+                }
+            }
+        }
+    };
+}
+
+provider_ids! {
+    Xai => "xai",
+    Openai => "openai",
+    Exa => "exa",
+    Tavily => "tavily",
+    Firecrawl => "firecrawl",
+    Jina => "jina",
+    ArxivApi => "arxiv_api",
+    SsrnCrossref => "ssrn_crossref",
+    Serpapi => "serpapi",
+    XiaohongshuBrowser => "xiaohongshu_browser",
+    HnApi => "hn_api",
+    YoutubeApi => "youtube_api",
+    YoutubeWeb => "youtube_web",
+    GeminiApi => "gemini_api",
+    PolymarketApi => "polymarket_api",
+    RedditBrowser => "reddit_browser",
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 16] = [
-        Self::Xai,
-        Self::Openai,
-        Self::Exa,
-        Self::Tavily,
-        Self::Firecrawl,
-        Self::Jina,
-        Self::ArxivApi,
-        Self::SsrnCrossref,
-        Self::Serpapi,
-        Self::XiaohongshuBrowser,
-        Self::HnApi,
-        Self::YoutubeApi,
-        Self::YoutubeWeb,
-        Self::GeminiApi,
-        Self::PolymarketApi,
-        Self::RedditBrowser,
-    ];
-
     pub(crate) fn parse(value: &str) -> Option<Self> {
-        match value {
-            "xai" => Some(Self::Xai),
-            "openai" => Some(Self::Openai),
-            "exa" => Some(Self::Exa),
-            "tavily" => Some(Self::Tavily),
-            "firecrawl" => Some(Self::Firecrawl),
-            "jina" => Some(Self::Jina),
-            "arxiv_api" => Some(Self::ArxivApi),
-            "ssrn_crossref" => Some(Self::SsrnCrossref),
-            "serpapi" => Some(Self::Serpapi),
-            "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
-            "hn_api" => Some(Self::HnApi),
-            "youtube_api" => Some(Self::YoutubeApi),
-            "youtube_web" => Some(Self::YoutubeWeb),
-            "gemini_api" => Some(Self::GeminiApi),
-            "polymarket_api" => Some(Self::PolymarketApi),
-            "reddit_browser" => Some(Self::RedditBrowser),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Xai => "xai",
-            Self::Openai => "openai",
-            Self::Exa => "exa",
-            Self::Tavily => "tavily",
-            Self::Firecrawl => "firecrawl",
-            Self::Jina => "jina",
-            Self::ArxivApi => "arxiv_api",
-            Self::SsrnCrossref => "ssrn_crossref",
-            Self::Serpapi => "serpapi",
-            Self::XiaohongshuBrowser => "xiaohongshu_browser",
-            Self::HnApi => "hn_api",
-            Self::YoutubeApi => "youtube_api",
-            Self::YoutubeWeb => "youtube_web",
-            Self::GeminiApi => "gemini_api",
-            Self::PolymarketApi => "polymarket_api",
-            Self::RedditBrowser => "reddit_browser",
-        }
+        Self::ALL.into_iter().find(|id| id.name() == value)
     }
 }
 
