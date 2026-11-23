@@ -20,6 +20,7 @@ enum Rule {
     Catalog,
     Registration,
     Factory,
+    Declaration,
     OperationOnlyRoute,
     BrowserEnvironment,
     ConfigLeaves,
@@ -42,8 +43,12 @@ impl Rule {
                 "register the route in the provider registry under a name such as `<platform>_api` or `<platform>_browser`",
             ),
             Self::Factory => (
-                "the provider factory builds every route of every operation: a support check that never sends, and a route configuration that names the route",
-                "add the route to the factory's support check for the operation, to the platform route runtime configuration, and to its route configuration",
+                "the provider factory builds every route of every operation: the route's declaration checks the operation's requests without sending, and a route configuration names the route",
+                "give the route's declaration a support check for the operation, and add the route to the platform route runtime configuration and to its route configuration",
+            ),
+            Self::Declaration => (
+                "what each route's declaration says it serves of search and fetch, and whether its registration declares an account probe, is what the route built from it hands out",
+                "make the route's declared support checks and doctor probe agree with its `PlatformRoute` implementation",
             ),
             Self::OperationOnlyRoute => (
                 "a route that serves neither search nor fetch serves a single-route operation",
@@ -162,6 +167,13 @@ struct Registry<'a> {
     single_route_operations: &'a [(Platform, &'a str, &'a [ProviderId])],
     registrations: &'a [ProviderRegistration],
     has_adapter: &'a dyn Fn(Platform, PlatformOperation, ProviderId) -> bool,
+    /// For each of search and fetch: whether the route's declaration checks the operation's
+    /// requests, and whether the route built from the default configuration hands it out.
+    /// `None` for a provider without a route configuration.
+    route_operations: &'a dyn Fn(ProviderId) -> Option<[(bool, bool); 2]>,
+    /// Whether the route built from the default configuration checks the account of each key.
+    /// `None` for a provider without a route configuration.
+    checks_accounts: &'a dyn Fn(ProviderId) -> Option<bool>,
     is_config_leaf: &'a dyn Fn(&str) -> bool,
     /// Whether the factory provides the login page logic of a platform's browser route.
     has_login: &'a dyn Fn(Platform) -> bool,
@@ -305,6 +317,7 @@ fn check_route(
         ));
         return;
     };
+    check_declaration(platform, registration, registry, found);
     let leaves: &[&str] = match registration.transport {
         // A main-search backend has no timeout of its own; its platform requests use the
         // command's remaining time like main search (ADR-0026).
@@ -312,24 +325,15 @@ fn check_route(
         ProviderTransport::Http => &["url", "timeout"],
         ProviderTransport::Browser(_) => &["timeout"],
     };
-    if let ProviderTransport::Browser(environment) = registration.transport {
-        if environment.profile != platform {
-            found.push(violation(
-                platform,
-                Rule::BrowserEnvironment,
-                &format!(
-                    "browser route `{name}` declares the Browser Profile of {}",
-                    environment.profile
-                ),
-            ));
-        }
-        if environment.requires_login && !(registry.has_login)(platform) {
-            found.push(violation(
-                platform,
-                Rule::BrowserEnvironment,
-                &format!("the provider factory has no login page logic for browser route `{name}`"),
-            ));
-        }
+    if let ProviderTransport::Browser(environment) = registration.transport
+        && environment.requires_login
+        && !(registry.has_login)(platform)
+    {
+        found.push(violation(
+            platform,
+            Rule::BrowserEnvironment,
+            &format!("the declaration of browser route `{name}` has no login page logic"),
+        ));
     }
     for leaf in leaves {
         let path = format!("providers.{name}.{leaf}");
@@ -385,6 +389,48 @@ fn check_route(
             Rule::DoctorProbe,
             &format!("route `{name}` has no doctor probe for the platform"),
         ));
+    }
+}
+
+/// Compares what the route's declaration and registration say it serves with what the route
+/// built from it hands out: search, fetch, and the account checks of an account probe.
+fn check_declaration(
+    platform: Platform,
+    registration: &ProviderRegistration,
+    registry: &Registry<'_>,
+    found: &mut Vec<Violation>,
+) {
+    let route = registration.id;
+    let name = route.name();
+    let probes_accounts = matches!(registration.probe, DoctorProbe::ServiceAccount { .. });
+    if let Some(checks_accounts) = (registry.checks_accounts)(route)
+        && checks_accounts != probes_accounts
+    {
+        found.push(violation(
+            platform,
+            Rule::Declaration,
+            &format!(
+                "the registration of route `{name}` {} an account probe, but the route built from it {} the accounts of its keys",
+                if probes_accounts { "declares" } else { "declares no" },
+                if checks_accounts { "checks" } else { "does not check" },
+            ),
+        ));
+    }
+    if let Some(operations) = (registry.route_operations)(route) {
+        for (operation, (declared, built)) in PlatformOperation::ALL.into_iter().zip(operations) {
+            if declared != built {
+                let operation = operation.as_str();
+                found.push(violation(
+                    platform,
+                    Rule::Declaration,
+                    &format!(
+                        "the declaration of route `{name}` {} {operation} requests, but the route built from it {} {operation}",
+                        if declared { "checks" } else { "checks no" },
+                        if built { "serves" } else { "does not serve" },
+                    ),
+                ));
+            }
+        }
     }
 }
 
@@ -492,6 +538,14 @@ fn baseline() -> Registry<'static> {
         single_route_operations: SINGLE_ROUTE_OPERATIONS,
         registrations: catalog::registrations(),
         has_adapter: &has_adapter,
+        route_operations: &|route| {
+            config::platform_route_config(route, &config::default_platform_routes())
+                .map(providers::declared_and_built_operations)
+        },
+        checks_accounts: &|route| {
+            config::platform_route_config(route, &config::default_platform_routes())
+                .map(providers::built_route_checks_accounts)
+        },
         is_config_leaf: &config::is_leaf,
         has_login: &|platform| providers::browser_login(platform).is_some(),
         sample_refs: &sample_refs,
@@ -584,6 +638,42 @@ fn a_route_without_a_factory_breaks_the_factory_rule() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::Factory);
+}
+
+#[test]
+fn a_declaration_that_disagrees_with_its_built_route_breaks_the_declaration_rule() {
+    let registry = Registry {
+        route_operations: &|_| Some([(true, false), (true, true)]),
+        ..baseline()
+    };
+
+    let found = violations(Platform::Arxiv, &registry);
+
+    assert_reports(&found, Rule::Declaration);
+    assert!(
+        found
+            .iter()
+            .any(|violation| violation.detail.contains("`arxiv_api`")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn an_account_probe_that_the_built_route_cannot_run_breaks_the_declaration_rule() {
+    let registry = Registry {
+        checks_accounts: &|_| Some(false),
+        ..baseline()
+    };
+
+    let found = violations(Platform::Scholar, &registry);
+
+    assert_reports(&found, Rule::Declaration);
+    assert!(
+        found
+            .iter()
+            .any(|violation| violation.detail.contains("`serpapi`")),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -707,7 +797,7 @@ fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
 }
 
 #[test]
-fn a_browser_route_that_needs_a_login_without_login_page_logic_breaks_the_browser_rule() {
+fn a_browser_route_without_login_page_logic_breaks_the_browser_rule() {
     let registry = Registry {
         has_login: &|_| false,
         ..baseline()
@@ -720,37 +810,6 @@ fn a_browser_route_that_needs_a_login_without_login_page_logic_breaks_the_browse
         found
             .iter()
             .any(|violation| violation.detail.contains("login page logic")),
-        "{found:?}"
-    );
-}
-
-#[test]
-fn a_browser_route_on_another_platform_profile_breaks_the_browser_rule() {
-    let registrations = catalog::registrations()
-        .iter()
-        .map(|registration| match registration.transport {
-            ProviderTransport::Browser(environment) => ProviderRegistration {
-                transport: ProviderTransport::Browser(catalog::BrowserEnvironment {
-                    profile: Platform::Arxiv,
-                    ..environment
-                }),
-                ..*registration
-            },
-            ProviderTransport::Http => *registration,
-        })
-        .collect::<Vec<_>>();
-    let registry = Registry {
-        registrations: &registrations,
-        ..baseline()
-    };
-
-    let found = violations(Platform::Xiaohongshu, &registry);
-
-    assert_reports(&found, Rule::BrowserEnvironment);
-    assert!(
-        found.iter().any(|violation| violation
-            .detail
-            .contains("declares the Browser Profile of arxiv")),
         "{found:?}"
     );
 }

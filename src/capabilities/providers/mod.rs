@@ -55,6 +55,8 @@ pub(crate) use factory::{
     youtube_comments_support, youtube_transcribe, youtube_transcribe_support, youtube_videos,
     youtube_videos_support,
 };
+#[cfg(test)]
+pub(crate) use factory::{built_route_checks_accounts, declared_and_built_operations};
 pub(crate) use key_account::KeyAccount;
 pub(crate) use openai::Openai;
 pub(crate) use serpapi::KeyQuota;

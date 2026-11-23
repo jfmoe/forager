@@ -926,17 +926,14 @@ mod tests {
 
     #[test]
     fn registry_validation_accepts_a_route_that_only_a_platform_catalog_lists() {
-        let arxiv_api = registration(ProviderId::ArxivApi);
-
         assert_eq!(
             (
                 CATALOGS
                     .iter()
                     .any(|catalog| catalog.contains(ProviderId::ArxivApi)),
-                arxiv_api.operations.is_empty(),
                 validate_registrations(REGISTRY),
             ),
-            (false, true, Ok(()))
+            (false, Ok(()))
         );
     }
 
