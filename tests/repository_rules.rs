@@ -104,7 +104,10 @@ fn every_sample_has_a_metadata_record_and_every_record_names_a_sample() {
             .expect("read a provider's samples")
             .map(|entry| {
                 let path = entry.expect("sample entry").path();
-                file_name(&path).to_owned()
+                samples::Entry {
+                    name: file_name(&path).to_owned(),
+                    is_directory: path.is_dir(),
+                }
             })
             .collect::<Vec<_>>();
         let manifest = fs::read_to_string(path.join(samples::MANIFEST)).ok();
@@ -120,30 +123,91 @@ fn every_sample_has_a_metadata_record_and_every_record_names_a_sample() {
 }
 
 #[test]
-fn a_sample_without_a_record_and_a_record_without_a_sample_are_reported() {
-    let manifest = r#"
-[[sample]]
-file = "page.json"
-shape = "a search page"
-origin = "captured"
-observed = 2026-01-02
-obtained = "one anonymous request"
+fn each_way_a_store_directory_breaks_the_sample_rule_is_reported() {
+    let captured = "[[sample]]\nfile = \"page.json\"\nshape = \"a search page\"\norigin = \"captured\"\nobserved = 2026-01-02\nobtained = \"one anonymous request\"\n";
+    let with_obtained =
+        |line: &str| captured.replace("obtained = \"one anonymous request\"\n", line);
+    let error_record = "[[sample]]\nfile = \"error.json\"\nshape = \"an error\"\norigin = \"hand-written\"\nobserved = 2026-01-02\n";
+    let record = |name: &str, problem: &str| {
+        vec![format!(
+            "example_api/samples.toml: the record of `{name}` {problem}"
+        )]
+    };
+    let cases: [(&[&str], Option<String>, Vec<String>); 13] = [
+        (&["page.json"], Some(captured.to_owned()), vec![]),
+        (
+            &["page.json", "fixtures/"],
+            Some(captured.to_owned()),
+            vec!["example_api/fixtures: a provider's samples sit directly in its directory".to_owned()],
+        ),
+        (&["page.json"], None, vec!["example_api: no samples.toml records its samples".to_owned()]),
+        (
+            &["page.json"],
+            Some(format!("{captured}status = \"draft\"\n")),
+            vec!["example_api/samples.toml: unknown field `status`, expected one of `file`, `shape`, `variant_of`, `origin`, `observed`, `obtained`".to_owned()],
+        ),
+        (
+            &["page.json", "unrecorded.json"],
+            Some(captured.to_owned()),
+            vec!["example_api/unrecorded.json: no metadata record in samples.toml".to_owned()],
+        ),
+        (
+            &["page.json"],
+            Some(format!("{captured}{captured}")),
+            record("page.json", "appears twice"),
+        ),
+        (
+            &["page.json"],
+            Some(format!("{captured}{error_record}")),
+            record("error.json", "names no sample in example_api/"),
+        ),
+        (
+            &["page.json"],
+            Some(captured.replace("a search page", " ")),
+            record("page.json", "does not say which response structure it holds"),
+        ),
+        (
+            &["page.json", "error.json"],
+            Some(format!("{captured}{error_record}variant_of = \"gone.json\"\n")),
+            record("error.json", "is a variant of a sample with no record"),
+        ),
+        (
+            &["page.json"],
+            Some(captured.replace("2026-01-02", "2026-01-02T10:00:00")),
+            record("page.json", "gives `observed` as something other than a date"),
+        ),
+        (
+            &["page.json"],
+            Some(with_obtained("")),
+            record("page.json", "is captured and does not say how it was obtained"),
+        ),
+        (
+            &["page.json"],
+            Some(with_obtained("obtained = \" \"\n")),
+            record("page.json", "is captured and does not say how it was obtained"),
+        ),
+        (
+            &["page.json", "error.json"],
+            Some(format!("{captured}{error_record}obtained = \"one request\"\n")),
+            record("error.json", "is hand-written and says how it was obtained"),
+        ),
+    ];
 
-[[sample]]
-file = "gone.json"
-shape = "a search page"
-origin = "hand-written"
-observed = 2026-01-02
-"#;
-    let entries = ["samples.toml", "page.json", "unrecorded.json"].map(str::to_owned);
+    for (names, manifest, expected) in cases {
+        let entries = std::iter::once("samples.toml")
+            .chain(names.iter().copied())
+            .map(|name| samples::Entry {
+                name: name.trim_end_matches('/').to_owned(),
+                is_directory: name.ends_with('/'),
+            })
+            .collect::<Vec<_>>();
 
-    assert_eq!(
-        samples::violations("example_api", &entries, Some(manifest)),
-        [
-            "example_api/unrecorded.json: no metadata record in samples.toml",
-            "example_api/samples.toml: the record of `gone.json` names no sample in example_api/",
-        ]
-    );
+        assert_eq!(
+            samples::violations("example_api", &entries, manifest.as_deref()),
+            expected,
+            "entries {names:?}, manifest:\n{manifest:?}"
+        );
+    }
 }
 
 #[test]

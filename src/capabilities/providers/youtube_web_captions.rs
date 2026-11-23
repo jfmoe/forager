@@ -536,11 +536,17 @@ mod tests {
             let end = xml.rfind("</text>").expect("the stored cues end") + "</text>".len();
             format!("{}{}", &xml[..start], &xml[end..])
         };
-        let results = [srv1_cues(""), srv1_cues(&without_cues), srv1_cues(&blank)];
+        let results = [
+            srv1_cues(""),
+            srv1_cues("<transcript/>"),
+            srv1_cues(&without_cues),
+            srv1_cues(&blank),
+        ];
 
         assert_eq!(
             results,
             [
+                Err(Srv1Error::Empty),
                 Err(Srv1Error::Empty),
                 Err(Srv1Error::Empty),
                 Err(Srv1Error::Empty)
@@ -548,7 +554,12 @@ mod tests {
         );
         let xml = srv1();
         let truncated = &xml[..xml.find("</transcript>").expect("the stored track ends")];
-        assert!(matches!(srv1_cues(truncated), Err(Srv1Error::Invalid(_))));
+        for body in [truncated, "<html>blocked"] {
+            assert!(
+                matches!(srv1_cues(body), Err(Srv1Error::Invalid(_))),
+                "{body}"
+            );
+        }
         assert!(matches!(
             srv1_cues(&srv1().replace(r#"start="1.2""#, r#"start="-1""#)),
             Err(Srv1Error::Invalid(_))

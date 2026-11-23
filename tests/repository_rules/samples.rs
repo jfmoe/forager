@@ -33,30 +33,52 @@ enum Origin {
     HandWritten,
 }
 
+/// One name in a store directory.
+pub(crate) struct Entry {
+    pub(crate) name: String,
+    pub(crate) is_directory: bool,
+}
+
 /// What breaks the rule in one store directory, relative to `tests/samples`: `directory` is its
-/// name, `entries` the names in it, and `manifest` the manifest's text when it has one.
+/// name, `entries` what it holds, and `manifest` the manifest's text when it has one.
 pub(crate) fn violations(
     directory: &str,
-    entries: &[String],
+    entries: &[Entry],
     manifest: Option<&str>,
 ) -> Vec<String> {
+    // A nested directory would hide its files from the record check, and a provider's samples
+    // are few enough to sit side by side.
+    let mut found = entries
+        .iter()
+        .filter(|entry| entry.is_directory)
+        .map(|entry| {
+            format!(
+                "{directory}/{}: a provider's samples sit directly in its directory",
+                entry.name
+            )
+        })
+        .collect::<Vec<_>>();
     let samples = entries
         .iter()
-        .filter(|entry| entry.as_str() != MANIFEST)
+        .filter(|entry| !entry.is_directory && entry.name != MANIFEST)
+        .map(|entry| &entry.name)
         .collect::<BTreeSet<_>>();
     let Some(manifest) = manifest else {
-        return vec![format!("{directory}: no {MANIFEST} records its samples")];
+        found.push(format!("{directory}: no {MANIFEST} records its samples"));
+        return found;
     };
     let manifest = match toml::from_str::<Manifest>(manifest) {
         Ok(manifest) => manifest,
-        Err(error) => return vec![format!("{directory}/{MANIFEST}: {}", error.message())],
+        Err(error) => {
+            found.push(format!("{directory}/{MANIFEST}: {}", error.message()));
+            return found;
+        }
     };
     let recorded = manifest
         .samples
         .iter()
         .map(|record| &record.file)
         .collect::<BTreeSet<_>>();
-    let mut found = Vec::new();
     for sample in &samples {
         if !recorded.contains(sample) {
             found.push(format!(
@@ -90,8 +112,8 @@ pub(crate) fn violations(
                 "{name} gives `observed` as something other than a date"
             ));
         }
-        match (record.origin, &record.obtained) {
-            (Origin::Captured, None) => {
+        match (record.origin, record.obtained.as_deref().map(str::trim)) {
+            (Origin::Captured, None | Some("")) => {
                 found.push(format!(
                     "{name} is captured and does not say how it was obtained"
                 ));
