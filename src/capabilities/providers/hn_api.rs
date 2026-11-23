@@ -649,3 +649,7 @@ fn firebase_failure_message(_body: &str, status: u16) -> String {
         .unwrap_or_default();
     format!("HN Firebase API returned HTTP {status}{reason}")
 }
+
+#[cfg(test)]
+#[path = "hn_api_tests.rs"]
+mod tests;

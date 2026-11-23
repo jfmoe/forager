@@ -1,0 +1,94 @@
+{
+  "author": "dhouston",
+  "children": [
+    {
+      "author": "alice",
+      "children": [
+        {
+          "author": "erin",
+          "children": [],
+          "created_at_i": 1175714215,
+          "id": 15,
+          "parent_id": 10,
+          "points": null,
+          "story_id": 8863,
+          "text": "reply c",
+          "title": null,
+          "type": "comment",
+          "url": null
+        },
+        {
+          "author": "dave",
+          "children": [
+            {
+              "author": "frank",
+              "children": [],
+              "created_at_i": 1175714214,
+              "id": 14,
+              "parent_id": 13,
+              "points": null,
+              "story_id": 8863,
+              "text": "deep",
+              "title": null,
+              "type": "comment",
+              "url": null
+            }
+          ],
+          "created_at_i": 1175714213,
+          "id": 13,
+          "parent_id": 10,
+          "points": null,
+          "story_id": 8863,
+          "text": "reply b",
+          "title": null,
+          "type": "comment",
+          "url": null
+        }
+      ],
+      "created_at_i": 1175714210,
+      "id": 10,
+      "parent_id": 8863,
+      "points": null,
+      "story_id": 8863,
+      "text": "First<p>Second",
+      "title": null,
+      "type": "comment",
+      "url": null
+    },
+    {
+      "author": "bob",
+      "children": [],
+      "created_at_i": 1175714211,
+      "id": 11,
+      "parent_id": 8863,
+      "points": null,
+      "story_id": 8863,
+      "text": "Second top",
+      "title": null,
+      "type": "comment",
+      "url": null
+    },
+    {
+      "author": "carol",
+      "children": [],
+      "created_at_i": 1175714212,
+      "id": 12,
+      "parent_id": 8863,
+      "points": null,
+      "story_id": 8863,
+      "text": "Third",
+      "title": null,
+      "type": "comment",
+      "url": null
+    }
+  ],
+  "created_at_i": 1175714200,
+  "id": 8863,
+  "parent_id": null,
+  "points": 100,
+  "story_id": 8863,
+  "text": null,
+  "title": "My YC app: Dropbox - Throw away your USB drive",
+  "type": "story",
+  "url": "http://www.getdropbox.com/u/2/screencast.html"
+}

@@ -612,8 +612,68 @@ fn content_file_name(reference: &PlatformRef) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{content_file_name, parse_date};
-    use crate::types::{Platform, PlatformRef};
+    use super::{content_file_name, deliver, parse_date};
+    use crate::app::args::ContentOutputFormat;
+    use crate::types::{
+        ContentDepth, HnItemData, HnItemType, Platform, PlatformContent, PlatformFetchResult,
+        PlatformItem, PlatformItemData, PlatformRef,
+    };
+
+    #[test]
+    fn the_content_format_writes_no_file_even_into_a_given_content_directory() {
+        let reference = PlatformRef::parse(Platform::Hn, "hn:8863").expect("valid ref");
+        let fetched = PlatformFetchResult {
+            platform: Platform::Hn,
+            provider: "hn_api",
+            item: PlatformItem {
+                url: reference.canonical_url(),
+                reference,
+                depth: ContentDepth::Thread,
+                title: None,
+                authors: Vec::new(),
+                published: None,
+                data: PlatformItemData::Hn(HnItemData {
+                    item_type: HnItemType::Story,
+                    link_url: None,
+                    points: None,
+                    comments: None,
+                    text: None,
+                    story_ref: None,
+                    story_title: None,
+                    parent_ref: None,
+                    comments_delivered: None,
+                    order: None,
+                }),
+            },
+            content: Some(PlatformContent::new(
+                "https://news.ycombinator.com/item?id=8863".to_owned(),
+                "hn_api",
+                "# A discussion".to_owned(),
+            )),
+            attempts: Vec::new(),
+            diagnostic: None,
+        };
+        let content_dir = tempfile::tempdir().expect("content directory");
+
+        let delivered = deliver(
+            fetched,
+            ContentOutputFormat::Content,
+            Some(content_dir.path().to_path_buf()),
+            "hn-8863.md",
+            false,
+        )
+        .expect("delivered");
+
+        assert_eq!(
+            (
+                delivered.content.and_then(|content| content.path),
+                std::fs::read_dir(content_dir.path())
+                    .expect("read content directory")
+                    .count()
+            ),
+            (None, 0)
+        );
+    }
 
     #[test]
     fn content_file_names_derive_from_the_versioned_ref() {
