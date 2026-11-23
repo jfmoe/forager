@@ -1,20 +1,18 @@
 //! The `forager platform <id> <op>` command group: one static argument tree per platform.
 
 use std::fs;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
+use reqwest::Client;
 
 use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
-use std::future::Future;
-
-use reqwest::Client;
-
 use crate::config::{ConfigError, PlatformRoutesRuntimeConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::platform_chain::{self, PlatformPreflightError};
@@ -351,7 +349,7 @@ fn search(
             PageInput::Request(request) => platform_chain::plan_search(config, request),
             PageInput::Cursor(cursor) => platform_chain::plan_cursor_search(config, &cursor),
         },
-        platform_chain::run_page,
+        platform_chain::run_search,
         format,
         common,
     )

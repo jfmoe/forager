@@ -61,8 +61,8 @@ mod page;
 mod search;
 
 pub(crate) use login::LOGIN_PAGE;
-pub(crate) use note::fetch_support;
-pub(crate) use search::search_support;
+use note::fetch_support;
+use search::search_support;
 
 pub(crate) struct XiaohongshuBrowser {
     browser: BrowserRoute,

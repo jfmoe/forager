@@ -45,8 +45,8 @@ mod search;
 #[path = "youtube_api_videos.rs"]
 mod videos;
 
-pub(crate) use search::search_support;
-pub(crate) use videos::videos_support;
+use search::search_support;
+use videos::videos_support;
 
 const ROUTE: ProviderId = ProviderId::YoutubeApi;
 const PLATFORM: Platform = Platform::Youtube;

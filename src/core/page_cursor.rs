@@ -11,55 +11,67 @@
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use serde::{Deserialize, Serialize};
 
-use crate::catalog::{PlatformOperation, ProviderId};
-use crate::types::{
-    CITED_BY, Platform, PlatformSearchRequest, ScholarCitedByRequest, VIDEOS, YoutubeVideosRequest,
-};
+use crate::catalog::ProviderId;
+use crate::types::{Platform, PlatformSearchRequest, ScholarCitedByRequest, YoutubeVideosRequest};
+
+use page::{Codec, PageRequest};
 
 const CURSOR_VERSION: &str = "v1";
 
-/// The request of one page of a paged operation; a page cursor encodes it completely. Each
-/// variant denies the other's fields, so a cursor payload decodes as exactly one operation. The
-/// enum is untagged so a search payload is the bare search request.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(untagged)]
-pub(crate) enum PageRequest {
-    Search(PlatformSearchRequest),
-    ScholarCitedBy(ScholarCitedByRequest),
-    YoutubeVideos(YoutubeVideosRequest),
-}
-
-impl PageRequest {
-    fn platform(&self) -> Platform {
-        match self {
-            Self::Search(request) => request.options.platform(),
-            Self::ScholarCitedBy(_) => Platform::Scholar,
-            Self::YoutubeVideos(_) => Platform::Youtube,
-        }
-    }
-
-    fn operation(&self) -> &'static str {
-        match self {
-            Self::Search(_) => PlatformOperation::Search.as_str(),
-            Self::ScholarCitedBy(_) => CITED_BY,
-            Self::YoutubeVideos(_) => VIDEOS,
-        }
-    }
-}
-
 /// The request of one page of a paged operation.
-pub(crate) trait PagedRequest: Sized {
+pub(crate) trait PagedRequest: Codec {
     /// The request with its page position replaced by `page`.
     fn at_page(&self, page: String) -> Self;
+}
 
-    fn validate(&self) -> Result<(), String>;
+/// How a paged request travels in a cursor payload; only this module encodes and decodes one.
+mod page {
+    use serde::{Deserialize, Serialize};
 
-    fn into_page(self) -> PageRequest;
+    use crate::catalog::PlatformOperation;
+    use crate::types::{
+        CITED_BY, Platform, PlatformSearchRequest, ScholarCitedByRequest, VIDEOS,
+        YoutubeVideosRequest,
+    };
 
-    /// The request a page request holds, or `None` when it belongs to another operation.
-    fn from_page(page: PageRequest) -> Option<Self>;
+    /// The request of one page of a paged operation; a page cursor encodes it completely. Each
+    /// variant denies the other's fields, so a cursor payload decodes as exactly one operation. The
+    /// enum is untagged so a search payload is the bare search request.
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(untagged)]
+    pub(crate) enum PageRequest {
+        Search(PlatformSearchRequest),
+        ScholarCitedBy(ScholarCitedByRequest),
+        YoutubeVideos(YoutubeVideosRequest),
+    }
+
+    impl PageRequest {
+        pub(super) fn platform(&self) -> Platform {
+            match self {
+                Self::Search(request) => request.options.platform(),
+                Self::ScholarCitedBy(_) => Platform::Scholar,
+                Self::YoutubeVideos(_) => Platform::Youtube,
+            }
+        }
+
+        pub(super) fn operation(&self) -> &'static str {
+            match self {
+                Self::Search(_) => PlatformOperation::Search.as_str(),
+                Self::ScholarCitedBy(_) => CITED_BY,
+                Self::YoutubeVideos(_) => VIDEOS,
+            }
+        }
+    }
+
+    pub(crate) trait Codec: Sized {
+        fn validate(&self) -> Result<(), String>;
+
+        fn into_page(self) -> PageRequest;
+
+        /// The request a page request holds, or `None` when it belongs to another operation.
+        fn from_page(page: PageRequest) -> Option<Self>;
+    }
 }
 
 impl PagedRequest for PlatformSearchRequest {
@@ -69,7 +81,9 @@ impl PagedRequest for PlatformSearchRequest {
             ..self.clone()
         }
     }
+}
 
+impl Codec for PlatformSearchRequest {
     fn validate(&self) -> Result<(), String> {
         Self::validate(self)
     }
@@ -93,7 +107,9 @@ impl PagedRequest for ScholarCitedByRequest {
             ..self.clone()
         }
     }
+}
 
+impl Codec for ScholarCitedByRequest {
     fn validate(&self) -> Result<(), String> {
         Self::validate(self)
     }
@@ -117,7 +133,9 @@ impl PagedRequest for YoutubeVideosRequest {
             ..self.clone()
         }
     }
+}
 
+impl Codec for YoutubeVideosRequest {
     fn validate(&self) -> Result<(), String> {
         Self::validate(self)
     }

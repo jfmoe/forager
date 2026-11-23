@@ -49,7 +49,7 @@ use crate::types::{
 
 /// A Platform Operation of one platform that one route serves: its name in the platform
 /// catalog, and the declaration of the route that answers it.
-struct Operation<C: 'static, Q: 'static, I: ?Sized + 'static, T: 'static> {
+struct Operation<C: 'static, Q: 'static, I: 'static, T: 'static> {
     platform: Platform,
     name: &'static str,
     exhausted_message: &'static str,
@@ -161,7 +161,7 @@ const YOUTUBE_ASK: Operation<
 
 /// What planning hands an operation: the configuration of its route, when the order lists the
 /// route and it can run the request, and the routes skipped before it runs.
-struct RoutePlan<C: 'static, Q: 'static, I: ?Sized + 'static, T: 'static> {
+struct OperationPlan<C: 'static, Q: 'static, I: 'static, T: 'static> {
     operation: &'static Operation<C, Q, I, T>,
     configs: Vec<C>,
     skipped: Vec<ProviderAttempt>,
@@ -169,13 +169,13 @@ struct RoutePlan<C: 'static, Q: 'static, I: ?Sized + 'static, T: 'static> {
 
 /// Plans `operation` over the order of `config`, the operation's platform; a `pinned` route, from
 /// a cursor, is the only route that may run.
-fn plan<C: Clone, Q, I: ?Sized, T>(
+fn plan<C: Clone, Q, I, T>(
     operation: &'static Operation<C, Q, I, T>,
     config: &PlatformRuntimeConfig,
     routes: &PlatformRoutesRuntimeConfig,
     request: &Q,
     pinned: Option<ProviderId>,
-) -> Result<RoutePlan<C, Q, I, T>, PlatformPreflightError> {
+) -> Result<OperationPlan<C, Q, I, T>, PlatformPreflightError> {
     let route = operation.route;
     let plan = plan_routes(
         operation.name,
@@ -186,7 +186,7 @@ fn plan<C: Clone, Q, I: ?Sized, T>(
         pinned,
         |id| (id == route.route).then(|| providers::operation_support(route, request)),
     )?;
-    Ok(RoutePlan {
+    Ok(OperationPlan {
         operation,
         configs: plan
             .routes
@@ -213,7 +213,7 @@ struct Answered<T> {
     diagnostic: Option<String>,
 }
 
-impl<C: Send + 'static, Q, I: ?Sized + Sync, T: Traced + Send> RoutePlan<C, Q, I, T> {
+impl<C: Send + 'static, Q, I: Sync, T: Traced + Send> OperationPlan<C, Q, I, T> {
     /// Runs the route chain on `input`, led by the skipped routes.
     async fn run(self, input: &I, run: &OperationRun) -> Result<Answered<T>, ProviderError> {
         let lead = LeadingTrace {
@@ -222,9 +222,7 @@ impl<C: Send + 'static, Q, I: ?Sized + Sync, T: Traced + Send> RoutePlan<C, Q, I
         };
         answer(self.operation, self.configs, input, lead, run).await
     }
-}
 
-impl<C: Send + 'static, Q, I: Sync, T: Traced + Send> RoutePlan<C, Q, I, T> {
     /// Reads the video through `precheck`, then runs the route chain on the input `input` makes
     /// of the video read; the skipped routes lead the read, and the read leads the chain.
     async fn run_prechecked(
@@ -257,7 +255,7 @@ impl<C: Send + 'static, Q, I: Sync, T: Traced + Send> RoutePlan<C, Q, I, T> {
 }
 
 /// Runs the route chain of `operation` over `configs`, led by `lead`.
-async fn answer<C: Send + 'static, Q, I: ?Sized + Sync, T: Traced + Send>(
+async fn answer<C: Send + 'static, Q, I: Sync, T: Traced + Send>(
     operation: &'static Operation<C, Q, I, T>,
     configs: Vec<C>,
     input: &I,
@@ -398,7 +396,7 @@ traced!(
 /// The planned page of the works citing a Google Scholar paper.
 pub(crate) struct CitedByPlan {
     request: ScholarCitedByRequest,
-    route: RoutePlan<
+    route: OperationPlan<
         KeyedHttpRouteRuntimeConfig,
         ScholarCitedByRequest,
         ScholarCitedByRequest,
@@ -463,7 +461,7 @@ pub(crate) async fn run_cited_by(
 /// The planned page of the videos of a YouTube playlist or channel.
 pub(crate) struct VideosPlan {
     request: YoutubeVideosRequest,
-    route: RoutePlan<
+    route: OperationPlan<
         KeyedHttpRouteRuntimeConfig,
         YoutubeVideosRequest,
         YoutubeVideosRequest,
@@ -533,7 +531,7 @@ pub(crate) async fn run_videos(
 /// The planned transcription of a YouTube video: the precheck, then the route.
 pub(crate) struct TranscribePlan {
     precheck: PrecheckPlan,
-    route: RoutePlan<
+    route: OperationPlan<
         ModelRouteRuntimeConfig,
         YoutubeTranscribeRequest,
         PlatformItem,
@@ -613,7 +611,7 @@ pub(crate) struct CommentsPlan(PlannedComments);
 enum PlannedComments {
     Xiaohongshu {
         request: XiaohongshuCommentsRequest,
-        route: RoutePlan<
+        route: OperationPlan<
             BrowserRouteRuntimeConfig,
             XiaohongshuCommentsRequest,
             XiaohongshuCommentsRequest,
@@ -622,7 +620,7 @@ enum PlannedComments {
     },
     Youtube {
         request: YoutubeCommentsRequest,
-        route: RoutePlan<
+        route: OperationPlan<
             KeyedHttpRouteRuntimeConfig,
             YoutubeCommentsRequest,
             YoutubeCommentsRequest,
@@ -698,12 +696,12 @@ pub(crate) struct AskPlan(PlannedAsk);
 enum PlannedAsk {
     X {
         request: XAskRequest,
-        route: RoutePlan<XaiRuntimeConfig, XAskRequest, XAskRequest, XAskOutcome>,
+        route: OperationPlan<XaiRuntimeConfig, XAskRequest, XAskRequest, XAskOutcome>,
     },
     Youtube {
         request: YoutubeAskRequest,
         precheck: PrecheckPlan,
-        route: RoutePlan<
+        route: OperationPlan<
             ModelRouteRuntimeConfig,
             YoutubeAskRequest,
             (PlatformItem, String),
@@ -794,7 +792,8 @@ pub(crate) async fn run_ask(
 /// The planned listing of a Hacker News story list.
 pub(crate) struct StoriesPlan {
     request: HnStoriesRequest,
-    route: RoutePlan<HnRouteRuntimeConfig, HnStoriesRequest, HnStoriesRequest, HnStoriesOutcome>,
+    route:
+        OperationPlan<HnRouteRuntimeConfig, HnStoriesRequest, HnStoriesRequest, HnStoriesOutcome>,
 }
 
 /// Plans a stories listing; `config` is Hacker News's.
@@ -836,7 +835,7 @@ pub(crate) async fn run_stories(
 /// The planned Price History of one outcome of a Polymarket market.
 pub(crate) struct HistoryPlan {
     request: PolymarketHistoryRequest,
-    route: RoutePlan<
+    route: OperationPlan<
         PolymarketRouteRuntimeConfig,
         PolymarketHistoryRequest,
         PolymarketHistoryRequest,

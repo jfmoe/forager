@@ -28,7 +28,7 @@ use crate::types::{
 
 #[path = "xai_x.rs"]
 mod x;
-pub(crate) use x::{fetch_support, search_support};
+use x::{fetch_support, search_support};
 
 const SERVICE: &str = "xAI Responses";
 

@@ -9,7 +9,9 @@
 use reqwest::Client;
 
 use super::constructors::credentials;
-use super::route_declaration::{OperationRoute, PlatformRoute, RouteAdapter, RouteContext};
+use super::route_declaration::{
+    ExtraCheck, OperationRoute, PlatformRoute, RouteAdapter, RouteContext,
+};
 use super::{
     DocsSearch, KeyAccount, MainSearch, PlatformFetch, PlatformSearch, ProviderId,
     SupplementalSearch, WebFetch, WebSearch, arxiv, browser, browser_preflight, gemini_api, hn_api,
@@ -25,9 +27,7 @@ use crate::config::{
 };
 use crate::net::RetryPolicy;
 use crate::providers::browser::BrowserLogin;
-use crate::types::{
-    Deadline, Platform, PlatformFetchRequest, PlatformSearchRequest, ProviderError,
-};
+use crate::types::{Deadline, Platform, PlatformFetchRequest, PlatformSearchRequest};
 
 pub(crate) fn build_main_search(
     config: MainSearchProviderConfig,
@@ -119,7 +119,7 @@ pub(crate) async fn platform_route_extra_checks(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-) -> Vec<(&'static str, Result<(), ProviderError>)> {
+) -> Vec<ExtraCheck> {
     let route = declared_route(config, route_context(client, retry_policy, deadline));
     route.extra_checks().await
 }
@@ -203,25 +203,20 @@ fn declared_adapter(id: ProviderId) -> Option<RouteAdapter> {
 /// operation out. Building a route sends nothing and launches nothing.
 #[cfg(test)]
 pub(crate) fn declared_and_built_operations(config: PlatformRouteConfig) -> [(bool, bool); 2] {
-    let context = || {
-        route_context(
-            crate::net::build_client(true).expect("build the HTTP client"),
-            RetryPolicy::new(1, 1.0, std::time::Duration::ZERO),
-            Deadline::new(std::time::Duration::from_secs(1)),
-        )
-    };
     let adapter = declared_adapter(config.route())
         .expect("a platform route configuration names a platform route");
     [
         (
             adapter.search_support.is_some(),
-            declared_route(config.clone(), context())
+            declared_route(config.clone(), test_context())
                 .into_search()
                 .is_some(),
         ),
         (
             adapter.fetch_support.is_some(),
-            declared_route(config, context()).into_fetch().is_some(),
+            declared_route(config, test_context())
+                .into_fetch()
+                .is_some(),
         ),
     ]
 }
@@ -230,15 +225,17 @@ pub(crate) fn declared_and_built_operations(config: PlatformRouteConfig) -> [(bo
 /// key. Building a route sends nothing and launches nothing.
 #[cfg(test)]
 pub(crate) fn built_route_checks_accounts(config: PlatformRouteConfig) -> bool {
-    let route = declared_route(
-        config,
-        route_context(
-            crate::net::build_client(true).expect("build the HTTP client"),
-            RetryPolicy::new(1, 1.0, std::time::Duration::ZERO),
-            Deadline::new(std::time::Duration::from_secs(1)),
-        ),
-    );
-    route.accounts().is_some()
+    declared_route(config, test_context()).accounts().is_some()
+}
+
+/// The context of a route that a test builds but never runs.
+#[cfg(test)]
+fn test_context() -> RouteContext {
+    route_context(
+        crate::net::build_client(true).expect("build the HTTP client"),
+        RetryPolicy::new(1, 1.0, std::time::Duration::ZERO),
+        Deadline::new(std::time::Duration::from_secs(1)),
+    )
 }
 
 /// Returns whether a platform search route can run the request with every explicit option, or
@@ -282,7 +279,7 @@ pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
 
 /// Returns whether the route that alone serves an operation can run the request: this host runs
 /// its transport, and the route's request check passes.
-pub(crate) fn operation_support<C, Q: ?Sized, I: ?Sized, T>(
+pub(crate) fn operation_support<C, Q, I, T>(
     operation: &OperationRoute<C, Q, I, T>,
     request: &Q,
 ) -> Result<(), String> {

@@ -31,7 +31,7 @@ pub(crate) enum PlatformPreflightError {
 }
 
 /// The routes a search page runs, in order, and the routes skipped before it runs.
-pub(crate) struct PlatformPagePlan {
+pub(crate) struct SearchPlan {
     platform: Platform,
     request: PlatformSearchRequest,
     routes: Vec<PlatformRouteConfig>,
@@ -42,7 +42,7 @@ pub(crate) struct PlatformPagePlan {
 pub(crate) fn plan_search(
     config: &PlatformRuntimeConfig,
     request: PlatformSearchRequest,
-) -> Result<PlatformPagePlan, PlatformPreflightError> {
+) -> Result<SearchPlan, PlatformPreflightError> {
     plan(config, request, None)
 }
 
@@ -50,7 +50,7 @@ pub(crate) fn plan_search(
 pub(crate) fn plan_cursor_search(
     config: &PlatformRuntimeConfig,
     cursor: &str,
-) -> Result<PlatformPagePlan, PlatformPreflightError> {
+) -> Result<SearchPlan, PlatformPreflightError> {
     let (route, request) = page_cursor::decode(
         cursor,
         config.platform(),
@@ -64,7 +64,7 @@ fn plan(
     config: &PlatformRuntimeConfig,
     request: PlatformSearchRequest,
     pinned: Option<ProviderId>,
-) -> Result<PlatformPagePlan, PlatformPreflightError> {
+) -> Result<SearchPlan, PlatformPreflightError> {
     let platform = config.platform();
     let plan = plan_routes(
         PlatformOperation::Search.as_str(),
@@ -75,7 +75,7 @@ fn plan(
         pinned,
         |id| providers::platform_search_support(id, &request),
     )?;
-    Ok(PlatformPagePlan {
+    Ok(SearchPlan {
         platform,
         request,
         routes: plan.routes.into_iter().map(|(_, config)| config).collect(),
@@ -84,14 +84,14 @@ fn plan(
 }
 
 /// Runs a planned search page and encodes the next-page cursor.
-pub(crate) async fn run_page(
-    plan: PlatformPagePlan,
+pub(crate) async fn run_search(
+    plan: SearchPlan,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
 ) -> Result<PlatformSearchPage, ProviderError> {
-    let PlatformPagePlan {
+    let SearchPlan {
         platform,
         request,
         routes,

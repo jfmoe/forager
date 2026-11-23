@@ -33,7 +33,7 @@ use crate::types::{
 const ROUTE: ProviderId = ProviderId::SsrnCrossref;
 #[path = "ssrn_crossref_search.rs"]
 mod search;
-pub(crate) use search::search_support;
+use search::search_support;
 
 /// The route's declaration: Search and Fetch of the catalog.
 pub(crate) const DECLARATION: RouteDeclaration<HttpRouteRuntimeConfig> = RouteDeclaration {
