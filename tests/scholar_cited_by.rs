@@ -7,7 +7,8 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
-use support::scholar::{config, fixture, ok, payload, query_pairs, refs, stderr};
+use support::query;
+use support::scholar::{config, fixture, ok, payload, refs, stderr};
 use support::{Fixture, Response, RunEnvironment};
 
 const KEY: &str = "test-serpapi-key-a";
@@ -32,7 +33,7 @@ fn cited_by_sends_the_cited_cluster_and_page_size_with_the_key() {
     let (output, requests) = run(&[CITED], vec![ok(&fixture("cited_by.json"))]);
 
     assert_eq!(
-        (output.status.code(), query_pairs(&requests[0])),
+        (output.status.code(), query(&requests[0])),
         (
             Some(0),
             BTreeMap::from([
@@ -67,7 +68,7 @@ fn the_query_years_and_date_order_join_the_query_parameters() {
     ];
     for (arguments, expected) in cases {
         let (output, requests) = run(arguments, vec![ok(&fixture("cited_by.json"))]);
-        let query = query_pairs(&requests[0]);
+        let query = query(&requests[0]);
 
         assert_eq!(
             (
@@ -240,7 +241,7 @@ fn a_cursor_resumes_the_next_page_with_every_original_condition() {
         .to_owned();
     let second = cited_by(&environment, &["--cursor", &cursor]);
     let requests = fixture.finish_all();
-    let mut resumed = query_pairs(&requests[1]);
+    let mut resumed = query(&requests[1]);
     let start = resumed.remove("start");
 
     assert_eq!(
@@ -250,7 +251,7 @@ fn a_cursor_resumes_the_next_page_with_every_original_condition() {
             start.as_deref(),
             resumed,
         ),
-        (Some(0), true, Some("10"), query_pairs(&requests[0])),
+        (Some(0), true, Some("10"), query(&requests[0])),
         "stderr: {}",
         stderr(&second)
     );
@@ -262,7 +263,7 @@ fn a_date_ordered_cursor_keeps_the_order() {
         &["--cursor", &cursor(20, "20", json!({"sort": "date"}))],
         vec![ok(&fixture("cited_by.json"))],
     );
-    let query = query_pairs(&requests[0]);
+    let query = query(&requests[0]);
 
     assert_eq!(
         (

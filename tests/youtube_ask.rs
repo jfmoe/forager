@@ -3,7 +3,8 @@ mod support;
 use serde_json::json;
 
 use support::gemini_api::{self, MODEL, MODEL_VERSION};
-use support::youtube::{header, path, payload, stderr, videos_page, zoo_video};
+use support::path;
+use support::youtube::{header, payload, stderr, videos_page, zoo_video};
 use support::{Fixture, RunEnvironment, request_json};
 
 const QUESTION: &str = "What animals stand behind the speaker?";

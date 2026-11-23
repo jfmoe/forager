@@ -5,8 +5,9 @@ use std::fs;
 use serde_json::json;
 
 use support::gemini_api::{self, MODEL, MODEL_VERSION};
-use support::youtube::{path, payload, query, stderr, videos_page, zoo_video};
+use support::youtube::{payload, stderr, videos_page, zoo_video};
 use support::{Fixture, RunEnvironment, request_json};
+use support::{path, query};
 
 const CHAPTERED: &str = "The first video.\n\n0:00 Intro\n0:05 The cool thing\n0:14 End";
 

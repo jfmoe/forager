@@ -5,10 +5,11 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
 use support::youtube::{
-    KEY, api_error, config, header, pairs, path, payload, query, search_page, search_result,
-    stderr, video_stats, videos_page,
+    KEY, api_error, config, header, pairs, payload, search_page, search_result, stderr,
+    video_stats, videos_page,
 };
 use support::{Fixture, Response, RunEnvironment};
+use support::{path, query};
 
 fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
     let mut command = vec!["platform", "youtube", "search"];

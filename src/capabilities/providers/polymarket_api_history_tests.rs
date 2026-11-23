@@ -2,13 +2,11 @@ use chrono::NaiveDate;
 use serde_json::{Value, json};
 
 use super::decode_page;
-use crate::fixture_server::{Fixture, Response};
+use crate::fixture_server::{Fixture, Response, block_on, path, query};
 use crate::providers::polymarket_api::tests::stored::{
     event, market, price_page, resolved, stored, tokens, with,
 };
-use crate::providers::polymarket_api::tests::{
-    block_on, json, pairs, path, query, reference, route,
-};
+use crate::providers::polymarket_api::tests::{json, pairs, reference, route};
 use crate::types::{
     AttemptErrorKind, PolymarketBucket, PolymarketHistoryOutcome, PolymarketHistoryRequest,
     PolymarketInterval, PolymarketWindow, ProviderError,

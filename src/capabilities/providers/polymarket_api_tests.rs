@@ -7,7 +7,7 @@ use super::gamma::Quotes;
 use super::quotes::{LiveQuotes, decode_last_trades, decode_prices, live_prices, open_markets};
 use super::{PolymarketApi, decode_entry, decode_search, fetch_support, search_support};
 use crate::config::PolymarketRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response};
+use crate::fixture_server::{Fixture, Response, block_on, path, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::shared::Refusal;
@@ -48,31 +48,8 @@ pub(super) fn route(url: &str) -> PolymarketApi {
     )
 }
 
-pub(super) fn block_on<T>(future: impl Future<Output = T>) -> T {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("test runtime")
-        .block_on(future)
-}
-
 pub(super) fn json(body: &Value) -> Response {
     Response::json(200, &body.to_string())
-}
-
-/// The path of a recorded request.
-pub(super) fn path(request: &str) -> String {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    target.split('?').next().unwrap_or_default().to_owned()
-}
-
-pub(super) fn query(request: &str) -> BTreeMap<String, String> {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}"))
-        .expect("request URL")
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
 }
 
 pub(super) fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {

@@ -4,10 +4,11 @@ use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
-use support::hn::{path, payload, query, stderr};
+use support::hn::{payload, stderr};
 use support::polymarket::{config, json as body, run};
 use support::polymarket_samples::{event, market, resolved, search_page, stored, with};
 use support::{Fixture, Response, RunEnvironment};
+use support::{path, query};
 
 /// A search page as Gamma returns it: the events, and whether more pages follow.
 fn page(events: &[Value], has_more: bool) -> Response {

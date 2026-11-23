@@ -6,10 +6,11 @@ use std::process::Output;
 use serde_json::{Value, json};
 
 use support::hn::{
-    comment_hit, config, json, node, path, payload, query, search_page, stderr, story_hit,
-    story_item, story_tree,
+    comment_hit, config, json, node, payload, search_page, stderr, story_hit, story_item,
+    story_tree,
 };
 use support::{Fixture, Response, RunEnvironment, request_json};
+use support::{path, query};
 
 fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "hn", "fetch"];
