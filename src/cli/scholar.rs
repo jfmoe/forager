@@ -139,6 +139,21 @@ pub(in crate::app) fn run(command: ScholarCommand) -> Result<CommandOutput, AppE
 }
 
 fn scholar_search(arguments: ScholarSearchArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = scholar_search_input(arguments)?;
+    search(Platform::Scholar, input, format, &common)
+}
+
+/// Builds the page a search asks for and checks it before any request.
+fn scholar_search_input(
+    arguments: ScholarSearchArgs,
+) -> Result<
+    (
+        PageInput<PlatformSearchRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let ScholarSearchArgs {
         query,
         limit,
@@ -165,10 +180,25 @@ fn scholar_search(arguments: ScholarSearchArgs) -> Result<CommandOutput, AppErro
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    search(Platform::Scholar, input, format, &common)
+    Ok((input, format, common))
 }
 
 fn cited_by(arguments: ScholarCitedByArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = cited_by_input(arguments)?;
+    scholar_cited_by(input, format, &common)
+}
+
+/// Builds the page of citing works a command asks for and checks it before any request.
+fn cited_by_input(
+    arguments: ScholarCitedByArgs,
+) -> Result<
+    (
+        PageInput<ScholarCitedByRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let ScholarCitedByArgs {
         reference,
         query,
@@ -197,10 +227,25 @@ fn cited_by(arguments: ScholarCitedByArgs) -> Result<CommandOutput, AppError> {
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    scholar_cited_by(input, format, &common)
+    Ok((input, format, common))
 }
 
 fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = scholar_fetch_input(arguments)?;
+    fetch(Platform::Scholar, request, format, None, &common)
+}
+
+/// Reads the cluster ref before any request.
+fn scholar_fetch_input(
+    arguments: ScholarFetchArgs,
+) -> Result<
+    (
+        PlatformFetchRequest,
+        ContentOutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let ScholarFetchArgs {
         reference,
         depth,
@@ -214,5 +259,5 @@ fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError>
         OutputFormat::Json => ContentOutputFormat::Json,
         OutputFormat::Markdown => ContentOutputFormat::Markdown,
     };
-    fetch(Platform::Scholar, request, format, None, &common)
+    Ok((request, format, common))
 }
