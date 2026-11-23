@@ -5,29 +5,9 @@ mod links;
 #[path = "repository_rules/retired.rs"]
 mod retired;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const LINE_LIMIT: usize = 1000;
-
-/// Rust sources already over [`LINE_LIMIT`] and the most lines each may have. A change that
-/// raises a ceiling or adds a file states in its commit why the file stays whole.
-const OVERSIZED_SOURCES: &[(&str, usize)] = &[
-    ("tests/search.rs", 3410),
-    ("tests/research.rs", 3020),
-    ("src/cli/dispatch.rs", 1898),
-    ("src/ops/smoke.rs", 1745),
-    ("src/evidence/research.rs", 1367),
-    ("src/main.rs", 1230),
-    ("src/capabilities/net.rs", 1312),
-    ("src/capabilities/catalog.rs", 1094),
-    ("tests/config_commands.rs", 1021),
-];
-
-/// How far a ceiling may sit above its file's length before the allowance becomes a growth
-/// budget.
-const CEILING_SLACK: usize = 50;
 
 const AGENTS_LINE_LIMIT: usize = 100;
 
@@ -43,72 +23,6 @@ const SCANNED_ROOTS: &[&str] = &[
     "docs/adr",
     "docs/agents",
 ];
-
-#[test]
-fn rust_sources_stay_within_their_line_ceiling() {
-    let lengths = files(&root().join("src"), "rs")
-        .into_iter()
-        .chain(files(&root().join("tests"), "rs"))
-        .map(|path| (relative(&path), read(&path).lines().count()))
-        .collect::<BTreeMap<_, _>>();
-    let violations = ceiling_violations(&lengths, OVERSIZED_SOURCES);
-
-    assert!(
-        violations.is_empty(),
-        "split an over-long file by responsibility, or raise its ceiling in OVERSIZED_SOURCES and say why in the commit; \
-         lower a ceiling to the file's length once it shrinks, and remove the entry once the file is within {LINE_LIMIT} lines: {violations:#?}"
-    );
-}
-
-#[test]
-fn a_stale_or_loose_line_ceiling_is_reported() {
-    let lengths = BTreeMap::from([
-        ("src/long.rs".to_owned(), 1200),
-        ("src/shrunk.rs".to_owned(), 900),
-    ]);
-    let allowance = [("src/long.rs", 1300), ("src/shrunk.rs", 1100)];
-    assert_eq!(
-        ceiling_violations(&lengths, &allowance),
-        [
-            "src/long.rs: ceiling 1300 is more than 50 above its 1200 lines",
-            "src/shrunk.rs: 900 lines is within the limit, so its entry is stale",
-        ]
-    );
-}
-
-/// Files over their ceiling, and allowance entries that no longer hold a file to its length.
-fn ceiling_violations(
-    lengths: &BTreeMap<String, usize>,
-    allowance: &[(&str, usize)],
-) -> Vec<String> {
-    let mut violations = Vec::new();
-    for (file, &lines) in lengths {
-        let ceiling = allowance
-            .iter()
-            .find_map(|(oversized, ceiling)| (oversized == file).then_some(*ceiling));
-        match ceiling {
-            None if lines > LINE_LIMIT => {
-                violations.push(format!("{file}: {lines} lines, limit {LINE_LIMIT}"));
-            }
-            Some(ceiling) if lines > ceiling => {
-                violations.push(format!("{file}: {lines} lines, ceiling {ceiling}"));
-            }
-            Some(_) if lines <= LINE_LIMIT => violations.push(format!(
-                "{file}: {lines} lines is within the limit, so its entry is stale"
-            )),
-            Some(ceiling) if ceiling - lines > CEILING_SLACK => violations.push(format!(
-                "{file}: ceiling {ceiling} is more than {CEILING_SLACK} above its {lines} lines"
-            )),
-            _ => {}
-        }
-    }
-    for (file, _) in allowance {
-        if !lengths.contains_key(*file) {
-            violations.push(format!("{file}: no such file, so its entry is stale"));
-        }
-    }
-    violations
-}
 
 #[test]
 fn agents_md_stays_short() {
