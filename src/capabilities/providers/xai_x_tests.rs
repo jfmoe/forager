@@ -191,18 +191,18 @@ fn verified_posts_become_snippet_items_dated_by_their_id() {
         (to_json(&items[0]), refs(&items), dropped),
         (
             json!({
-                "ref": "x:2106088717547077910",
-                "url": "https://x.com/i/status/2106088717547077910",
+                "ref": "x:2106088717546398899",
+                "url": "https://x.com/i/status/2106088717546398899",
                 "depth": "snippet",
                 "title": null,
-                "authors": ["loncothad"],
+                "authors": ["example_dev1"],
                 "published": "2026-10-02T18:27:34Z",
-                "author_handle": "loncothad",
-                "text": "Rust developers (of The Rust, not working With) are on the generation run to make the Edition 2027 the dream language. Wow. But I can't see the reason why - AI is banned there and it's not like any new cash grants were given to them... Just a random lock in, it seems..."
+                "author_handle": "example_dev1",
+                "text": "Rust developers (of the language, not just users of it) are working hard to make the Edition 2027 a great release. Nice. But I wonder which of the planned changes will land first - the list keeps growing and the release date is not far off... Just curious, I guess..."
             }),
             vec![
-                "x:2106088717547077910".to_owned(),
-                "x:2110286468623351937".to_owned()
+                "x:2106088717546398899".to_owned(),
+                "x:2110286468622476580".to_owned()
             ],
             None
         )
@@ -211,7 +211,7 @@ fn verified_posts_become_snippet_items_dated_by_their_id() {
 
 #[test]
 fn posts_dated_outside_the_requested_days_are_dropped() {
-    // 2106088717547077910 dates to 2026-10-02 and 2110286468623351937 to 2026-10-14.
+    // 2106088717546398899 dates to 2026-10-02 and 2110286468622476580 to 2026-10-14.
     let options = XSearchOptions::new(
         Vec::new(),
         Vec::new(),
@@ -224,8 +224,8 @@ fn posts_dated_outside_the_requested_days_are_dropped() {
     assert_eq!(
         (refs(&items), dropped),
         (
-            vec!["x:2110286468623351937".to_owned()],
-            Some("xai dropped 1 of 2 X posts it could not verify: https://x.com/loncothad/status/2106088717547077910 (published outside the requested dates)".to_owned())
+            vec!["x:2110286468622476580".to_owned()],
+            Some("xai dropped 1 of 2 X posts it could not verify: https://x.com/example_dev1/status/2106088717546398899 (published outside the requested dates)".to_owned())
         )
     );
 }
@@ -234,13 +234,13 @@ fn posts_dated_outside_the_requested_days_are_dropped() {
 fn repeated_posts_appear_once_and_the_list_stops_at_the_limit() {
     let response = search_with(
         &json!([
-            post("2106088717547077910"),
-            post("2106088717547077910"),
-            post("2110286468623351937")
+            post("2106088717546398899"),
+            post("2106088717546398899"),
+            post("2110286468622476580")
         ]),
         &[
-            "https://x.com/i/status/2106088717547077910",
-            "https://x.com/i/status/2110286468623351937",
+            "https://x.com/i/status/2106088717546398899",
+            "https://x.com/i/status/2110286468622476580",
         ],
     );
 
@@ -250,11 +250,11 @@ fn repeated_posts_appear_once_and_the_list_stops_at_the_limit() {
     assert_eq!(
         (refs(&decoded.0), decoded.1, refs(&unlimited.0)),
         (
-            vec!["x:2106088717547077910".to_owned()],
+            vec!["x:2106088717546398899".to_owned()],
             None,
             vec![
-                "x:2106088717547077910".to_owned(),
-                "x:2110286468623351937".to_owned()
+                "x:2106088717546398899".to_owned(),
+                "x:2110286468622476580".to_owned()
             ]
         )
     );
@@ -264,7 +264,7 @@ fn repeated_posts_appear_once_and_the_list_stops_at_the_limit() {
 fn a_list_whose_every_post_is_unverified_is_a_runtime_failure() {
     let response = search_with(
         &json!([{"url": "https://x.com/someone/status/2110000000000000000", "author_handle": "someone", "text": "invented"}]),
-        &["https://x.com/i/status/2106088717547077910"],
+        &["https://x.com/i/status/2106088717546398899"],
     );
 
     assert_eq!(
@@ -333,11 +333,11 @@ fn a_thread_returns_the_root_with_every_post_in_order() {
     assert_eq!(
         fetched["thread"][1],
         json!({
-            "ref": "x:2110127170869665960",
-            "url": "https://x.com/i/status/2110127170869665960",
-            "author_handle": "olivia_p_walker",
+            "ref": "x:2110127170868446477",
+            "url": "https://x.com/i/status/2110127170868446477",
+            "author_handle": "example_fan1",
             "published": "2026-10-13T21:54:56Z",
-            "text": "Exquisite photography.",
+            "text": "Wonderful photographs.",
             "role": "reply"
         })
     );
@@ -462,7 +462,7 @@ fn an_unfinished_thread_fetch_does_not_verify_the_root() {
 
 #[test]
 fn a_thread_without_exactly_one_root_is_a_runtime_failure() {
-    let reply = json!({"url": "https://x.com/a/status/2110127170869665960", "author_handle": "a", "text": "hi", "role": "reply"});
+    let reply = json!({"url": "https://x.com/a/status/2110127170868446477", "author_handle": "a", "text": "hi", "role": "reply"});
 
     assert_eq!(
         attempt_failure(decode_thread(
@@ -583,13 +583,13 @@ fn a_search_sends_only_the_x_search_tool_with_its_filters_and_strict_structured_
 fn posts_the_search_did_not_read_are_dropped_with_one_diagnostic() {
     let response = search_with(
         &json!([
-            {"url": "https://x.com/loncothad/status/2106088717547077910", "author_handle": "loncothad", "text": "read"},
+            {"url": "https://x.com/example_dev1/status/2106088717546398899", "author_handle": "example_dev1", "text": "read"},
             {"url": "https://x.com/someone/status/2110000000000000000", "author_handle": "someone", "text": "invented"},
             {"url": "https://example.com/post", "author_handle": "someone", "text": "elsewhere"}
         ]),
         &[
-            "https://x.com/i/status/2106088717547077910",
-            "https://x.com/i/user/1112661938608078848",
+            "https://x.com/i/status/2106088717546398899",
+            "https://x.com/i/user/1112661938606744997",
         ],
     );
 
@@ -603,7 +603,7 @@ fn posts_the_search_did_not_read_are_dropped_with_one_diagnostic() {
     assert_eq!(
         (refs(&outcome.items), outcome.diagnostic),
         (
-            vec!["x:2106088717547077910".to_owned()],
+            vec!["x:2106088717546398899".to_owned()],
             Some("xai dropped 2 of 3 X posts it could not verify: https://x.com/someone/status/2110000000000000000 (not among the posts the search read); https://example.com/post (not an X post URL)".to_owned())
         )
     );

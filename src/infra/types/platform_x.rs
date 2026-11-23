@@ -412,7 +412,7 @@ mod tests {
             "https://x.com/SpaceX/status/",
             "https://x.com/SpaceX/status/2110126570233094527/likes",
             "https://x.com/SpaceX/status/2110126570233094527/photo/x",
-            "https://x.com/i/user/1112661938608078848",
+            "https://x.com/i/user/1112661938606744997",
             "https://x.com/i/status/0123",
             "https://x.com/Space-X/status/2110126570233094527",
             "https://x.com.evil.example/SpaceX/status/2110126570233094527",
@@ -458,8 +458,8 @@ mod tests {
 
     #[test]
     fn a_snowflake_id_dates_its_post_to_the_second() {
-        // X showed these posts as published at 21:52:33 and 18:27:34 GMT.
-        let published = ["2110126570233094527", "2106088717547077910"]
+        // These IDs carry the times X showed for posts published at 21:52:33 and 18:27:34 GMT.
+        let published = ["2110126570233094527", "2106088717546398899"]
             .map(|id| XRef::from_post_id(id).and_then(XRef::published));
 
         assert_eq!(

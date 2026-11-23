@@ -7,21 +7,21 @@ file = "x-search.json"
 shape = "xAI Responses `POST /responses` for X search: the `x_search` tool alone with a strict `x_posts` structured output; server-side keyword and semantic search calls, the post list as output text, and `url_citation` annotations naming every post and profile the search read"
 origin = "captured"
 observed = 2026-10-17
-obtained = "an X search for Rust 2027 edition posts through the SuperGrok gateway with grok-4.5 and a real key, during the route's live test, trimmed to the output and tool usage; the response ID is zeroed"
+obtained = "an X search for Rust 2027 edition posts through the SuperGrok gateway with grok-4.5 and a real key, during the route's live test, trimmed to the output and tool usage; the response ID is zeroed; the two posts' authors are invented handles, their texts invented sentences of the same shape, and the IDs of their posts, of the other cited posts and of the cited profile are invented IDs with the same snowflake time"
 
 [[sample]]
 file = "x-thread.json"
 shape = "xAI Responses `POST /responses` for an X fetch at thread depth: the `x_search` tool alone with a strict `x_thread` structured output; a completed `x_thread_fetch` call of the post, the root post and its replies with their roles as output text, and a `url_citation` of the root"
 origin = "captured"
 observed = 2026-10-17
-obtained = "a thread fetch of x:2110126570233094527 through the SuperGrok gateway with grok-4.5 and a real key, during the route's live test, trimmed to the output and tool usage; the response ID is zeroed"
+obtained = "a thread fetch of x:2110126570233094527 through the SuperGrok gateway with grok-4.5 and a real key, during the route's live test, trimmed to the output and tool usage; the response ID is zeroed; the three replies' authors are invented handles, their texts invented sentences of the same shape, and their post IDs invented IDs with the same snowflake time"
 
 [[sample]]
 file = "x-reply-thread.json"
 shape = "xAI Responses `POST /responses` for an X fetch of a reply at thread depth: a completed `x_thread_fetch` call of the reply, the reply as root with its parent and a reply as output text, and a `url_citation` of the parent alone"
 origin = "captured"
 observed = 2026-10-18
-obtained = "a thread fetch of the reply x:2098634733248720992 through the SuperGrok gateway with grok-4.5 and a real key, while verifying fetch by its thread fetch; the response ID is zeroed"
+obtained = "a thread fetch of the reply x:2098634733248720992 through the SuperGrok gateway with grok-4.5 and a real key, while verifying fetch by its thread fetch; the response ID is zeroed; the parent's and the reply's author is an invented handle, their texts invented sentences of the same shape, and their post IDs invented IDs with the same snowflake time"
 
 [[sample]]
 file = "x-ask.json"

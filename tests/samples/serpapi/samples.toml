@@ -5,14 +5,14 @@ file = "search.json"
 shape = "SerpApi `GET /search.json` with `engine=google_scholar` and `q`: a `Success` page of organic results with their result IDs, bylines, resources and inline cited-by and versions links, and the pagination with its next page"
 origin = "captured"
 observed = 2026-10-07
-obtained = "a Google Scholar search for `time series momentum` through SerpApi with a real key, during the route's live test; the search ID is zeroed"
+obtained = "a Google Scholar search for `time series momentum` through SerpApi with a real key, during the route's live test; the search ID is zeroed; the authors' Google Scholar profile IDs and profile links, which the route does not read, are removed"
 
 [[sample]]
 file = "cited_by.json"
 shape = "SerpApi `GET /search.json` with `engine=google_scholar` and `cites`: a `Success` page of the works citing one cluster, beside its citations per year and profiles, and the pagination with its next page"
 origin = "captured"
 observed = 2026-10-08
-obtained = "a cited-by search of scholar:18208131694456651388 with the query `crash` through SerpApi with a real key, during the operation's live test; the search ID is zeroed"
+obtained = "a cited-by search of scholar:18208131694456651388 with the query `crash` through SerpApi with a real key, during the operation's live test; the search ID is zeroed; the authors' Google Scholar profile IDs and profile links, which the route does not read, are removed"
 
 [[sample]]
 file = "cluster.json"

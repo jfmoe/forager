@@ -35,16 +35,10 @@
         "summary": "K Daniel, TJ Moskowitz - Journal of Financial economics, 2016 - Elsevier",
         "authors": [
           {
-            "name": "K Daniel",
-            "link": "https://scholar.google.com/citations?user=A9DgoAEAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "A9DgoAEAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=A9DgoAEAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "K Daniel"
           },
           {
-            "name": "TJ Moskowitz",
-            "link": "https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "q9g8tuAAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=q9g8tuAAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "TJ Moskowitz"
           }
         ]
       },
@@ -92,16 +86,10 @@
             "name": "D Bianchi"
           },
           {
-            "name": "A De Polis",
-            "link": "https://scholar.google.com/citations?user=hM0IWi0AAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "hM0IWi0AAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=hM0IWi0AAAAJ&engine=google_scholar_author&hl=en"
+            "name": "A De Polis"
           },
           {
-            "name": "I Petrella",
-            "link": "https://scholar.google.com/citations?user=7V0m47YAAAAJ&hl=en&num=20&oi=sra",
-            "author_id": "7V0m47YAAAAJ",
-            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=7V0m47YAAAAJ&engine=google_scholar_author&hl=en"
+            "name": "I Petrella"
           }
         ]
       },
