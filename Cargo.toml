@@ -2,7 +2,7 @@
 name = "forager"
 version = "0.21.0"
 edition = "2024"
-description = "A capability-oriented research CLI"
+description = "A search and retrieval CLI for AI agents"
 repository = "https://github.com/jfmoe/forager"
 license = "MIT"
 

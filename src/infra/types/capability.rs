@@ -52,7 +52,7 @@ impl FromStr for FallbackPolicy {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-/// A research capability exposed by an execution seam.
+/// A retrieval capability exposed by an execution seam.
 pub enum Capability {
     DocsSearch,
     WebSearch,
