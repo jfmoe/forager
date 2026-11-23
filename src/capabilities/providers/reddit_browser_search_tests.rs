@@ -149,7 +149,7 @@ const PROJECTED_PAGES: [(&str, &str, &str); 2] = [
 #[cfg(unix)]
 #[test]
 #[ignore = "launches a real browser"]
-fn the_projection_of_each_local_page_is_the_fixture_the_judgement_reads() {
+fn the_projection_of_each_local_page_is_the_sample_the_judgement_reads() {
     super::super::tests::check_projections(
         &[
             ("/search/", "reddit_browser/search.html"),

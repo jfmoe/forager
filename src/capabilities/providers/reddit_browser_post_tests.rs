@@ -422,7 +422,7 @@ fn the_post_page_url_asks_for_the_top_comments() {
 #[cfg(unix)]
 #[test]
 #[ignore = "launches a real browser"]
-fn the_projection_of_each_local_post_page_is_the_fixture_the_judgement_reads() {
+fn the_projection_of_each_local_post_page_is_the_sample_the_judgement_reads() {
     const POST_PATH: &str = "/r/rust/comments/1q2w3e4/learning_the_example_runtime/";
     const BIG_POST_PATH: &str = "/r/example_sub/comments/1z9y8x7/an_example_gallery/";
     const MISSING_POST_PATH: &str = "/r/example_adult/comments/1m5n6b7/a_slug/";
