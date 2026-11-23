@@ -449,6 +449,13 @@ fn youtube_videos_input(
 }
 
 fn youtube_ask(arguments: YoutubeAskArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = youtube_ask_input(arguments)?;
+    ask(PlatformAskRequest::Youtube(request), format, &common)
+}
+
+fn youtube_ask_input(
+    arguments: YoutubeAskArgs,
+) -> Result<(YoutubeAskRequest, OutputFormat, PlatformCommonArgs), AppError> {
     let YoutubeAskArgs {
         reference,
         question,
@@ -460,29 +467,22 @@ fn youtube_ask(arguments: YoutubeAskArgs) -> Result<CommandOutput, AppError> {
         question,
     };
     request.validate().map_err(AppError::Argument)?;
-    ask(PlatformAskRequest::Youtube(request), format, &common.into())
+    Ok((request, format, common.into()))
 }
 
 /// Plans the transcription over YouTube's configuration, runs it, and delivers its transcript
 /// like a full text, under a name that marks it as transcribed.
 fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput, AppError> {
-    let YoutubeTranscribeArgs {
-        reference,
-        content_dir,
-        format,
-        common,
-    } = arguments;
-    let common = PlatformCommonArgs::from(common);
-    let video = parse_video(&reference, "transcribe")?;
+    let (request, content_dir, format, common) = youtube_transcribe_input(arguments)?;
     let file_name = format!(
         "{}-transcribed.md",
-        content_file_stem(&PlatformRef::Youtube(video.clone()))
+        content_file_stem(&PlatformRef::Youtube(request.video.clone()))
     );
     let dependencies = NetworkDependencies::load()?;
     let plan = platform_operation::plan_transcribe(
         dependencies.platform(Platform::Youtube)?,
         &dependencies.config.platform_routes,
-        YoutubeTranscribeRequest { video },
+        request,
     )
     .map_err(preflight_error)?;
     let result = dependencies
@@ -517,6 +517,29 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
         output: common.output.target(),
         attempt_log,
     })
+}
+
+type TranscribeInput = (
+    YoutubeTranscribeRequest,
+    Option<PathBuf>,
+    ContentOutputFormat,
+    PlatformCommonArgs,
+);
+
+fn youtube_transcribe_input(arguments: YoutubeTranscribeArgs) -> Result<TranscribeInput, AppError> {
+    let YoutubeTranscribeArgs {
+        reference,
+        content_dir,
+        format,
+        common,
+    } = arguments;
+    let video = parse_video(&reference, "transcribe")?;
+    Ok((
+        YoutubeTranscribeRequest { video },
+        content_dir,
+        format,
+        common.into(),
+    ))
 }
 
 /// Reads the one video an operation reads; a playlist or channel input is an argument error.
