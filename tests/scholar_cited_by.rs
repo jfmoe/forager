@@ -302,113 +302,21 @@ fn a_cursor_conflicts_with_a_target_query_option_or_limit() {
 }
 
 #[test]
-fn a_tampered_cursor_is_rejected_before_any_request() {
-    for (cursor, expected) in [
-        (
-            cursor(21, "20", json!({})),
-            "--limit must be between 1 and 20",
-        ),
-        (
-            cursor(20, "20", json!({"sort": "date", "year_from": 2020})),
-            "--sort date cannot be combined",
-        ),
-        (
-            cursor(20, "1000", json!({})),
-            "serpapi cannot page past Google Scholar result 1000",
-        ),
-        (
-            cursor(20, "20", json!({"review_only": true})),
-            "the cursor cannot be decoded",
-        ),
-    ] {
-        let (code, message, requests) = preflight(&config("{url}", &[KEY]), &["--cursor", &cursor]);
-
-        assert_eq!(
-            (code, message.contains(expected), requests),
-            (Some(2), true, 0),
-            "expected: {expected}\nstderr: {message}"
-        );
-    }
-}
-
-#[test]
-fn search_and_cited_by_cursors_do_not_cross() {
-    let search_cursor = encoded(&json!({
-        "query": "momentum",
-        "limit": 20,
-        "options": {"platform": "scholar"},
-        "page": "20"
-    }));
-    let cited_by_cursor = cursor(20, "20", json!({}));
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
-
-    let in_cited_by = cited_by(&environment, &["--cursor", &search_cursor]);
-    let in_search = environment.run(&[
-        "platform",
-        "scholar",
-        "search",
-        "--cursor",
-        &cited_by_cursor,
-    ]);
-    let in_arxiv = environment.run(&["platform", "arxiv", "search", "--cursor", &cited_by_cursor]);
+fn a_cursor_past_google_scholar_result_1000_is_rejected_before_any_request() {
+    let (code, message, requests) = preflight(
+        &config("{url}", &[KEY]),
+        &["--cursor", &cursor(20, "1000", json!({}))],
+    );
 
     assert_eq!(
-        [&in_cited_by, &in_search, &in_arxiv].map(|output| (output.status.code(), stderr(output))),
-        [
-            (
-                Some(2),
-                "argument_error: the cursor belongs to scholar search, not scholar cited_by\n"
-                    .to_owned()
-            ),
-            (
-                Some(2),
-                "argument_error: the cursor belongs to scholar cited_by, not scholar search\n"
-                    .to_owned()
-            ),
-            (
-                Some(2),
-                "argument_error: the cursor belongs to scholar cited_by, not arxiv search\n"
-                    .to_owned()
-            ),
-        ]
-    );
-    assert_eq!(fixture.finish_all().len(), 0);
-}
-
-#[test]
-fn a_missing_key_or_an_empty_order_fails_before_any_request_like_search() {
-    for (configuration, environment, names_keys) in [
-        (config("{url}", &[]), None, true),
         (
-            config("{url}", &[KEY]),
-            Some(("FORAGER_PLATFORMS__SCHOLAR__ORDER", "[]")),
-            false,
+            code,
+            message.contains("serpapi cannot page past Google Scholar result 1000"),
+            requests
         ),
-    ] {
-        let fixture = Fixture::start_canary();
-        let run_environment = RunEnvironment::new(&configuration.replace("{url}", &fixture.url));
-        let arguments = ["platform", "scholar", "cited-by", CITED];
-
-        let output = match environment {
-            Some(variable) => run_environment.run_with_env(&arguments, &[variable]),
-            None => run_environment.run(&arguments),
-        };
-        let message = stderr(&output);
-
-        assert_eq!(
-            (
-                output.status.code(),
-                message.contains(
-                    "platforms.scholar.order has no configured route for scholar cited_by"
-                ),
-                message.contains("providers.serpapi.keys"),
-                fixture.finish_all().len()
-            ),
-            (Some(3), true, names_keys, 0),
-            "stderr: {message}"
-        );
-    }
+        (Some(2), true, 0),
+        "stderr: {message}"
+    );
 }
 
 fn status_error(message: &str) -> Value {

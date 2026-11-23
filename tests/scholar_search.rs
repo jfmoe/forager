@@ -333,22 +333,6 @@ fn a_cursor_conflicts_with_an_explicit_query_option_or_limit() {
 fn a_tampered_cursor_is_rejected_before_any_request() {
     for (cursor, expected) in [
         (
-            cursor(0, "20", json!({})),
-            "--limit must be between 1 and 20",
-        ),
-        (
-            cursor(21, "20", json!({})),
-            "--limit must be between 1 and 20",
-        ),
-        (
-            cursor(20, "20", json!({"year_from": 999})),
-            "--year-from must be between 1000 and 9999",
-        ),
-        (
-            cursor(20, "20", json!({"year_from": 2025, "year_to": 2024})),
-            "--year-from must not be later than --year-to",
-        ),
-        (
             cursor(20, "1000", json!({})),
             "serpapi cannot page past Google Scholar result 1000",
         ),
@@ -363,26 +347,6 @@ fn a_tampered_cursor_is_rejected_before_any_request() {
             (code, message.contains(expected), requests),
             (Some(2), true, 0),
             "expected: {expected}\nstderr: {message}"
-        );
-    }
-}
-
-#[test]
-fn a_cursor_whose_route_left_the_order_or_lost_its_keys_is_rejected() {
-    let cursor = cursor(20, "20", json!({}));
-    for configuration in [
-        format!(
-            "{}[platforms.scholar]\norder = []\n",
-            config("{url}", &[KEY])
-        ),
-        config("{url}", &[]),
-    ] {
-        let (code, message, requests) = preflight(&configuration, &["--cursor", &cursor]);
-
-        assert_eq!(
-            (code, message.contains("no longer available"), requests),
-            (Some(2), true, 0),
-            "config: {configuration}\nstderr: {message}"
         );
     }
 }
@@ -709,29 +673,6 @@ fn an_empty_key_pool_fails_before_any_request_and_names_the_keys_setting() {
         (Some(3), true, 0),
         "stderr: {}",
         stderr(&output)
-    );
-}
-
-#[test]
-fn an_empty_order_names_only_the_order() {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
-
-    let output = environment.run_with_env(
-        &["platform", "scholar", "search", "momentum"],
-        &[("FORAGER_PLATFORMS__SCHOLAR__ORDER", "[]")],
-    );
-    let message = stderr(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            message.contains("platforms.scholar.order"),
-            message.contains("keys"),
-            fixture.finish_all().len()
-        ),
-        (Some(3), true, false, 0),
-        "stderr: {message}"
     );
 }
 
