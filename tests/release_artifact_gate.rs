@@ -2,7 +2,7 @@ mod support;
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use support::{command_behind_closed_proxy, run_command};
 use tempfile::TempDir;
@@ -119,7 +119,7 @@ impl UnixFixture {
 }
 
 #[cfg(unix)]
-fn command_stdout(command: &mut Command) -> String {
+fn command_stdout(command: &mut std::process::Command) -> String {
     let output = run_command(command, None);
     assert!(output.status.success(), "{output:?}");
     String::from_utf8(output.stdout)
