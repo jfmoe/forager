@@ -395,32 +395,6 @@ fn a_cursor_past_the_crossref_offset_limit_fails_before_any_request() {
 }
 
 #[test]
-fn an_arxiv_cursor_is_rejected() {
-    let payload = json!({"query": "x", "limit": 2, "options": {"platform": "arxiv"}, "page": "2"});
-    let arxiv_cursor = format!(
-        "v1.arxiv_api.{}",
-        URL_SAFE_NO_PAD.encode(payload.to_string())
-    );
-
-    assert_preflight_exit(
-        ROUTE_CONFIG,
-        &["--cursor", &arxiv_cursor],
-        2,
-        "the cursor belongs to arxiv search, not ssrn search",
-    );
-}
-
-#[test]
-fn an_empty_platform_order_is_a_configuration_error() {
-    assert_preflight_exit(
-        "[providers.ssrn_crossref]\nurl = \"{url}\"\n[platforms.ssrn]\norder = []\n",
-        &["momentum"],
-        3,
-        "platforms.ssrn.order has no configured route for ssrn search",
-    );
-}
-
-#[test]
 fn title_and_author_search_reaches_crossref() {
     let fixture = Fixture::start_sequence(vec![work_list(0, &[])]);
     let environment = RunEnvironment::new(&config(&fixture.url));

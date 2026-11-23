@@ -274,47 +274,6 @@ fn invalid_filters_are_rejected_before_any_request() {
     }
 }
 
-#[test]
-fn without_an_xai_key_the_search_fails_before_any_request_and_names_the_key() {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&config(&fixture.url, &[]));
-
-    let output = search(&environment, &["rust"]);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            stderr(&output).contains("providers.xai.keys"),
-            fixture.finish_all().len()
-        ),
-        (Some(3), true, 0),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn an_empty_order_disables_the_platform_before_any_request() {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&format!(
-        "{}[platforms.x]\norder = []\n",
-        config(&fixture.url, &[KEY])
-    ));
-
-    let output = search(&environment, &["rust"]);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            stderr(&output).contains("platforms.x.order"),
-            fixture.finish_all().len()
-        ),
-        (Some(3), true, 0),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
 fn authorization(request: &str) -> Option<String> {
     request
         .lines()

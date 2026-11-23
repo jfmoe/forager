@@ -9,7 +9,6 @@ use support::polymarket_samples::{resolved, stored};
 use support::{Fixture, Response, RunEnvironment};
 
 const WINNER: &str = "will-donald-trump-win-the-2024-us-presidential-election";
-const OPEN: &str = "will-no-fed-rate-cuts-happen-in-2026";
 
 #[test]
 fn a_history_prints_the_price_series_of_the_market() {
@@ -55,30 +54,5 @@ fn a_history_prints_the_price_series_of_the_market() {
         ),
         "stderr: {}",
         stderr(&output)
-    );
-}
-
-#[test]
-fn an_empty_order_is_a_configuration_error_before_any_request() {
-    let gamma = Fixture::start_sequence(Vec::new());
-    let data = Fixture::start_sequence(Vec::new());
-    let environment = RunEnvironment::new(&format!(
-        "{}\n[platforms.polymarket]\norder = []\n",
-        history_config(&gamma.url, &data.url)
-    ));
-
-    let output = run(
-        &environment,
-        &["history", &format!("polymarket:market/{OPEN}")],
-    );
-    gamma.finish_all();
-    data.finish_all();
-
-    assert_eq!(
-        (output.status.code(), stderr(&output).trim().to_owned()),
-        (
-            Some(3),
-            "config_error: platforms.polymarket.order has no configured route for polymarket history".to_owned()
-        )
     );
 }

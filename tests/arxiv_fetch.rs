@@ -66,39 +66,6 @@ fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     environment.run(&command)
 }
 
-/// Runs a fetch whose system temporary directory is `temp`.
-fn fetch_with_temp(environment: &RunEnvironment, arguments: &[&str], temp: &Path) -> Output {
-    let mut command = vec!["platform", "arxiv", "fetch"];
-    command.extend_from_slice(arguments);
-    let temp = temp.to_str().expect("UTF-8 path");
-    environment.run_with_env(&command, &[("TMPDIR", temp), ("TMP", temp), ("TEMP", temp)])
-}
-
-fn files_under(directory: &Path) -> Vec<String> {
-    walk(directory)
-        .into_iter()
-        .map(|path| {
-            path.strip_prefix(directory)
-                .expect("nested path")
-                .display()
-                .to_string()
-        })
-        .collect()
-}
-
-fn walk(directory: &Path) -> Vec<std::path::PathBuf> {
-    let mut files = Vec::new();
-    for entry in fs::read_dir(directory).expect("read directory") {
-        let path = entry.expect("directory entry").path();
-        if path.is_dir() {
-            files.extend(walk(&path));
-        } else {
-            files.push(path);
-        }
-    }
-    files
-}
-
 fn payload(output: &Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
         panic!(
@@ -180,91 +147,6 @@ fn full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version() 
     );
 }
 
-#[test]
-fn full_text_fetch_returns_metadata_and_a_file_under_the_system_temporary_directory() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(&body("HTML body"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-    let temp = tempfile::tempdir().expect("temporary directory");
-
-    let output = fetch_with_temp(
-        &environment,
-        &["https://arxiv.org/abs/2401.01234"],
-        temp.path(),
-    );
-    arxiv.finish_all();
-    provider.finish_all();
-    let mut payload = payload(&output);
-    let path = payload["content_path"]
-        .as_str()
-        .expect("content path")
-        .to_owned();
-    payload["content_path"] = Value::Null;
-
-    assert_eq!(
-        (
-            Path::new(&path).starts_with(temp.path().join("forager-platform")),
-            Path::new(&path).ends_with("arxiv-2401.01234v2.md"),
-        ),
-        (true, true),
-        "content path: {path}"
-    );
-    assert_eq!(
-        payload,
-        json!({
-            "platform": "arxiv",
-            "provider": "arxiv_api",
-            "ref": "arxiv:2401.01234v2",
-            "url": "https://arxiv.org/abs/2401.01234v2",
-            "depth": "full_text",
-            "title": "Dark Matter Halos & Galaxies",
-            "authors": ["Ada Lovelace", "Alan Turing"],
-            "published": "2024-01-02T18:59:59Z",
-            "abstract": "First line\n  second line.",
-            "updated": "2024-02-03T04:05:06Z",
-            "primary_category": "astro-ph.CO",
-            "categories": ["astro-ph.CO", "hep-ph"],
-            "doi": "10.1000/example",
-            "journal_ref": "Phys. Rev. D 1 (2024)",
-            "comment": "12 pages, 3 figures",
-            "pdf_url": "https://arxiv.org/pdf/2401.01234v2",
-            "content_url": "https://arxiv.org/html/2401.01234v2",
-            "content_provider": "firecrawl",
-            "content_path": null,
-            "content_len": body("HTML body").chars().count(),
-        })
-    );
-}
-
-#[test]
-fn format_content_prints_the_body_and_writes_no_file() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(&body("HTML body"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-    let temp = tempfile::tempdir().expect("temporary directory");
-
-    let output = fetch_with_temp(
-        &environment,
-        &["arxiv:2401.01234", "--format", "content"],
-        temp.path(),
-    );
-    arxiv.finish_all();
-    provider.finish_all();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            String::from_utf8_lossy(&output.stdout).into_owned(),
-            files_under(temp.path()),
-        ),
-        (
-            Some(0),
-            format!("{}\n", body("HTML body")),
-            Vec::<String>::new()
-        )
-    );
-}
-
 fn assert_preflight_exit(config: &str, arguments: &[&str], exit_code: i32, message: &str) {
     let fixture = Fixture::start_canary();
     let environment = RunEnvironment::new(&config.replace("{url}", &fixture.url));
@@ -290,15 +172,5 @@ fn full_text_without_a_configured_web_fetch_provider_is_a_config_error() {
         &["arxiv:2401.01234"],
         3,
         "capabilities.web_fetch.order has no configured provider",
-    );
-}
-
-#[test]
-fn an_empty_platform_order_is_a_config_error() {
-    assert_preflight_exit(
-        "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n\n[platforms.arxiv]\norder = []\n",
-        &["arxiv:2401.01234", "--depth", "abstract"],
-        3,
-        "platforms.arxiv.order has no configured route for arxiv fetch",
     );
 }

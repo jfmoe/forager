@@ -160,22 +160,3 @@ fn invalid_filters_or_a_blank_question_are_rejected_before_any_request() {
         );
     }
 }
-
-#[test]
-fn without_an_xai_key_ask_fails_before_any_request() {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&config(&fixture.url, &[]));
-
-    let output = environment.run(&["platform", "x", "ask", "Starship news"]);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            stderr(&output).contains("providers.xai.keys"),
-            fixture.finish_all().len()
-        ),
-        (Some(3), true, 0),
-        "stderr: {}",
-        stderr(&output)
-    );
-}

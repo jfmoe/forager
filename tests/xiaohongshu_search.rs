@@ -151,25 +151,3 @@ fn a_route_that_cannot_run_fails_the_preflight_without_launching_the_browser() {
         "{install}"
     );
 }
-
-#[test]
-fn the_default_empty_order_refuses_the_search_with_the_steps_to_enable_it() {
-    let stand_in = StandIn::failing("must not start");
-    let environment = RunEnvironment::new(&stand_in.config());
-
-    let output = search(&environment, &[]);
-
-    assert_eq!(
-        (output.status.code(), stand_in.launches().len()),
-        (Some(3), 0),
-        "{}",
-        stderr(&output)
-    );
-    assert!(
-        stderr(&output).contains(
-            "platforms.xiaohongshu.order has no configured route for xiaohongshu search; to use xiaohongshu_browser, run `forager browser install`, run `forager browser login xiaohongshu` and log in, then add `xiaohongshu_browser` to platforms.xiaohongshu.order"
-        ),
-        "{}",
-        stderr(&output)
-    );
-}

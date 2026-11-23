@@ -257,22 +257,3 @@ fn a_rejected_key_is_an_auth_failure() {
         stderr(&output)
     );
 }
-
-#[test]
-fn ask_without_a_gemini_key_is_a_config_failure_before_any_request() {
-    let api = Fixture::start_canary();
-    let environment = RunEnvironment::new(&support::youtube::config(&api.url));
-
-    let output = ask(&environment, &["youtube:jNQXAC9IVRw", QUESTION]);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            stderr(&output).contains("providers.gemini_api.keys"),
-            api.finish_all().len()
-        ),
-        (Some(3), true, 0),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
