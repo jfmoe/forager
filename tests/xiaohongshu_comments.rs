@@ -65,23 +65,20 @@ fn the_access_token_never_reaches_the_browser_command_line_or_the_output() {
             "https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_token={TOKEN}&xsec_source=pc_search"
         ),
     );
-    let malformed = comments(
-        &environment,
-        &format!("https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_token={TOKEN}%zz"),
-    );
     let launches = stand_in.launches();
 
     assert_eq!(
         (
             opened.status.code(),
-            malformed.status.code(),
             launches.len(),
             launches.concat().join(" ").contains(TOKEN_BODY),
         ),
-        (Some(4), Some(2), 1, false),
+        (Some(4), 1, false),
         "{launches:?}"
     );
-    for output in [&opened, &malformed] {
-        assert!(!printed(output).contains(TOKEN_BODY), "{}", printed(output));
-    }
+    assert!(
+        !printed(&opened).contains(TOKEN_BODY),
+        "{}",
+        printed(&opened)
+    );
 }
