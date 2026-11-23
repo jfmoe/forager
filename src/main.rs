@@ -348,28 +348,40 @@ fn format_search_failure_json(
     if !failure.extra_sources.is_empty() {
         let candidates =
             serde_json::to_value(&failure.extra_sources).map_err(|error| error.to_string())?;
-        let Value::Array(mut candidates) = candidates else {
+        let Value::Array(candidates) = candidates else {
             return Err("extra_sources did not serialize as an array".into());
         };
-        if failure.error.verbose {
-            object.insert("extra_sources".into(), Value::Array(candidates));
-        } else {
-            for candidate in &mut candidates {
-                if let Some(fields) = candidate.as_object_mut() {
-                    fields.remove("summary");
-                }
-            }
-            object.insert("extra_sources".into(), Value::Array(Vec::new()));
-            object.insert("extra_sources_truncated".into(), Value::Bool(false));
-            let base_len = serde_json::to_string(&*object)
-                .map_err(|error| error.to_string())?
-                .len();
-            let (kept, truncated) = fit_failure_candidates(base_len, candidates);
-            object.insert("extra_sources".into(), Value::Array(kept));
-            object.insert("extra_sources_truncated".into(), Value::Bool(truncated));
-        }
+        add_failure_candidates(object, candidates, failure.error.verbose)?;
     }
     serde_json::to_string(&payload).map_err(|error| error.to_string())
+}
+
+/// Adds the encoded Search Candidates of a failed search to its payload `object`. Unless
+/// `verbose`, they lose their summaries and are cut to fit the payload target, and the payload
+/// says whether any were cut.
+fn add_failure_candidates(
+    object: &mut serde_json::Map<String, Value>,
+    mut candidates: Vec<Value>,
+    verbose: bool,
+) -> Result<(), String> {
+    if verbose {
+        object.insert("extra_sources".into(), Value::Array(candidates));
+        return Ok(());
+    }
+    for candidate in &mut candidates {
+        if let Some(fields) = candidate.as_object_mut() {
+            fields.remove("summary");
+        }
+    }
+    object.insert("extra_sources".into(), Value::Array(Vec::new()));
+    object.insert("extra_sources_truncated".into(), Value::Bool(false));
+    let base_len = serde_json::to_string(&*object)
+        .map_err(|error| error.to_string())?
+        .len();
+    let (kept, truncated) = fit_failure_candidates(base_len, candidates);
+    object.insert("extra_sources".into(), Value::Array(kept));
+    object.insert("extra_sources_truncated".into(), Value::Bool(truncated));
+    Ok(())
 }
 
 // Callers read the default failure payload in full, so its 4 KiB target outranks candidate

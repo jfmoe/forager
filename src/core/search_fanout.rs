@@ -9,7 +9,7 @@ use crate::engine::{
     supplemental_web_search,
 };
 use crate::net::combine_diagnostics;
-use crate::providers::FetchRequest;
+use crate::providers::{FetchRequest, MainSearchRequest};
 use crate::redact::redact_url;
 use crate::types::ProviderError;
 use crate::types::{
@@ -109,6 +109,39 @@ impl CapabilityResults {
 
 fn append_diagnostics(current: Option<String>, diagnostics: Vec<String>) -> Option<String> {
     combine_diagnostics(current.into_iter().chain(diagnostics))
+}
+
+/// Runs a Default Search Invocation: main search and the declared `capabilities` side by side
+/// within one deadline. The capability results join main search's outcome, or its failure, which
+/// main search alone attributes.
+pub(crate) async fn search(
+    request: MainSearchRequest,
+    capabilities: &CapabilitySet,
+    requested_target: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) -> Result<SearchOutcome, SearchFailure> {
+    let query = request.query.clone();
+    let (main_result, capability_results) = futures_util::future::join(
+        crate::engine::search(
+            request,
+            config.main_search.clone(),
+            execution.fallback,
+            execution.client.clone(),
+            execution.retry_policy,
+            execution.deadline,
+        ),
+        execute_capabilities(&query, capabilities, requested_target, config, execution),
+    )
+    .await;
+    match main_result {
+        Ok(mut outcome) => {
+            outcome.capabilities = capabilities.iter().collect();
+            capability_results.merge_into(&mut outcome);
+            Ok(outcome)
+        }
+        Err(error) => Err(capability_results.into_failure(error)),
+    }
 }
 
 pub(crate) async fn execute_capabilities(

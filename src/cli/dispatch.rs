@@ -326,44 +326,20 @@ impl SearchContext {
         let query = request.query.clone();
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
-        let (capabilities, plan_source) = match capabilities {
-            Some(capabilities) => (capabilities, crate::journal::PlanSource::Caller),
-            None => (
-                CapabilitySet::default(),
-                crate::journal::PlanSource::DefaultMainSearchOnly,
-            ),
-        };
+        let (capabilities, plan_source) = search_plan(capabilities);
         let journal_capabilities = capabilities.iter().collect::<Vec<_>>();
-        let (main_result, capability_results) = self.runtime.block_on(futures_util::future::join(
-            crate::engine::search(
-                request,
-                self.config.main_search.clone(),
+        let result = self.runtime.block_on(crate::search_fanout::search(
+            request,
+            &capabilities,
+            extra_sources,
+            &self.config,
+            crate::engine::CapabilityExecution::new(
                 fallback,
                 self.client.clone(),
                 self.retry_policy,
                 deadline,
             ),
-            crate::search_fanout::execute_capabilities(
-                &query,
-                &capabilities,
-                extra_sources,
-                &self.config,
-                crate::engine::CapabilityExecution::new(
-                    fallback,
-                    self.client.clone(),
-                    self.retry_policy,
-                    deadline,
-                ),
-            ),
         ));
-        let result = match main_result {
-            Ok(mut outcome) => {
-                outcome.capabilities = capabilities.iter().collect();
-                capability_results.merge_into(&mut outcome);
-                Ok(outcome)
-            }
-            Err(error) => Err(capability_results.into_failure(error)),
-        };
         let journal = crate::journal::record_search(
             &self.journal,
             crate::journal::SearchRecord {
@@ -381,6 +357,18 @@ impl SearchContext {
         };
         let attempt_log = crate::attempt_log::render(self.config.log_level, attempts);
         (result, journal, attempt_log)
+    }
+}
+
+/// The capabilities a search runs and who chose them: a search that declares none runs main
+/// search only.
+fn search_plan(declared: Option<CapabilitySet>) -> (CapabilitySet, crate::journal::PlanSource) {
+    match declared {
+        Some(capabilities) => (capabilities, crate::journal::PlanSource::Caller),
+        None => (
+            CapabilitySet::default(),
+            crate::journal::PlanSource::DefaultMainSearchOnly,
+        ),
     }
 }
 
