@@ -19,6 +19,7 @@ Start in the crate and move outward only when the rule is a fact of the outer la
 - **Validation before any request** stays in the crate. Argument rules (conflicts, ranges, defaults) are proven by parsing the command's definition in process, which covers the argument wiring without spawning the binary.
 - **Platform-independent rules** (an empty or unusable route set, a missing key, cursor tampering and resumption, opt-in hints, fallback and attribution) are proven once, in the module that implements them, not once per platform. The command contract layer keeps at most two representatives of each rule: one on an HTTP route and one on a browser route. A platform's own facts that a rule's test touches, such as how its route maps a page position onto its request, belong to that route's tests.
 - **A command contract test** spawns the binary and proves only what nothing cheaper can: the command's outer path or an outer checklist item. A test whose rule is not on the checklist belongs in the crate.
+- **The command contract tests are one binary**, `tests/command_contract/`, organised by domain, and they reach the binary only through the shared test environment in `tests/support/`. A new contract test is a module of that binary, never a new file directly under `tests/`: every test binary links the library again and rebuilds after any source change, and a repository rule fixes the set of binaries.
 
 ### Waiting on real time
 
@@ -33,17 +34,16 @@ No in-crate test waits on real time, because a suite that sleeps grows slower wi
 
 ## Selecting a subset
 
-A test's path names what it belongs to. A *word* is one `_`-separated part of a module name in the test's path, or of the name of the test binary. In the crate, a provider's tests live in its adapter's modules, which carry the provider ID, and a platform's types live in `types::platform_<platform>`; a command contract test file that exercises one platform starts its name with that platform, such as `arxiv_fetch`, while a file about a shared mechanism, such as `access_windows`, names that mechanism. Because placement sets the words, moving a test to the right module is enough to make the filters find it.
+A test's path names what it belongs to. A *word* is one `_`-separated part of a module name in the test's path. In the crate, a provider's tests live in its adapter's modules, which carry the provider ID, and a platform's types live in `types::platform_<platform>`. In the command contract binary, a platform's tests live in `platforms::<platform>`, and on a platform with several routes one level further down, in a module named after the route that serves the command, such as `platforms::youtube::youtube_web`. A module about one provider elsewhere carries its ID, such as `web::exa_search` or `doctor::serpapi`, and a module about a shared mechanism, such as `access_windows`, names that mechanism; a test in a module that covers several providers, such as the doctor tests at the root of `doctor`, carries no provider's word, so no provider filter selects it. Because placement sets the words, moving a test to the right module is enough to make the filters find it.
 
 One filter selects a provider's or a platform's tests, with `IDS` replaced:
 
 ```sh
-cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/) | binary(/(^|_)(IDS)(_|$)/)'
+cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/)'
 ```
 
-- **A provider:** its ID, plus each platform that it is the only route of. The `xai` provider is `xai|x`, because it is the X platform's only route; `youtube_web` is `youtube_web`, because YouTube has other routes.
+- **A provider:** its ID, plus each platform that it is the only route of. The `xai` provider is `xai|x`, because it is the X platform's only route; `youtube_web` is `youtube_web`, because YouTube has other routes. `gemini_api` alone also selects YouTube's ask and transcribe commands, because it is the only route that serves them.
 - **A platform:** its ID, plus each of its routes that serves nothing else. Google Scholar is `scholar|serpapi`. X is `x` alone: the `xai` route also backs main search, and listing it would select main-search tests.
-- **When no test binary carries the IDs**, as for `youtube_api`, drop the `binary(…)` half: nextest refuses a filter whose binary pattern matches no binary. Such a provider's command contract tests sit in its platform's files and run with the platform filter.
 
 The routes of each platform are in the platform catalog and in the product skill. Words match whole, so the X filter never selects `xai`, and `hn` never selects a module that merely starts with the letters.
 

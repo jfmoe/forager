@@ -302,6 +302,7 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream, duplex};
 
     use super::{Cdp, CdpError, Closure, MAX_MESSAGE_BYTES};
+    use crate::fixture_server::block_on;
     use crate::types::Deadline;
 
     /// The browser's side of the two pipes: what forager wrote, and where to answer.
@@ -340,21 +341,13 @@ mod tests {
         (cdp, events, Browser { commands, answers })
     }
 
-    fn run(test: impl std::future::Future<Output = ()>) {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build test runtime")
-            .block_on(test);
-    }
-
     fn soon() -> Deadline {
         Deadline::new(Duration::from_secs(5))
     }
 
     #[test]
     fn a_command_is_one_nul_terminated_json_message_with_its_session() {
-        run(async {
+        block_on(async {
             let (cdp, _events, mut browser) = connect();
 
             let call = tokio::spawn(async move {
@@ -383,7 +376,7 @@ mod tests {
 
     #[test]
     fn answers_pair_with_their_commands_in_any_order() {
-        run(async {
+        block_on(async {
             let (cdp, _events, mut browser) = connect();
             let first = tokio::spawn({
                 let cdp = cdp.clone();
@@ -418,7 +411,7 @@ mod tests {
 
     #[test]
     fn an_error_answer_fails_the_command_with_the_browser_message() {
-        run(async {
+        block_on(async {
             let (cdp, _events, mut browser) = connect();
             let call = tokio::spawn(async move {
                 cdp.call(None, "Page.navigate", json!({"url": "x"}), soon())
@@ -442,7 +435,7 @@ mod tests {
 
     #[test]
     fn events_reach_the_receiver_with_their_session() {
-        run(async {
+        block_on(async {
             let (_cdp, mut events, mut browser) = connect();
 
             browser
@@ -467,7 +460,7 @@ mod tests {
 
     #[test]
     fn a_command_without_an_answer_fails_at_its_deadline() {
-        run(async {
+        block_on(async {
             let (cdp, _events, _browser) = connect();
 
             let result = cdp
@@ -490,7 +483,7 @@ mod tests {
 
     #[test]
     fn a_message_over_the_limit_ends_the_connection_for_every_command() {
-        run(async {
+        block_on(async {
             let (cdp, _events, mut browser) = connect();
             let pending = tokio::spawn({
                 let cdp = cdp.clone();
@@ -523,7 +516,7 @@ mod tests {
 
     #[test]
     fn closing_the_pipe_fails_the_pending_command() {
-        run(async {
+        block_on(async {
             let (cdp, _events, mut browser) = connect();
             let pending = tokio::spawn({
                 let cdp = cdp.clone();
@@ -546,7 +539,7 @@ mod tests {
 
     #[test]
     fn output_that_is_not_json_ends_the_connection_as_malformed() {
-        run(async {
+        block_on(async {
             let (cdp, _events, mut browser) = connect();
             let pending = tokio::spawn(async move {
                 cdp.call(None, "Browser.getVersion", json!({}), soon())

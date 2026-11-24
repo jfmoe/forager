@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -7,9 +6,10 @@ use super::{
     SearchResults, Serpapi, cited_by_support, fetch_support, search_support, success_protocol,
 };
 use crate::config::KeyedHttpRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, path, query};
+use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
+use crate::providers::test_projection::{failure, to_json};
 use crate::samples::sample;
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, PlatformFetchOutcome, PlatformFetchRequest,
@@ -44,10 +44,6 @@ fn stored(name: &str) -> Value {
         .unwrap_or_else(|error| panic!("stored serpapi/{name}: {error}"))
 }
 
-fn ok(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
 /// The stored search page holding only `results`, which SerpApi says no page follows.
 fn last_page(results: &[Value]) -> Value {
     let mut page = stored("search.json");
@@ -61,24 +57,6 @@ fn last_page(results: &[Value]) -> Value {
 
 fn result(index: usize) -> Value {
     stored("search.json")["organic_results"][index].clone()
-}
-
-fn to_json<T: serde::Serialize>(value: &T) -> Value {
-    serde_json::to_value(value).expect("serialize")
-}
-
-fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs
-        .iter()
-        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-        .collect()
-}
-
-fn failure<T>(result: Result<T, ProviderError>) -> (AttemptErrorKind, String) {
-    match result {
-        Ok(_) => panic!("expected a failure"),
-        Err(error) => (error.kind, error.message),
-    }
 }
 
 fn search_request(
@@ -267,7 +245,7 @@ fn a_search_sends_the_engine_language_query_and_page_size_with_the_key() {
         None,
     );
 
-    let (outcome, requests) = search(&request, vec![ok(&stored("search.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
 
     assert_eq!(
         (outcome.is_ok(), path(&requests[0]), query(&requests[0])),
@@ -294,7 +272,7 @@ fn year_bounds_and_review_only_join_the_query_parameters() {
     };
     let request = search_request("momentum", 20, options, None);
 
-    let (outcome, requests) = search(&request, vec![ok(&stored("search.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
     let query = query(&requests[0]);
 
     assert_eq!(
@@ -313,7 +291,7 @@ fn year_bounds_and_review_only_join_the_query_parameters() {
 fn a_first_page_without_years_or_review_only_sends_no_filter_or_start_parameters() {
     let request = search_request("momentum", 20, ScholarSearchOptions::default(), None);
 
-    let (outcome, requests) = search(&request, vec![ok(&stored("search.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
     let query = query(&requests[0]);
 
     assert_eq!(
@@ -333,14 +311,14 @@ fn the_next_page_starts_one_page_size_later_and_only_adds_its_start() {
         review_only: true,
     };
     let first = search_request("\"time series momentum\"", 10, options, None);
-    let (first_outcome, first_requests) = search(&first, vec![ok(&stored("search.json"))]);
+    let (first_outcome, first_requests) = search(&first, vec![ok_json(&stored("search.json"))]);
     let next = next_page(first_outcome);
     let second = PlatformSearchRequest {
         page: next.clone(),
         ..first
     };
 
-    let (outcome, requests) = search(&second, vec![ok(&stored("search.json"))]);
+    let (outcome, requests) = search(&second, vec![ok_json(&stored("search.json"))]);
     let mut resumed = query(&requests[0]);
     let start = resumed.remove("start");
 
@@ -355,7 +333,8 @@ fn a_page_without_a_next_link_ends_the_search() {
     for page in [None, Some("980")] {
         let request = search_request("momentum", 20, ScholarSearchOptions::default(), page);
 
-        let (outcome, requests) = search(&request, vec![ok(&last_page(&[result(0), result(1)]))]);
+        let (outcome, requests) =
+            search(&request, vec![ok_json(&last_page(&[result(0), result(1)]))]);
         let outcome = outcome.expect("a page");
 
         assert_eq!(
@@ -374,7 +353,7 @@ fn a_page_without_a_next_link_ends_the_search() {
 fn no_next_page_is_named_when_it_would_pass_result_1000() {
     let next = |start: &str| {
         let request = search_request("momentum", 7, ScholarSearchOptions::default(), Some(start));
-        next_page(search(&request, vec![ok(&stored("search.json"))]).0)
+        next_page(search(&request, vec![ok_json(&stored("search.json"))]).0)
     };
 
     assert_eq!([next("980"), next("987")], [Some("987".to_owned()), None]);
@@ -384,7 +363,7 @@ fn no_next_page_is_named_when_it_would_pass_result_1000() {
 fn twenty_result_pages_reach_result_1000_exactly() {
     let page = |start: &str| {
         let request = search_request("momentum", 20, ScholarSearchOptions::default(), Some(start));
-        let (outcome, requests) = search(&request, vec![ok(&stored("search.json"))]);
+        let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
         (query(&requests[0])["start"].clone(), next_page(outcome))
     };
 
@@ -434,7 +413,7 @@ fn a_fully_empty_answer_is_an_empty_page() {
         None,
     );
 
-    let (outcome, requests) = search(&request, vec![ok(&stored("fully-empty.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&stored("fully-empty.json"))]);
     let outcome = outcome.expect("an empty page");
 
     assert_eq!(
@@ -455,7 +434,7 @@ fn a_page_without_a_usable_result_is_a_runtime_failure_that_is_not_retried() {
         page["organic_results"] = Value::Array(results);
         let request = search_request("momentum", 20, ScholarSearchOptions::default(), None);
 
-        let (outcome, requests) = search_with(&[KEY], 3, &request, vec![ok(&page)]);
+        let (outcome, requests) = search_with(&[KEY], 3, &request, vec![ok_json(&page)]);
 
         assert_eq!(
             (failure(outcome).0, requests.len()),
@@ -475,7 +454,10 @@ fn a_status_error_is_a_network_failure_that_the_shared_policy_retries() {
         &[KEY],
         3,
         &request,
-        vec![ok(&stored("status-error.json")), ok(&stored("search.json"))],
+        vec![
+            ok_json(&stored("status-error.json")),
+            ok_json(&stored("search.json")),
+        ],
     );
     let attempts = outcome
         .expect("the retry succeeds")
@@ -520,7 +502,7 @@ fn an_exhausted_key_rotates_to_the_next_key_in_the_same_request() {
         &request,
         vec![
             Response::json(429, r#"{"error": "Your account has run out of searches."}"#),
-            ok(&stored("search.json")),
+            ok_json(&stored("search.json")),
         ],
     );
     let attempts = outcome.expect("the next key succeeds").attempts;
@@ -581,7 +563,7 @@ fn the_key_never_reaches_a_failure_or_its_attempts() {
     for (case, response) in [
         ("401", Some(Response::json(401, &echo))),
         ("429", Some(Response::json(429, &exhausted))),
-        ("200 Error", Some(ok(&reported))),
+        ("200 Error", Some(ok_json(&reported))),
         ("network", None),
     ] {
         let fixture = response.map(Fixture::start_repeating);
@@ -612,7 +594,7 @@ fn a_cited_by_page_sends_the_cited_cluster_and_page_size_with_the_key() {
     let (outcome, requests) = cited_by(
         1,
         &cited_by_request(20, None),
-        vec![ok(&stored("cited_by.json"))],
+        vec![ok_json(&stored("cited_by.json"))],
     );
 
     assert_eq!(
@@ -647,7 +629,7 @@ fn the_query_years_and_date_order_join_the_cited_by_parameters() {
         (filtered, [Some("crash"), Some("2020"), Some("2024"), None]),
         (by_date, [None, None, None, Some("2")]),
     ] {
-        let (outcome, requests) = cited_by(1, &request, vec![ok(&stored("cited_by.json"))]);
+        let (outcome, requests) = cited_by(1, &request, vec![ok_json(&stored("cited_by.json"))]);
         let query = query(&requests[0]);
 
         assert_eq!(
@@ -669,14 +651,15 @@ fn the_next_cited_by_page_starts_one_page_size_later_and_only_adds_its_start() {
         year_to: Some(2024),
         ..cited_by_request(10, None)
     };
-    let (first_outcome, first_requests) = cited_by(1, &first, vec![ok(&stored("cited_by.json"))]);
+    let (first_outcome, first_requests) =
+        cited_by(1, &first, vec![ok_json(&stored("cited_by.json"))]);
     let next = next_page(first_outcome);
     let second = ScholarCitedByRequest {
         page: next.clone(),
         ..first
     };
 
-    let (outcome, requests) = cited_by(1, &second, vec![ok(&stored("cited_by.json"))]);
+    let (outcome, requests) = cited_by(1, &second, vec![ok_json(&stored("cited_by.json"))]);
     let mut resumed = query(&requests[0]);
     let start = resumed.remove("start");
 
@@ -693,7 +676,7 @@ fn a_date_ordered_page_keeps_the_order_at_its_position() {
         ..cited_by_request(20, Some("20"))
     };
 
-    let (outcome, requests) = cited_by(1, &request, vec![ok(&stored("cited_by.json"))]);
+    let (outcome, requests) = cited_by(1, &request, vec![ok_json(&stored("cited_by.json"))]);
     let query = query(&requests[0]);
 
     assert_eq!(
@@ -713,7 +696,7 @@ fn a_paper_without_citing_works_lists_nothing_and_succeeds() {
         ..cited_by_request(20, None)
     };
 
-    let (outcome, requests) = cited_by(1, &request, vec![ok(&stored("fully-empty.json"))]);
+    let (outcome, requests) = cited_by(1, &request, vec![ok_json(&stored("fully-empty.json"))]);
     let outcome = outcome.expect("an empty page");
 
     assert_eq!(
@@ -746,8 +729,8 @@ fn a_status_error_is_retried_under_the_cited_by_target() {
         3,
         &cited_by_request(20, None),
         vec![
-            ok(&stored("status-error.json")),
-            ok(&stored("cited_by.json")),
+            ok_json(&stored("status-error.json")),
+            ok_json(&stored("cited_by.json")),
         ],
     );
     let attempts = outcome
@@ -783,7 +766,7 @@ fn a_fetch_requests_one_full_page_of_the_cluster() {
     let (outcome, requests) = fetch(
         "scholar:18208131694456651388",
         ContentDepth::Metadata,
-        vec![ok(&stored("cluster.json"))],
+        vec![ok_json(&stored("cluster.json"))],
     );
 
     assert_eq!(
@@ -813,7 +796,7 @@ fn a_cluster_with_more_versions_than_one_page_says_the_list_is_incomplete() {
     let (outcome, _) = fetch(
         "scholar:18208131694456651388",
         ContentDepth::Metadata,
-        vec![ok(&cluster)],
+        vec![ok_json(&cluster)],
     );
     let outcome = outcome.expect("a cluster");
     let diagnostic = outcome.diagnostic.unwrap_or_default();
@@ -834,7 +817,7 @@ fn a_cluster_that_does_not_exist_is_a_parameter_failure() {
     let (outcome, requests) = fetch(
         "scholar:1",
         ContentDepth::Metadata,
-        vec![ok(&stored("fully-empty.json"))],
+        vec![ok_json(&stored("fully-empty.json"))],
     );
 
     assert_eq!(

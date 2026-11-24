@@ -1,0 +1,408 @@
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::Path;
+use std::process::{Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use crate::support::{
+    COMMAND_DEADLINE, forager_command, run_command, spawn_command, wait_for_child,
+};
+use fs2::FileExt;
+
+#[test]
+fn non_interactive_setup_creates_a_complete_template() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(config_dir.path(), &["setup", "--non-interactive"], None);
+    let content = fs::read_to_string(config_dir.path().join("config.toml")).expect("read template");
+    let value: toml::Value = toml::from_str(&content).expect("parse template");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            count_leaves(&value),
+            value["providers"]["exa"]["keys"].as_array().map(Vec::len),
+            &value["capabilities"]["web_fetch"]["order"],
+            value["providers"]["firecrawl"]["timeout"].as_integer(),
+            value["browser"]["path"].as_str(),
+        ),
+        (
+            Some(0),
+            68,
+            Some(0),
+            &toml::Value::Array(
+                ["firecrawl", "jina", "tavily"]
+                    .into_iter()
+                    .map(|provider| toml::Value::String(provider.into()))
+                    .collect()
+            ),
+            Some(60),
+            Some(""),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn non_interactive_setup_refuses_to_overwrite_even_an_empty_file() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let path = config_dir.path().join("config.toml");
+    fs::write(&path, "").expect("create empty config");
+
+    let output = run(config_dir.path(), &["setup", "--non-interactive"], None);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            fs::read_to_string(path).expect("read preserved config"),
+        ),
+        (Some(3), String::new())
+    );
+}
+
+#[test]
+fn setup_modes_time_out_without_writing_when_the_config_lock_is_held() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(config_dir.path().join(".config.lock"))
+        .expect("open config lock");
+    lock.lock_exclusive().expect("hold config lock");
+
+    for arguments in [
+        &["setup", "--lang", "en"][..],
+        &["setup", "--non-interactive"][..],
+    ] {
+        let output = run(config_dir.path(), arguments, None);
+        assert_eq!(output.status.code(), Some(3), "{output:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("config lock timed out"),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert!(!config_dir.path().join("config.toml").exists());
+}
+
+#[test]
+fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let mut setup_command = forager_command();
+    setup_command
+        .args(["setup", "--lang", "en"])
+        .env("FORAGER_CONFIG_DIR", config_dir.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut setup = spawn_command(&mut setup_command).expect("spawn interactive setup");
+    let lock_path = config_dir.path().join(".config.lock");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Ok(lock) = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+        {
+            match lock.try_lock_exclusive() {
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Ok(()) => FileExt::unlock(&lock).expect("release probe lock"),
+                Err(error) => panic!("probe config lock: {error}"),
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "setup did not acquire config lock"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+
+    let edit = run(
+        config_dir.path(),
+        &["config", "set", "log.level", "debug"],
+        None,
+    );
+    assert_eq!(edit.status.code(), Some(3), "{edit:?}");
+    assert!(
+        String::from_utf8_lossy(&edit.stderr).contains("config lock timed out"),
+        "stderr: {}",
+        String::from_utf8_lossy(&edit.stderr)
+    );
+
+    setup
+        .take_stdin()
+        .expect("open setup stdin")
+        .write_all(b"\n\nn\n\n\n\n\n\n\n\n\n\n")
+        .expect("complete setup input");
+    let output = wait_for_child(setup, "interactive setup", COMMAND_DEADLINE);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+}
+
+#[test]
+fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let canary = "setup-canary-secret";
+    let input = format!(
+        "https://main.example/v1\n{canary}\nmain-model\nexa-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
+    );
+
+    let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let config: toml::Value = toml::from_str(
+        &fs::read_to_string(config_dir.path().join("config.toml")).expect("read config"),
+    )
+    .expect("parse config");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            config.get("search").is_none(),
+            config["providers"]["xai"]["model"].as_str(),
+            stage_labels(&combined, "第 "),
+            combined.contains("forager doctor"),
+            combined.contains(canary),
+        ),
+        (
+            Some(0),
+            true,
+            Some("main-model"),
+            vec![
+                "第 2 步：主模型",
+                "第 3 步：补强 provider",
+                "第 4 步：平台 route（Scholar 与 YouTube 需要自备 key）",
+            ],
+            true,
+            false,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for (provider, expected_key) in [
+        ("exa", "exa-secret"),
+        ("jina", "jina-secret"),
+        ("tavily", "tavily-secret"),
+        ("firecrawl", "firecrawl-secret"),
+        ("serpapi", "serpapi-secret"),
+        ("youtube_api", "youtube-secret"),
+    ] {
+        assert_eq!(
+            config["providers"][provider]["keys"][0].as_str(),
+            Some(expected_key),
+            "provider: {provider}"
+        );
+    }
+}
+
+#[test]
+fn interactive_setup_second_run_preserves_skipped_and_unrelated_values() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let path = config_dir.path().join("config.toml");
+    fs::write(
+        &path,
+        "# preserve\n[providers.xai]\nkeys = [\"old-main\"]\nmodel = \"old-model\"\n\
+         [providers.exa]\nkeys = [\"old-exa\"]\ntimeout = 0\n\
+         [unknown]\nvalue = true\n",
+    )
+    .expect("write existing config");
+    let input = "\n\nnew-model\nnew-exa\n\n\n\n\n\n\n\n";
+
+    let output = run(config_dir.path(), &["setup", "--lang", "en"], Some(input));
+    let content = fs::read_to_string(path).expect("read updated config");
+    let config: toml::Value = toml::from_str(&content).expect("parse updated config");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            config["providers"]["xai"]["keys"][0].as_str(),
+            config["providers"]["xai"]["model"].as_str(),
+            config["providers"]["exa"]["keys"][0].as_str(),
+            config["providers"]["exa"]["timeout"].as_integer(),
+            config["unknown"]["value"].as_bool(),
+            content.contains("# preserve"),
+        ),
+        (
+            Some(0),
+            Some("old-main"),
+            Some("new-model"),
+            Some("new-exa"),
+            Some(0),
+            Some(true),
+            true,
+        )
+    );
+}
+
+#[test]
+fn interactive_setup_enter_preserves_a_single_backend_array() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let path = config_dir.path().join("config.toml");
+    fs::write(
+        &path,
+        "[search]\nbackends = [\"xai\"]\n\
+         [providers.xai]\nurl = \"https://main.example/v1\"\n\
+         keys = [\"old-main\"]\nmodel = \"old-model\"\n",
+    )
+    .expect("write existing config");
+
+    let output = run(
+        config_dir.path(),
+        &["setup", "--lang", "en"],
+        Some("\n\n\n\n\n\n\n\n\n\n\n"),
+    );
+    let config: toml::Value =
+        toml::from_str(&fs::read_to_string(path).expect("read config")).expect("parse config");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            config["search"]["backends"].as_array().map(Vec::len),
+            config["search"]["backends"][0].as_str(),
+            stage_labels(&stderr, "Step "),
+        ),
+        (
+            Some(0),
+            Some(1),
+            Some("xai"),
+            vec![
+                "Step 2: main model",
+                "Step 3: supplemental providers",
+                "Step 4: platform routes (Scholar and YouTube need your own key)",
+            ],
+        ),
+        "stderr: {stderr}"
+    );
+}
+
+#[test]
+fn interactive_setup_rejects_a_malformed_document_without_replacing_it() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let path = config_dir.path().join("config.toml");
+    let malformed = "[providers.exa\nkeys = [";
+    fs::write(&path, malformed).expect("write malformed config");
+
+    let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some("\n"));
+
+    assert_eq!(
+        (
+            output.status.code(),
+            fs::read_to_string(path).expect("read malformed config"),
+        ),
+        (Some(3), malformed.to_owned())
+    );
+}
+
+#[cfg(unix)]
+fn private_modes(config_dir: &Path) -> (u32, u32, u32, usize) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let directory_mode = config_dir
+        .metadata()
+        .expect("read directory metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    let file_mode = config_dir
+        .join("config.toml")
+        .metadata()
+        .expect("read file metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    let lock_mode = config_dir
+        .join(".config.lock")
+        .metadata()
+        .expect("read lock metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    let temporary_files = fs::read_dir(config_dir)
+        .expect("read config directory")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+        .count();
+    (directory_mode, file_mode, lock_mode, temporary_files)
+}
+
+#[cfg(unix)]
+#[test]
+fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let interactive_dir = tempfile::tempdir().expect("create interactive config directory");
+    fs::set_permissions(interactive_dir.path(), fs::Permissions::from_mode(0o777))
+        .expect("set broad interactive directory permissions");
+    for path in [
+        interactive_dir.path().join("config.toml"),
+        interactive_dir.path().join(".config.lock"),
+    ] {
+        fs::write(&path, "").expect("create broad interactive config object");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o666))
+            .expect("set broad interactive file permissions");
+    }
+    let output = run(
+        interactive_dir.path(),
+        &["setup", "--lang", "en"],
+        Some("\n\nn\n\n\n\n\n\n\n\n\n\n"),
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+
+    let template_dir = tempfile::tempdir().expect("create template config directory");
+    fs::set_permissions(template_dir.path(), fs::Permissions::from_mode(0o777))
+        .expect("set broad template directory permissions");
+    let template_lock = template_dir.path().join(".config.lock");
+    fs::write(&template_lock, "").expect("create broad template lock");
+    fs::set_permissions(&template_lock, fs::Permissions::from_mode(0o666))
+        .expect("set broad template lock permissions");
+    let output = run(template_dir.path(), &["setup", "--non-interactive"], None);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+
+    assert_eq!(
+        (
+            private_modes(interactive_dir.path()),
+            private_modes(template_dir.path()),
+        ),
+        ((0o700, 0o600, 0o600, 0), (0o700, 0o600, 0o600, 0))
+    );
+}
+
+fn count_leaves(value: &toml::Value) -> usize {
+    match value {
+        toml::Value::Table(table) => table.values().map(count_leaves).sum(),
+        _ => 1,
+    }
+}
+
+fn run(config_dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
+    let mut command = forager_command();
+    command
+        .args(args)
+        .env("FORAGER_CONFIG_DIR", config_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if stdin.is_some() {
+        command.stdin(Stdio::piped());
+    } else {
+        command.stdin(Stdio::null());
+    }
+    run_command(&mut command, stdin.map(str::as_bytes))
+}
+
+/// The stage headings `setup` printed, in order. A heading follows the previous prompt on the
+/// same line, because prompts end without a newline.
+fn stage_labels<'a>(output: &'a str, prefix: &str) -> Vec<&'a str> {
+    output
+        .lines()
+        .filter_map(|line| line.find(prefix).map(|start| &line[start..]))
+        .collect()
+}

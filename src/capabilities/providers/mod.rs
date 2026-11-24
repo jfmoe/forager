@@ -23,6 +23,8 @@ pub(crate) mod shared;
 mod ssrn_crossref;
 mod supplemental;
 mod tavily_map;
+#[cfg(test)]
+mod test_projection;
 mod transcript;
 mod types;
 mod web_fetch;

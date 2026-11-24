@@ -333,16 +333,9 @@ mod tests {
 
     use super::{ExecutionSettings, execute_anonymous, execute_pinned, execute_v2};
     use crate::credentials::CredentialPool;
+    use crate::fixture_server::block_on_paused;
     use crate::net::{AttemptFailure, RetryPolicy};
     use crate::types::{AttemptErrorKind, AttemptTarget, Deadline};
-
-    fn runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .start_paused(true)
-            .build()
-            .expect("test runtime")
-    }
 
     fn settings(
         retry_policy: RetryPolicy,
@@ -373,7 +366,7 @@ mod tests {
 
     #[test]
     fn attempt_timeout_retries_without_rotating_credentials() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let calls = Rc::new(RefCell::new(0));
             let outcome = execute_v2(
                 &CredentialPool::new("test", vec!["first".into(), "second".into()]),
@@ -420,7 +413,7 @@ mod tests {
 
     #[test]
     fn retries_use_linear_backoff_capped_by_max_wait() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let started = tokio::time::Instant::now();
             let calls = Rc::new(RefCell::new(Vec::new()));
             let outcome = execute_v2(
@@ -466,7 +459,7 @@ mod tests {
 
     #[test]
     fn retry_stops_immediately_when_backoff_exceeds_remaining_deadline() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let started = tokio::time::Instant::now();
             let calls = Rc::new(RefCell::new(0));
             let error = execute_v2(
@@ -506,7 +499,7 @@ mod tests {
 
     #[test]
     fn attempt_timeout_consumes_the_shared_deadline_before_retry_backoff() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let calls = Rc::new(RefCell::new(0));
             let error = execute_v2(
                 &CredentialPool::new("test", vec!["key".into()]),
@@ -539,7 +532,7 @@ mod tests {
 
     #[test]
     fn anonymous_execution_records_credential_index_zero_without_rotation() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let outcome = execute_anonymous(
                 settings(
                     RetryPolicy::new(2, 1.0, Duration::from_secs(1)),
@@ -568,7 +561,7 @@ mod tests {
 
     #[test]
     fn anonymous_rate_limit_is_terminal_because_there_is_no_credential_to_rotate() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let calls = Rc::new(RefCell::new(0));
             let error = execute_anonymous(
                 settings(
@@ -608,7 +601,7 @@ mod tests {
 
     #[test]
     fn keyed_execution_with_an_empty_pool_fails_without_sending() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let calls = Rc::new(RefCell::new(0));
             let error = execute_v2(
                 &CredentialPool::new("test", Vec::new()),
@@ -638,7 +631,7 @@ mod tests {
 
     #[test]
     fn pinned_execution_sends_only_its_key_and_retries_without_rotating() {
-        runtime().block_on(async {
+        block_on_paused(async {
             let sent = Rc::new(RefCell::new(Vec::new()));
             let error = execute_pinned(
                 &CredentialPool::new(

@@ -541,6 +541,7 @@ mod tests {
         DecodedCluster, DecodedPage, OrganicResult, decode_cluster, decode_page, resources,
         result_id_cluster,
     };
+    use crate::providers::test_projection::to_json;
     use crate::samples::sample;
     use crate::types::{PlatformRef, ScholarRef};
 
@@ -554,10 +555,6 @@ mod tests {
     fn page(body: &Value) -> DecodedPage {
         let decoded = success_protocol(&body.to_string()).and_then(decode_page);
         decoded.unwrap_or_else(|failure| panic!("decode the page: {}", failure.message))
-    }
-
-    fn to_json<T: serde::Serialize + ?Sized>(value: &T) -> Value {
-        serde_json::to_value(value).expect("serialize")
     }
 
     fn refs(page: &DecodedPage) -> Vec<String> {

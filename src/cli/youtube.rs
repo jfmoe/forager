@@ -7,8 +7,8 @@ use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
 use super::{
-    PageInput, PlatformCommonArgs, ask, comments, content_file_stem, deliver, fetch, parse_date,
-    preflight_error, run_page, search,
+    ContentInput, PageInput, PlatformCommonArgs, PlatformInput, ask, comments, content_file_stem,
+    deliver, fetch, parse_date, preflight_error, run_page, search,
 };
 use crate::app::args::{ContentOutputFormat, OutputArgs, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
@@ -289,21 +289,18 @@ pub(in crate::app) fn run(command: YoutubeCommand) -> Result<CommandOutput, AppE
 }
 
 fn youtube_search(arguments: YoutubeSearchArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = youtube_search_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = youtube_search_input(arguments)?;
     search(Platform::Youtube, input, format, &common)
 }
 
 /// Builds the page a search asks for and checks its cross-field rules before any request.
 fn youtube_search_input(
     arguments: YoutubeSearchArgs,
-) -> Result<
-    (
-        PageInput<PlatformSearchRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<PlatformSearchRequest>, OutputFormat>, AppError> {
     let YoutubeSearchArgs {
         query,
         sort,
@@ -336,26 +333,27 @@ fn youtube_search_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, content_dir, common) = youtube_fetch_input(arguments)?;
+    let ContentInput {
+        request,
+        format,
+        content_dir,
+        common,
+    } = youtube_fetch_input(arguments)?;
     fetch(Platform::Youtube, request, format, content_dir, &common)
 }
 
 /// The fetch a YouTube fetch asks for, checked before any configuration is read.
 fn youtube_fetch_input(
     arguments: YoutubeFetchArgs,
-) -> Result<
-    (
-        PlatformFetchRequest,
-        ContentOutputFormat,
-        Option<PathBuf>,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<ContentInput<PlatformFetchRequest>, AppError> {
     let YoutubeFetchArgs {
         reference,
         depth,
@@ -373,18 +371,27 @@ fn youtube_fetch_input(
         ..PlatformFetchRequest::new(PlatformRef::Youtube(video), depth.into())
     };
     request.validate().map_err(AppError::Argument)?;
-    Ok((request, format, content_dir, common))
+    Ok(ContentInput {
+        request,
+        format,
+        content_dir,
+        common,
+    })
 }
 
 fn youtube_comments(arguments: YoutubeCommentsArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = youtube_comments_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = youtube_comments_input(arguments)?;
     comments(PlatformCommentsRequest::Youtube(request), format, &common)
 }
 
 /// The comments page a command asks for, checked before any configuration is read.
 fn youtube_comments_input(
     arguments: YoutubeCommentsArgs,
-) -> Result<(YoutubeCommentsRequest, OutputFormat, PlatformCommonArgs), AppError> {
+) -> Result<PlatformInput<YoutubeCommentsRequest, OutputFormat>, AppError> {
     let YoutubeCommentsArgs {
         reference,
         limit,
@@ -397,11 +404,19 @@ fn youtube_comments_input(
         limit,
         sort: sort.into(),
     };
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = youtube_videos_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = youtube_videos_input(arguments)?;
     run_page(
         Platform::Youtube,
         |config, routes| match input {
@@ -419,14 +434,7 @@ fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppErro
 /// The page of videos a command asks for, checked before any configuration is read.
 fn youtube_videos_input(
     arguments: YoutubeVideosArgs,
-) -> Result<
-    (
-        PageInput<YoutubeVideosRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<YoutubeVideosRequest>, OutputFormat>, AppError> {
     let YoutubeVideosArgs {
         collection,
         limit,
@@ -445,17 +453,25 @@ fn youtube_videos_input(
             page: None,
         })
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 fn youtube_ask(arguments: YoutubeAskArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = youtube_ask_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = youtube_ask_input(arguments)?;
     ask(PlatformAskRequest::Youtube(request), format, &common)
 }
 
 fn youtube_ask_input(
     arguments: YoutubeAskArgs,
-) -> Result<(YoutubeAskRequest, OutputFormat, PlatformCommonArgs), AppError> {
+) -> Result<PlatformInput<YoutubeAskRequest, OutputFormat>, AppError> {
     let YoutubeAskArgs {
         reference,
         question,
@@ -467,13 +483,22 @@ fn youtube_ask_input(
         question,
     };
     request.validate().map_err(AppError::Argument)?;
-    Ok((request, format, common.into()))
+    Ok(PlatformInput {
+        request,
+        format,
+        common: common.into(),
+    })
 }
 
 /// Plans the transcription over YouTube's configuration, runs it, and delivers its transcript
 /// like a full text, under a name that marks it as transcribed.
 fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput, AppError> {
-    let (request, content_dir, format, common) = youtube_transcribe_input(arguments)?;
+    let ContentInput {
+        request,
+        format,
+        content_dir,
+        common,
+    } = youtube_transcribe_input(arguments)?;
     let file_name = format!(
         "{}-transcribed.md",
         content_file_stem(&PlatformRef::Youtube(request.video.clone()))
@@ -519,14 +544,9 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
     })
 }
 
-type TranscribeInput = (
-    YoutubeTranscribeRequest,
-    Option<PathBuf>,
-    ContentOutputFormat,
-    PlatformCommonArgs,
-);
-
-fn youtube_transcribe_input(arguments: YoutubeTranscribeArgs) -> Result<TranscribeInput, AppError> {
+fn youtube_transcribe_input(
+    arguments: YoutubeTranscribeArgs,
+) -> Result<ContentInput<YoutubeTranscribeRequest>, AppError> {
     let YoutubeTranscribeArgs {
         reference,
         content_dir,
@@ -534,12 +554,12 @@ fn youtube_transcribe_input(arguments: YoutubeTranscribeArgs) -> Result<Transcri
         common,
     } = arguments;
     let video = parse_video(&reference, "transcribe")?;
-    Ok((
-        YoutubeTranscribeRequest { video },
-        content_dir,
+    Ok(ContentInput {
+        request: YoutubeTranscribeRequest { video },
         format,
-        common.into(),
-    ))
+        content_dir,
+        common: common.into(),
+    })
 }
 
 /// Reads the one video an operation reads; a playlist or channel input is an argument error.
@@ -579,8 +599,9 @@ mod youtube_web_tests {
 
     #[test]
     fn repeated_lang_options_reach_the_request_in_their_priority_order() {
-        let (request, ..) = youtube_fetch_input(fetch_args(&["--lang", "fr", "--lang", "de"]))
-            .expect("a full-text fetch takes languages");
+        let request = youtube_fetch_input(fetch_args(&["--lang", "fr", "--lang", "de"]))
+            .expect("a full-text fetch takes languages")
+            .request;
 
         let PlatformFetchOptions::Youtube(options) = request.options else {
             panic!("a YouTube fetch carries YouTube options")
@@ -646,7 +667,7 @@ mod youtube_api_tests {
         let YoutubeCommand::Search(parsed) = parsed(&search.collect::<Vec<_>>()) else {
             unreachable!("the arguments name youtube search")
         };
-        match youtube_search_input(parsed)?.0 {
+        match youtube_search_input(parsed)?.request {
             PageInput::Request(request) => Ok(request),
             PageInput::Cursor(_) => panic!("the arguments name no cursor"),
         }
@@ -657,7 +678,7 @@ mod youtube_api_tests {
         let YoutubeCommand::Comments(parsed) = parsed(&comments.collect::<Vec<_>>()) else {
             unreachable!("the arguments name youtube comments")
         };
-        youtube_comments_input(parsed).map(|(request, ..)| request)
+        youtube_comments_input(parsed).map(|input| input.request)
     }
 
     fn videos_request(arguments: &[&str]) -> Result<YoutubeVideosRequest, AppError> {
@@ -665,7 +686,7 @@ mod youtube_api_tests {
         let YoutubeCommand::Videos(parsed) = parsed(&videos.collect::<Vec<_>>()) else {
             unreachable!("the arguments name youtube videos")
         };
-        match youtube_videos_input(parsed)?.0 {
+        match youtube_videos_input(parsed)?.request {
             PageInput::Request(request) => Ok(request),
             PageInput::Cursor(_) => panic!("the arguments name no cursor"),
         }
@@ -678,7 +699,7 @@ mod youtube_api_tests {
         let YoutubeCommand::Fetch(parsed) = parsed(&fetch.collect::<Vec<_>>()) else {
             unreachable!("the arguments name youtube fetch")
         };
-        youtube_fetch_input(parsed).map(|(request, ..)| (request.reference, request.depth))
+        youtube_fetch_input(parsed).map(|input| (input.request.reference, input.request.depth))
     }
 
     fn is_argument_error<T: std::fmt::Debug>(result: &Result<T, AppError>) -> bool {
@@ -899,8 +920,13 @@ mod gemini_api_tests {
         let YoutubeCommand::Ask(parsed) = parsed(&ask.collect::<Vec<_>>()) else {
             unreachable!("the arguments name youtube ask")
         };
-        youtube_ask_input(parsed).map(|(request, format, common)| {
-            (request.video, request.question, format, common.timeout)
+        youtube_ask_input(parsed).map(|input| {
+            (
+                input.request.video,
+                input.request.question,
+                input.format,
+                input.common.timeout,
+            )
         })
     }
 
@@ -913,8 +939,13 @@ mod gemini_api_tests {
         let YoutubeCommand::Transcribe(parsed) = parsed(&transcribe.collect::<Vec<_>>()) else {
             unreachable!("the arguments name youtube transcribe")
         };
-        youtube_transcribe_input(parsed).map(|(request, content_dir, format, common)| {
-            (request.video, content_dir, format, common.timeout)
+        youtube_transcribe_input(parsed).map(|input| {
+            (
+                input.request.video,
+                input.content_dir,
+                input.format,
+                input.common.timeout,
+            )
         })
     }
 

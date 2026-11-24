@@ -8,13 +8,12 @@ use serde_json::{Value, json};
 use super::Xai;
 use crate::config::{MainSearchProviderConfig, XaiRuntimeConfig};
 use crate::fixture_server::{Fixture, Response, block_on, header, path, request_json};
-use crate::main_search_samples::{answer_with, failed_event, stored_answer};
+use crate::main_search_samples::{answer_with, completed_events, failed_event, stored_answer};
 use crate::net::{AttemptFailure, RetryPolicy, build_client};
 use crate::providers::build_main_search;
 use crate::providers::{MainSearchRequest, MainSearchRequestKind, RouteContext};
 use crate::samples::sample;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt, ProviderError, SearchOutcome};
-use crate::x_samples::completed_events;
 
 const KEY: &str = "xai-key";
 const SECOND_KEY: &str = "xai-key-2";

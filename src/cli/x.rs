@@ -3,7 +3,7 @@
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, ask, fetch, parse_date, search};
+use super::{PageInput, PlatformCommonArgs, PlatformInput, ask, fetch, parse_date, search};
 use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
@@ -125,14 +125,18 @@ pub(in crate::app) fn run(command: XCommand) -> Result<CommandOutput, AppError> 
 }
 
 fn x_search(arguments: XSearchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = x_search_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = x_search_input(arguments)?;
     search(Platform::X, PageInput::Request(request), format, &common)
 }
 
 /// Builds the search a command asks for and checks it before any request.
 fn x_search_input(
     arguments: XSearchArgs,
-) -> Result<(PlatformSearchRequest, OutputFormat, PlatformCommonArgs), AppError> {
+) -> Result<PlatformInput<PlatformSearchRequest, OutputFormat>, AppError> {
     let XSearchArgs {
         query,
         filters,
@@ -147,25 +151,26 @@ fn x_search_input(
         page: None,
     };
     request.validate().map_err(AppError::Argument)?;
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 fn x_fetch(arguments: XFetchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = x_fetch_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = x_fetch_input(arguments)?;
     fetch(Platform::X, request, format, None, &common)
 }
 
 /// Reads the post ref before any request.
 fn x_fetch_input(
     arguments: XFetchArgs,
-) -> Result<
-    (
-        PlatformFetchRequest,
-        ContentOutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PlatformFetchRequest, ContentOutputFormat>, AppError> {
     let XFetchArgs {
         reference,
         depth,
@@ -175,18 +180,24 @@ fn x_fetch_input(
     let reference = PlatformRef::parse(Platform::X, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 fn x_ask(arguments: XAskArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = x_ask_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = x_ask_input(arguments)?;
     ask(PlatformAskRequest::X(request), format, &common)
 }
 
 /// Builds the question a command asks and checks it before any request.
-fn x_ask_input(
-    arguments: XAskArgs,
-) -> Result<(XAskRequest, OutputFormat, PlatformCommonArgs), AppError> {
+fn x_ask_input(arguments: XAskArgs) -> Result<PlatformInput<XAskRequest, OutputFormat>, AppError> {
     let XAskArgs {
         query,
         filters,
@@ -198,7 +209,11 @@ fn x_ask_input(
         options: filters.into(),
     };
     request.validate().map_err(AppError::Argument)?;
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 /// The X commands' argument rules, proven by parsing their definition in process.

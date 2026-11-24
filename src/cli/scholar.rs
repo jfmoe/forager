@@ -2,7 +2,7 @@
 
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, fetch, scholar_cited_by, search};
+use super::{PageInput, PlatformCommonArgs, PlatformInput, fetch, scholar_cited_by, search};
 use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
@@ -139,21 +139,18 @@ pub(in crate::app) fn run(command: ScholarCommand) -> Result<CommandOutput, AppE
 }
 
 fn scholar_search(arguments: ScholarSearchArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = scholar_search_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = scholar_search_input(arguments)?;
     search(Platform::Scholar, input, format, &common)
 }
 
 /// Builds the page a search asks for and checks it before any request.
 fn scholar_search_input(
     arguments: ScholarSearchArgs,
-) -> Result<
-    (
-        PageInput<PlatformSearchRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<PlatformSearchRequest>, OutputFormat>, AppError> {
     let ScholarSearchArgs {
         query,
         limit,
@@ -180,25 +177,26 @@ fn scholar_search_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 fn cited_by(arguments: ScholarCitedByArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = cited_by_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = cited_by_input(arguments)?;
     scholar_cited_by(input, format, &common)
 }
 
 /// Builds the page of citing works a command asks for and checks it before any request.
 fn cited_by_input(
     arguments: ScholarCitedByArgs,
-) -> Result<
-    (
-        PageInput<ScholarCitedByRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<ScholarCitedByRequest>, OutputFormat>, AppError> {
     let ScholarCitedByArgs {
         reference,
         query,
@@ -227,25 +225,26 @@ fn cited_by_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = scholar_fetch_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = scholar_fetch_input(arguments)?;
     fetch(Platform::Scholar, request, format, None, &common)
 }
 
 /// Reads the cluster ref before any request.
 fn scholar_fetch_input(
     arguments: ScholarFetchArgs,
-) -> Result<
-    (
-        PlatformFetchRequest,
-        ContentOutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PlatformFetchRequest, ContentOutputFormat>, AppError> {
     let ScholarFetchArgs {
         reference,
         depth,
@@ -259,7 +258,11 @@ fn scholar_fetch_input(
         OutputFormat::Json => ContentOutputFormat::Json,
         OutputFormat::Markdown => ContentOutputFormat::Markdown,
     };
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 /// The Scholar commands' argument rules, proven by parsing their definition in process.

@@ -1,13 +1,9 @@
 //! Polymarket support for the command contract tests: configuration for the endpoints of
-//! `polymarket_api`, and its upstream answers, derived from the stored samples by
-//! [`super::polymarket_samples`].
+//! `polymarket_api` and a runner for its commands.
 
 use std::process::Output;
 
-use serde_json::Value;
-
-use super::polymarket_samples;
-use super::{Response, RunEnvironment};
+use super::RunEnvironment;
 
 /// Points `polymarket_api` at the two fixture servers with one attempt per request, so a
 /// failure response is terminal at once.
@@ -25,29 +21,9 @@ pub(crate) fn history_config(gamma: &str, data: &str) -> String {
     )
 }
 
-pub(crate) fn json(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
 /// Runs `forager platform polymarket <arguments>`.
 pub(crate) fn run(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "polymarket"];
     command.extend_from_slice(arguments);
     environment.run(&command)
-}
-
-/// A CLOB `POST /prices` answer: each token's best bid and best ask.
-pub(crate) fn prices(quotes: &[(&str, &str, &str)]) -> Response {
-    json(&polymarket_samples::prices(quotes))
-}
-
-/// A CLOB `POST /last-trades-prices` answer.
-pub(crate) fn last_trades(trades: &[(&str, &str)]) -> Response {
-    json(&polymarket_samples::last_trades(trades))
-}
-
-/// A Data API `GET /v2/prices-history` page of `(timestamp, price, resolution_seconds)` points;
-/// `next_cursor` marks that another page follows.
-pub(crate) fn price_page(points: &[(i64, f64, i64)], next_cursor: Option<&str>) -> Response {
-    json(&polymarket_samples::price_page(points, next_cursor))
 }

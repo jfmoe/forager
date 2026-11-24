@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -7,10 +6,12 @@ use super::gamma::Quotes;
 use super::quotes::{LiveQuotes, decode_last_trades, decode_prices, live_prices, open_markets};
 use super::{PolymarketApi, decode_entry, decode_search, fetch_support, search_support};
 use crate::config::PolymarketRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, path, query};
+use crate::fixture_server::{
+    Fixture, Response, block_on, ok_json, pairs, path, query, request_json,
+};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
-use crate::providers::shared::Refusal;
+use crate::providers::test_projection::refused;
 // The stored bodies below read the sample store through this name.
 use crate::samples;
 use crate::types::{
@@ -23,8 +24,18 @@ use crate::types::{
 pub(super) mod stored;
 
 use stored::{
-    event, last_trades, market, no_match, placeholder, prices, resolved, search_page, tokens, with,
+    event, last_trades, market, no_match, prices, resolved, search_page, tokens, with, without,
 };
+
+/// [`market`] as a neg-risk placeholder: open in name and accepting orders, but inactive, with
+/// no cached prices and no order book on the CLOB.
+fn placeholder(slug: &str, label: &str) -> Value {
+    let placeholder = with(
+        market(slug, label),
+        &json!({"active": false, "bestBid": 0, "bestAsk": 1}),
+    );
+    without(placeholder, "outcomePrices")
+}
 
 const EVENT: &str = "how-many-fed-rate-cuts-in-2026";
 /// When the CLOB price read of a decoding test completed.
@@ -48,28 +59,8 @@ pub(super) fn route(url: &str) -> PolymarketApi {
     )
 }
 
-pub(super) fn json(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
-pub(super) fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs
-        .iter()
-        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-        .collect()
-}
-
-fn request_json(request: &str) -> Value {
-    let (_, body) = request.split_once("\r\n\r\n").expect("request body");
-    serde_json::from_str(body).expect("request JSON")
-}
-
 pub(super) fn reference(input: &str) -> PolymarketRef {
     PolymarketRef::parse(input).expect("valid ref")
-}
-
-fn refused<T>(result: Result<T, Refusal>) -> Result<T, (AttemptErrorKind, String)> {
-    result.map_err(|refusal| (refusal.kind, refusal.message))
 }
 
 fn stored_json(name: &str) -> Value {
@@ -289,7 +280,7 @@ fn a_search_sends_its_words_size_and_page_and_filters_to_open_events_unless_clos
     ];
 
     for (request, expected) in cases {
-        let (outcome, requests) = search(&request, vec![json(&no_match())]);
+        let (outcome, requests) = search(&request, vec![ok_json(&no_match())]);
 
         assert_eq!(
             (
@@ -310,7 +301,7 @@ fn a_page_with_more_results_continues_at_the_next_page() {
     let next_pages = [true, false].map(|has_more| {
         let (outcome, _) = search(
             &search_request("fed rate", 10, false),
-            vec![json(&search_page(&[fed_event()], has_more))],
+            vec![ok_json(&search_page(&[fed_event()], has_more))],
         );
         outcome.expect("search succeeds").next_page
     });
@@ -347,7 +338,7 @@ fn results_without_a_valid_slug_or_markets_are_skipped_with_one_diagnostic() {
         false,
     );
 
-    let (outcome, _) = search(&search_request("fed rate", 10, false), vec![json(&page)]);
+    let (outcome, _) = search(&search_request("fed rate", 10, false), vec![ok_json(&page)]);
     let outcome = outcome.expect("search succeeds");
 
     assert_eq!(
@@ -640,9 +631,9 @@ fn a_fetch_reads_the_entry_then_the_books_and_last_trades_of_its_open_markets_al
         &format!("polymarket:{EVENT}"),
         ContentDepth::Metadata,
         vec![
-            json(&derivation_event()),
-            json(&live_books()),
-            json(&last_trades(&[(&two_yes, "0.962")])),
+            ok_json(&derivation_event()),
+            ok_json(&live_books()),
+            ok_json(&last_trades(&[(&two_yes, "0.962")])),
         ],
     );
     let item = serde_json::to_value(outcome.expect("fetch succeeds").item).expect("item");
@@ -689,12 +680,12 @@ fn live_prices_are_as_of_the_second_the_clob_read_them_in_utc() {
         &format!("polymarket:{EVENT}"),
         ContentDepth::Metadata,
         vec![
-            json(&event(EVENT, &[market("two-sided", "Two-sided")])),
-            json(&prices(&[
+            ok_json(&event(EVENT, &[market("two-sided", "Two-sided")])),
+            ok_json(&prices(&[
                 (&yes, "0.961", "0.963"),
                 (&no, "0.037", "0.039"),
             ])),
-            json(&last_trades(&[])),
+            ok_json(&last_trades(&[])),
         ],
     );
     let item = serde_json::to_value(outcome.expect("fetch succeeds").item).expect("item");
@@ -771,7 +762,7 @@ fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes_without_a_l
         &format!("polymarket:{EVENT}"),
         ContentDepth::Metadata,
         vec![
-            json(&derivation_event()),
+            ok_json(&derivation_event()),
             Response::json(500, &stored::stored("clob-error.json")),
         ],
     );
@@ -836,18 +827,18 @@ fn inactive_placeholder_markets_are_suspended_and_never_reach_the_clob() {
         &format!("polymarket:{EVENT}"),
         ContentDepth::Metadata,
         vec![
-            json(&event(
+            ok_json(&event(
                 EVENT,
                 &[
                     market("two-sided", "Two-sided"),
                     placeholder("will-person-a-win", "Person A"),
                 ],
             )),
-            json(&prices(&[
+            ok_json(&prices(&[
                 (&yes, "0.961", "0.963"),
                 (&no, "0.037", "0.039"),
             ])),
-            json(&last_trades(&[])),
+            ok_json(&last_trades(&[])),
         ],
     );
     let outcome = outcome.expect("fetch succeeds");
@@ -900,7 +891,7 @@ fn a_resolved_market_is_read_from_gamma_alone() {
     let (outcome, requests) = fetch(
         &format!("https://polymarket.com/event/presidential-election-winner-2024/{slug}"),
         ContentDepth::Metadata,
-        vec![json(&resolved_market)],
+        vec![ok_json(&resolved_market)],
     );
     let item = serde_json::to_value(outcome.expect("fetch succeeds").item).expect("item");
 
@@ -959,8 +950,8 @@ fn outcomes_the_clob_leaves_out_have_no_price_and_failed_last_trades_are_null() 
         &format!("polymarket:{EVENT}"),
         ContentDepth::Metadata,
         vec![
-            json(&event(EVENT, &[market("two-sided", "Two-sided")])),
-            json(&prices(&[(&yes, "0.961", "0.963")])),
+            ok_json(&event(EVENT, &[market("two-sided", "Two-sided")])),
+            ok_json(&prices(&[(&yes, "0.961", "0.963")])),
             Response::json(
                 503,
                 &with(
@@ -1005,10 +996,10 @@ fn quotes_for_more_than_250_tokens_are_read_in_batches_of_500_entries() {
         &format!("polymarket:{EVENT}"),
         ContentDepth::Metadata,
         vec![
-            json(&event(EVENT, &markets)),
-            json(&prices(&[])),
-            json(&prices(&[])),
-            json(&last_trades(&[])),
+            ok_json(&event(EVENT, &markets)),
+            ok_json(&prices(&[])),
+            ok_json(&prices(&[])),
+            ok_json(&last_trades(&[])),
         ],
     );
 
@@ -1208,7 +1199,7 @@ fn abstract_without_rules_is_a_quality_failure() {
     let (outcome, _) = fetch(
         "polymarket:market/two-sided",
         ContentDepth::Abstract,
-        vec![json(&with(
+        vec![ok_json(&with(
             market("two-sided", "Two-sided"),
             &json!({"description": "  "}),
         ))],

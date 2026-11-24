@@ -74,7 +74,7 @@ impl Rule {
             ),
             Self::AccessWindowTest => (
                 "every HTTP route with an Access Policy has a send in the access-window test",
-                "add a send of the route to `SENDS` in `tests/access_windows.rs`",
+                "add a send of the route to `SENDS` in `tests/command_contract/access_windows.rs`",
             ),
         }
     }
@@ -481,7 +481,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
 fn has_window_test(route: ProviderId) -> bool {
     include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/access_windows.rs"
+        "/tests/command_contract/access_windows.rs"
     ))
     .contains(&format!("\"{}\"", route.name()))
 }

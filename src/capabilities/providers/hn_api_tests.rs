@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -7,9 +6,10 @@ use super::search::{SearchResponse, search_support};
 use super::thread::decode_tree;
 use super::{FirebaseItem, HnApi, decode_json, fetch_support, thread_item};
 use crate::config::HnRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, path, query};
+use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
+use crate::providers::test_projection::{failure, to_json};
 use crate::rate_limit::test_pacing::paced_limiters;
 // The stored bodies below read the sample store through this name.
 use crate::samples;
@@ -23,10 +23,42 @@ use crate::types::{
 #[path = "../../../tests/support/hn_samples.rs"]
 mod stored;
 
-use stored::{
-    comment_hit, discussion, firebase_comment, node, search_page, stored_json, story_hit,
-    story_item, story_list, with,
-};
+use stored::{discussion, search_page, stored_json, story_hit, story_item, story_list, with};
+
+/// The stored hit of a comment on the Dropbox story, `hn:8952`.
+fn comment_hit() -> Value {
+    stored_json("search.json")["hits"][1].clone()
+}
+
+/// The stored tree's first comment, a top-level reply to the story, as comment `id` by
+/// `author` saying `text`, posted `id` seconds after the story, with `children`.
+fn node(id: u64, author: &str, text: &str, children: &[Value]) -> Value {
+    let tree = discussion();
+    let posted = tree["created_at_i"].as_u64().expect("story time") + id;
+    with(
+        tree["children"][0].clone(),
+        &json!({"id": id, "author": author, "text": text, "created_at_i": posted, "children": children}),
+    )
+}
+
+/// The stored Firebase item as comment `id` by `by` on `parent` saying `text`, with `kids`.
+fn firebase_comment(id: u64, by: &str, parent: u64, text: &str, kids: &[u64]) -> Value {
+    with(
+        without(
+            stored_json("firebase-item.json"),
+            &["descendants", "score", "title", "url"],
+        ),
+        &json!({"id": id, "by": by, "parent": parent, "text": text, "kids": kids, "type": "comment"}),
+    )
+}
+
+fn without(mut record: Value, fields: &[&str]) -> Value {
+    let object = record.as_object_mut().expect("record object");
+    for field in fields {
+        object.remove(*field);
+    }
+    record
+}
 
 /// The route with both endpoints on the fixture at `url`, under the paths the real endpoints
 /// use, with one attempt per request, so a failure response is terminal at once.
@@ -45,19 +77,8 @@ fn route(url: &str, deadline: Duration) -> HnApi {
     )
 }
 
-fn json(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
 fn stored_body(name: &str) -> String {
     stored::stored(name)
-}
-
-fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs
-        .iter()
-        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-        .collect()
 }
 
 fn paths(requests: &[String]) -> Vec<String> {
@@ -66,10 +87,6 @@ fn paths(requests: &[String]) -> Vec<String> {
 
 fn hn(id: u64) -> HnRef {
     HnRef::new(id).expect("valid item ID")
-}
-
-fn to_json<T: serde::Serialize>(value: &T) -> Value {
-    serde_json::to_value(value).expect("serialize")
 }
 
 fn search_request(query: &str, limit: u16, options: HnSearchOptions) -> PlatformSearchRequest {
@@ -116,13 +133,6 @@ fn stories(
     let request = HnStoriesRequest { list, limit };
     let outcome = block_on(route(&fixture.url, Duration::from_secs(10)).stories(&request));
     (outcome, fixture.finish_all())
-}
-
-fn failure<T>(result: Result<T, ProviderError>) -> (AttemptErrorKind, String) {
-    match result {
-        Ok(_) => panic!("expected a failure"),
-        Err(error) => (error.kind, error.message),
-    }
 }
 
 fn native(source: &FullTextSource) -> &str {
@@ -238,7 +248,7 @@ fn options_map_to_the_date_endpoint_with_tags_and_numeric_filters() {
         },
     );
 
-    let (outcome, requests) = search(&request, vec![json(&search_page(&[], 0, 0))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&search_page(&[], 0, 0))]);
 
     assert_eq!(
         (
@@ -275,7 +285,7 @@ fn a_first_page_short_of_the_last_names_the_next_page_position() {
         },
     );
 
-    let (outcome, requests) = search(&request, vec![json(&search_page(&[story_hit()], 0, 50))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&search_page(&[story_hit()], 0, 50))]);
 
     assert_eq!(
         (
@@ -307,7 +317,7 @@ fn a_page_position_is_sent_as_the_algolia_page() {
         )
     };
 
-    let (outcome, requests) = search(&request, vec![json(&search_page(&[story_hit()], 1, 50))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&search_page(&[story_hit()], 1, 50))]);
 
     assert_eq!(
         (
@@ -335,7 +345,7 @@ fn no_next_page_is_named_past_the_first_thousand_results() {
         ..search_request("rust", 100, HnSearchOptions::default())
     };
 
-    let (outcome, requests) = search(&request, vec![json(&search_page(&[story_hit()], 9, 50))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&search_page(&[story_hit()], 9, 50))]);
 
     assert_eq!(
         (
@@ -379,7 +389,7 @@ fn a_page_past_the_first_thousand_results_is_refused_before_any_request() {
 fn a_search_without_hits_is_an_empty_success() {
     let request = search_request("nothing matches this", 20, HnSearchOptions::default());
 
-    let (outcome, _) = search(&request, vec![json(&search_page(&[], 0, 0))]);
+    let (outcome, _) = search(&request, vec![ok_json(&search_page(&[], 0, 0))]);
 
     assert_eq!(
         outcome
@@ -461,7 +471,7 @@ fn a_thread_reads_the_algolia_tree_and_then_the_firebase_rank() {
     let (outcome, requests) = fetch(
         8863,
         ContentDepth::Thread,
-        vec![json(&discussion()), json(&story_item(&[12, 99, 10]))],
+        vec![ok_json(&discussion()), ok_json(&story_item(&[12, 99, 10]))],
     );
 
     let outcome = outcome.expect("a discussion");
@@ -487,7 +497,7 @@ fn without_the_firebase_rank_every_comment_is_in_time_order() {
     let (outcome, _) = fetch(
         8863,
         ContentDepth::Thread,
-        vec![json(&discussion()), Response::json(503, "")],
+        vec![ok_json(&discussion()), Response::json(503, "")],
     );
 
     let outcome = outcome.expect("a discussion");
@@ -530,9 +540,9 @@ fn a_comment_thread_names_its_story_from_firebase() {
         8952,
         ContentDepth::Thread,
         vec![
-            json(&root),
-            json(&firebase_comment(8952, "brett", 8863, "Root", &[9000])),
-            json(&story_item(&[8952])),
+            ok_json(&root),
+            ok_json(&firebase_comment(8952, "brett", 8863, "Root", &[9000])),
+            ok_json(&story_item(&[8952])),
         ],
     );
 
@@ -561,8 +571,8 @@ fn metadata_reads_the_indexed_item_with_live_counts_and_no_discussion() {
         8863,
         ContentDepth::Metadata,
         vec![
-            json(&search_page(&[story_hit()], 0, 1)),
-            json(&story_item(&[])),
+            ok_json(&search_page(&[story_hit()], 0, 1)),
+            ok_json(&story_item(&[])),
         ],
     );
 
@@ -590,8 +600,8 @@ fn an_item_too_new_for_the_search_index_is_read_from_firebase() {
         9999,
         ContentDepth::Metadata,
         vec![
-            json(&search_page(&[], 0, 0)),
-            json(&firebase_comment(
+            ok_json(&search_page(&[], 0, 0)),
+            ok_json(&firebase_comment(
                 9999,
                 "erin",
                 8863,
@@ -632,7 +642,7 @@ fn missing_deleted_and_unindexed_items_are_parameter_errors() {
         1,
         ContentDepth::Metadata,
         vec![
-            json(&search_page(&[], 0, 0)),
+            ok_json(&search_page(&[], 0, 0)),
             Response::json(200, &stored_body("firebase-null.json")),
         ],
     );
@@ -640,8 +650,8 @@ fn missing_deleted_and_unindexed_items_are_parameter_errors() {
         8863,
         ContentDepth::Metadata,
         vec![
-            json(&search_page(&[story_hit()], 0, 1)),
-            json(&with(story_item(&[]), &json!({"deleted": true}))),
+            ok_json(&search_page(&[story_hit()], 0, 1)),
+            ok_json(&with(story_item(&[]), &json!({"deleted": true}))),
         ],
     );
     let unindexed = fetch(
@@ -675,8 +685,8 @@ fn the_full_text_of_a_link_story_is_the_page_it_links_to() {
         8863,
         ContentDepth::FullText,
         vec![
-            json(&search_page(&[story_hit()], 0, 1)),
-            json(&story_item(&[])),
+            ok_json(&search_page(&[story_hit()], 0, 1)),
+            ok_json(&story_item(&[])),
         ],
     );
 
@@ -700,7 +710,10 @@ fn the_full_text_of_a_text_post_is_its_own_title_and_body() {
     let (outcome, _) = fetch(
         8863,
         ContentDepth::FullText,
-        vec![json(&search_page(&[ask], 0, 1)), json(&story_item(&[]))],
+        vec![
+            ok_json(&search_page(&[ask], 0, 1)),
+            ok_json(&story_item(&[])),
+        ],
     );
 
     assert_eq!(
@@ -719,8 +732,8 @@ fn a_comment_has_no_full_text() {
         8952,
         ContentDepth::FullText,
         vec![
-            json(&search_page(&[comment_hit()], 0, 1)),
-            json(&firebase_comment(8952, "brett", 8863, "x", &[])),
+            ok_json(&search_page(&[comment_hit()], 0, 1)),
+            ok_json(&firebase_comment(8952, "brett", 8863, "x", &[])),
         ],
     );
 
@@ -759,7 +772,7 @@ fn only_a_thread_metadata_or_full_text_can_be_fetched() {
 
 #[test]
 fn both_endpoints_wait_on_one_access_window() {
-    let fixture = Fixture::start_sequence(vec![json(&search_page(&[story_hit()], 0, 1))]);
+    let fixture = Fixture::start_sequence(vec![ok_json(&search_page(&[story_hit()], 0, 1))]);
     // The Firebase window opens a full 500 ms interval after the Algolia request, so any budget
     // below the interval makes its reservation fail at once and no test waits. The budget sits
     // just below the interval to leave the Algolia request the most time on a loaded machine.
@@ -803,9 +816,9 @@ fn the_front_page_lists_items_in_rank_order_and_reads_unindexed_ones_from_fireba
         HnStoriesList::Top,
         3,
         vec![
-            json(&stored_json("firebase-stories.json")),
-            json(&search_page(&[hit(10, "Ten"), hit(30, "Thirty")], 0, 1)),
-            json(&too_new),
+            ok_json(&stored_json("firebase-stories.json")),
+            ok_json(&search_page(&[hit(10, "Ten"), hit(30, "Thirty")], 0, 1)),
+            ok_json(&too_new),
         ],
     );
 
@@ -842,10 +855,10 @@ fn deleted_and_dead_items_are_skipped_with_one_diagnostic() {
         HnStoriesList::Ask,
         30,
         vec![
-            json(&story_list(&[1, 2, 3])),
-            json(&search_page(&[hit(1, "One")], 0, 1)),
-            json(&with(story_item(&[]), &json!({"id": 2, "deleted": true}))),
-            json(&with(story_item(&[]), &json!({"id": 3, "dead": true}))),
+            ok_json(&story_list(&[1, 2, 3])),
+            ok_json(&search_page(&[hit(1, "One")], 0, 1)),
+            ok_json(&with(story_item(&[]), &json!({"id": 2, "deleted": true}))),
+            ok_json(&with(story_item(&[]), &json!({"id": 3, "dead": true}))),
         ],
     );
 
@@ -870,8 +883,8 @@ fn a_failed_item_read_skips_that_item_and_keeps_the_rest() {
         HnStoriesList::Top,
         30,
         vec![
-            json(&story_list(&[1, 2])),
-            json(&search_page(&[hit(1, "One")], 0, 1)),
+            ok_json(&story_list(&[1, 2])),
+            ok_json(&search_page(&[hit(1, "One")], 0, 1)),
             Response::json(503, ""),
         ],
     );
@@ -888,7 +901,7 @@ fn a_failed_item_read_skips_that_item_and_keeps_the_rest() {
 
 #[test]
 fn an_empty_list_is_an_empty_success_and_a_failed_or_missing_list_fails() {
-    let (empty, empty_requests) = stories(HnStoriesList::Job, 30, vec![json(&story_list(&[]))]);
+    let (empty, empty_requests) = stories(HnStoriesList::Job, 30, vec![ok_json(&story_list(&[]))]);
     let (failed, _) = stories(HnStoriesList::New, 30, vec![Response::json(503, "")]);
     let (missing, _) = stories(
         HnStoriesList::Best,

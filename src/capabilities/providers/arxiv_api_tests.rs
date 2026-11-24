@@ -22,10 +22,37 @@ use crate::types::{
 #[path = "../../../tests/support/arxiv_feed.rs"]
 mod arxiv_feed;
 
-use arxiv_feed::{STORED_ID, feed_of, page, without};
+use arxiv_feed::{STORED_ID, feed_of, page};
 
 fn feed() -> String {
     sample("arxiv_api/feed.xml")
+}
+
+/// `xml` without every element named in `names`, such as `arxiv:doi`.
+fn without(xml: &str, names: &[&str]) -> String {
+    let mut xml = xml.to_owned();
+    for name in names {
+        while let Some(start) = xml
+            .find(&format!("<{name}>"))
+            .or_else(|| xml.find(&format!("<{name} ")))
+        {
+            let rest = &xml[start..];
+            let close = format!("</{name}>");
+            let end = match (rest.find("/>"), rest.find('>'), rest.find(&close)) {
+                (Some(empty), Some(open), _) if empty + 1 == open => start + empty + 2,
+                (_, _, Some(closing)) => start + closing + close.len(),
+                _ => panic!("element `{name}` does not end"),
+            };
+            let line_start = xml[..start].rfind('\n').map_or(start, |newline| newline);
+            let cut_from = if xml[line_start..start].trim().is_empty() {
+                line_start
+            } else {
+                start
+            };
+            xml.replace_range(cut_from..end, "");
+        }
+    }
+    xml
 }
 
 fn arxiv_ref(input: &str) -> ArxivRef {

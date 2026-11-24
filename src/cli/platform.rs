@@ -296,21 +296,18 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
 }
 
 fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = arxiv_search_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = arxiv_search_input(arguments)?;
     search(Platform::Arxiv, input, format, &common)
 }
 
 /// The page an arXiv search asks for, checked before any configuration is read.
 fn arxiv_search_input(
     arguments: ArxivSearchArgs,
-) -> Result<
-    (
-        PageInput<PlatformSearchRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<PlatformSearchRequest>, OutputFormat>, AppError> {
     let ArxivSearchArgs {
         query,
         categories,
@@ -343,13 +340,33 @@ fn arxiv_search_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 /// The page a paged command asks for: a first page, or the page a cursor names.
 enum PageInput<R> {
     Request(R),
     Cursor(String),
+}
+
+/// A platform command's arguments, checked before any request: what the command asks its
+/// route, how its output is rendered, and the options every platform command shares.
+struct PlatformInput<R, F> {
+    request: R,
+    format: F,
+    common: PlatformCommonArgs,
+}
+
+/// A [`PlatformInput`] whose content can be written to a directory as well as printed.
+struct ContentInput<R> {
+    request: R,
+    format: ContentOutputFormat,
+    content_dir: Option<PathBuf>,
+    common: PlatformCommonArgs,
 }
 
 fn search(
@@ -517,21 +534,18 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
 }
 
 fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = ssrn_fetch_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = ssrn_fetch_input(arguments)?;
     fetch(Platform::Ssrn, request, format, None, &common)
 }
 
 /// Reads the paper ref before any request.
 fn ssrn_fetch_input(
     arguments: SsrnFetchArgs,
-) -> Result<
-    (
-        PlatformFetchRequest,
-        ContentOutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PlatformFetchRequest, ContentOutputFormat>, AppError> {
     let SsrnFetchArgs {
         reference,
         depth,
@@ -541,7 +555,11 @@ fn ssrn_fetch_input(
     let reference = PlatformRef::parse(Platform::Ssrn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 fn fetch(
@@ -866,13 +884,13 @@ mod arxiv_tests {
         ])
         .expect("the parser accepts general flags beside a cursor");
 
-        let (input, format, common) = arxiv_search_input(arguments).expect("a page to run");
-        let PageInput::Cursor(cursor) = input else {
+        let input = arxiv_search_input(arguments).expect("a page to run");
+        let PageInput::Cursor(cursor) = input.request else {
             panic!("a search with --cursor runs the page its cursor names");
         };
 
         assert_eq!(
-            (cursor.as_str(), format, common.timeout),
+            (cursor.as_str(), input.format, input.common.timeout),
             (CURSOR, OutputFormat::Markdown, 30)
         );
     }
@@ -903,7 +921,7 @@ mod ssrn_tests {
     fn a_fetch_reads_the_paper_at_metadata_depth_by_default() {
         let arguments = fetch_args(&["ssrn:2042750"]).expect("the parser accepts a ref");
 
-        let (request, _, _) = ssrn_fetch_input(arguments).expect("a request");
+        let request = ssrn_fetch_input(arguments).expect("a request").request;
 
         assert_eq!(
             (request.reference.to_string(), request.depth),

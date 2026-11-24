@@ -6,7 +6,10 @@ use std::time::Duration;
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, fetch, parse_date, preflight_error, search};
+use super::{
+    ContentInput, PageInput, PlatformCommonArgs, PlatformInput, fetch, parse_date, preflight_error,
+    search,
+};
 use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
 use crate::platform_operation;
@@ -210,21 +213,18 @@ pub(in crate::app) fn run(command: HnCommand) -> Result<CommandOutput, AppError>
 }
 
 fn hn_search(arguments: HnSearchArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = hn_search_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = hn_search_input(arguments)?;
     search(Platform::Hn, input, format, &common)
 }
 
 /// Builds the page a search asks for and checks its cross-field rules before any request.
 fn hn_search_input(
     arguments: HnSearchArgs,
-) -> Result<
-    (
-        PageInput<PlatformSearchRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<PlatformSearchRequest>, OutputFormat>, AppError> {
     let HnSearchArgs {
         query,
         sort,
@@ -262,26 +262,25 @@ fn hn_search_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 fn hn_fetch(arguments: HnFetchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, content_dir, common) = hn_fetch_input(arguments)?;
+    let ContentInput {
+        request,
+        format,
+        content_dir,
+        common,
+    } = hn_fetch_input(arguments)?;
     fetch(Platform::Hn, request, format, content_dir, &common)
 }
 
 /// Reads the item ref before any request.
-fn hn_fetch_input(
-    arguments: HnFetchArgs,
-) -> Result<
-    (
-        PlatformFetchRequest,
-        ContentOutputFormat,
-        Option<PathBuf>,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+fn hn_fetch_input(arguments: HnFetchArgs) -> Result<ContentInput<PlatformFetchRequest>, AppError> {
     let HnFetchArgs {
         reference,
         depth,
@@ -292,7 +291,12 @@ fn hn_fetch_input(
     let reference = PlatformRef::parse(Platform::Hn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    Ok((request, format, content_dir, common))
+    Ok(ContentInput {
+        request,
+        format,
+        content_dir,
+        common,
+    })
 }
 
 fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
@@ -360,7 +364,7 @@ mod tests {
         let Ok(HnCommand::Search(arguments)) = command(&search.collect::<Vec<_>>()) else {
             panic!("the parser accepts a hn search of {arguments:?}");
         };
-        match hn_search_input(arguments)?.0 {
+        match hn_search_input(arguments)?.request {
             PageInput::Request(request) => Ok(request),
             PageInput::Cursor(_) => panic!("the arguments name no cursor"),
         }

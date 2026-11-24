@@ -437,6 +437,7 @@ mod tests {
         slice_budget,
     };
     use crate::credentials::CredentialPool;
+    use crate::fixture_server::block_on;
     use crate::types::AttemptErrorKind;
 
     #[test]
@@ -504,9 +505,7 @@ mod tests {
     fn complete_protocol_accepts_body_exactly_at_cap() {
         let body = vec![b'x'; MAX_RESPONSE_BYTES];
         let (url, server) = serve_response("200 OK", body);
-        let runtime = test_runtime();
-
-        let result = runtime.block_on(async {
+        let result = block_on(async {
             let response = build_client(true)
                 .expect("build client")
                 .get(url)
@@ -527,9 +526,7 @@ mod tests {
     fn complete_protocol_rejects_body_one_byte_over_cap_as_runtime() {
         let body = vec![b'x'; MAX_RESPONSE_BYTES + 1];
         let (url, server) = serve_response("200 OK", body);
-        let runtime = test_runtime();
-
-        let failure = runtime.block_on(async {
+        let failure = block_on(async {
             let response = build_client(true)
                 .expect("build client")
                 .get(url)
@@ -553,9 +550,7 @@ mod tests {
         let mut body = vec![b'x'; MAX_RESPONSE_BYTES - 1];
         body.extend_from_slice("界".as_bytes());
         let (url, server) = serve_response("200 OK", body);
-        let runtime = test_runtime();
-
-        let result = runtime.block_on(async {
+        let result = block_on(async {
             let response = build_client(true)
                 .expect("build client")
                 .get(url)
@@ -578,9 +573,7 @@ mod tests {
     fn non_success_response_reads_only_the_bounded_error_head() {
         let body = vec![b'x'; MAX_ERROR_BODY_BYTES + 1];
         let (url, server) = serve_response("429 Too Many Requests", body);
-        let runtime = test_runtime();
-
-        let failure = runtime.block_on(async {
+        let failure = block_on(async {
             let response = build_client(true)
                 .expect("build client")
                 .get(url)
@@ -610,13 +603,12 @@ mod tests {
         ]);
         let response = Response::from(http::Response::new(Body::wrap_stream(stalled_body)));
 
-        let failure = test_runtime()
-            .block_on(read_complete_protocol(
-                response,
-                &credentials(),
-                raw_error_body,
-            ))
-            .expect_err("stalled body must fail");
+        let failure = block_on(read_complete_protocol(
+            response,
+            &credentials(),
+            raw_error_body,
+        ))
+        .expect_err("stalled body must fail");
 
         assert_eq!(failure.kind, AttemptErrorKind::Network);
     }
@@ -631,13 +623,6 @@ mod tests {
 
     fn body_length_message(body: &str, _status: u16) -> String {
         body.len().to_string()
-    }
-
-    fn test_runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build test runtime")
     }
 
     fn serve_response(status: &'static str, body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
@@ -672,12 +657,7 @@ mod tests {
                 .expect("write response");
             String::from_utf8(request[..read].to_vec()).expect("UTF-8 request")
         });
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build runtime");
-
-        runtime.block_on(async {
+        block_on(async {
             let client = build_client(true).expect("build client");
             client
                 .get(format!("http://{address}"))
@@ -746,12 +726,7 @@ mod tests {
             )
             .expect("write redirect response");
         });
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build runtime");
-
-        let status = runtime.block_on(async {
+        let status = block_on(async {
             build_client(true)
                 .expect("build client")
                 .get(format!("http://{redirect_address}"))
@@ -908,7 +883,7 @@ mod tests {
             let _ = released.recv_timeout(Duration::from_secs(10));
         });
 
-        let result = test_runtime().block_on(async {
+        let result = block_on(async {
             let client = build_client_with_read_timeout(true, Duration::from_millis(200))
                 .expect("build client");
             client

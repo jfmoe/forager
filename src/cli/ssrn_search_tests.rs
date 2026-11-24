@@ -28,7 +28,7 @@ fn search_request(arguments: &[&str]) -> Result<PlatformSearchRequest, AppError>
     let Ok(parsed) = search_args(arguments) else {
         panic!("the parser accepts an ssrn search of {arguments:?}");
     };
-    match ssrn_search_input(parsed)?.0 {
+    match ssrn_search_input(parsed)?.request {
         PageInput::Request(request) => Ok(request),
         PageInput::Cursor(_) => panic!("the arguments name no cursor"),
     }

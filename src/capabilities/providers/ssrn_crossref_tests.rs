@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use chrono::NaiveDate;
@@ -10,9 +9,10 @@ use super::{
     select_paper,
 };
 use crate::config::HttpRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, path, query};
+use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
+use crate::providers::test_projection::{failure, to_json};
 // The stored bodies below read the sample store through this name.
 use crate::samples;
 use crate::types::{
@@ -25,7 +25,21 @@ use crate::types::{
 #[path = "../../../tests/support/ssrn_samples.rs"]
 mod stored;
 
-use stored::{listed_work, stored_json, work_list, work_with};
+use stored::{stored_json, with, work_list, work_with};
+
+/// The stored work list's first record, an SSRN paper with an abstract, as `ssrn:<id>` titled
+/// `Paper <id>` with the abstract `Abstract of <id>.`.
+fn listed_work(id: &str) -> Value {
+    with(
+        stored_json("work-list.json")["message"]["items"][0].clone(),
+        &json!({
+            "DOI": format!("10.2139/ssrn.{id}"),
+            "title": [format!("Paper {id}")],
+            "abstract": format!("<jats:p>Abstract of {id}.</jats:p>"),
+            "resource": {"primary": {"URL": format!("https://www.ssrn.com/abstract={id}")}}
+        }),
+    )
+}
 
 const SELECT: &str = "DOI,title,author,abstract,published,type,created,resource";
 
@@ -43,28 +57,6 @@ fn route_with_attempts(url: &str, attempts: usize) -> SsrnCrossref {
             deadline: Deadline::new(Duration::from_secs(10)),
         },
     )
-}
-
-fn json_response(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
-fn to_json<T: serde::Serialize>(value: &T) -> Value {
-    serde_json::to_value(value).expect("serialize")
-}
-
-fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs
-        .iter()
-        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-        .collect()
-}
-
-fn failure<T>(result: Result<T, ProviderError>) -> (AttemptErrorKind, String) {
-    match result {
-        Ok(_) => panic!("expected a failure"),
-        Err(error) => (error.kind, error.message),
-    }
 }
 
 fn works(ids: &[&str]) -> Vec<Value> {
@@ -170,7 +162,7 @@ fn a_search_page_decodes_its_ssrn_records_and_names_the_records_it_drops() {
 fn a_search_sends_the_prefix_query_with_fixed_ranking_and_fields() {
     let request = first_page("dual momentum", 10, SsrnSearchOptions::default());
 
-    let (outcome, requests) = search(&request, vec![json_response(&work_list(0, &[]))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&work_list(0, &[]))]);
 
     assert_eq!(
         (
@@ -249,11 +241,10 @@ fn every_criterion() -> SsrnSearchOptions {
 fn every_criterion_maps_to_its_crossref_parameter_and_a_page_position_changes_only_the_offset() {
     let request = first_page("risk & return", 1, every_criterion());
 
-    let (first, first_requests) =
-        search(&request, vec![json_response(&work_list(2, &works(&["1"])))]);
+    let (first, first_requests) = search(&request, vec![ok_json(&work_list(2, &works(&["1"])))]);
     let (_, next_requests) = search(
         &at_page(request, "1"),
-        vec![json_response(&work_list(2, &works(&["2"])))],
+        vec![ok_json(&work_list(2, &works(&["2"])))],
     );
 
     let expected = pairs(&[
@@ -294,7 +285,7 @@ fn a_title_scope_queries_the_title_field_beside_an_author_query() {
         },
     );
 
-    let (outcome, requests) = search(&request, vec![json_response(&work_list(0, &[]))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&work_list(0, &[]))]);
     let sent = query(&requests[0]);
 
     assert_eq!(
@@ -319,7 +310,7 @@ fn each_date_sort_maps_to_its_own_crossref_field() {
                 ..SsrnSearchOptions::default()
             },
         );
-        let (_, requests) = search(&request, vec![json_response(&work_list(0, &[]))]);
+        let (_, requests) = search(&request, vec![ok_json(&work_list(0, &[]))]);
         query(&requests[0])["sort"].clone()
     });
 
@@ -330,10 +321,7 @@ fn each_date_sort_maps_to_its_own_crossref_field() {
 fn a_full_first_page_short_of_the_total_names_the_offset_after_it() {
     let request = first_page("momentum", 2, SsrnSearchOptions::default());
 
-    let (outcome, requests) = search(
-        &request,
-        vec![json_response(&work_list(5, &works(&["1", "2"])))],
-    );
+    let (outcome, requests) = search(&request, vec![ok_json(&work_list(5, &works(&["1", "2"])))]);
 
     assert_eq!(
         (next_page(outcome), query(&requests[0])["offset"].as_str()),
@@ -347,11 +335,11 @@ fn a_page_position_is_sent_as_the_crossref_offset() {
 
     let (middle, middle_requests) = search(
         &at_page(request.clone(), "2"),
-        vec![json_response(&work_list(5, &works(&["3", "4"])))],
+        vec![ok_json(&work_list(5, &works(&["3", "4"])))],
     );
     let (last, last_requests) = search(
         &at_page(request, "4"),
-        vec![json_response(&work_list(5, &works(&["5"])))],
+        vec![ok_json(&work_list(5, &works(&["5"])))],
     );
 
     assert_eq!(
@@ -373,10 +361,7 @@ fn a_page_position_is_sent_as_the_crossref_offset() {
 fn a_full_page_that_reaches_the_total_names_no_next_page() {
     let request = first_page("momentum", 2, SsrnSearchOptions::default());
 
-    let (outcome, _) = search(
-        &request,
-        vec![json_response(&work_list(2, &works(&["1", "2"])))],
-    );
+    let (outcome, _) = search(&request, vec![ok_json(&work_list(2, &works(&["1", "2"])))]);
 
     assert_eq!(next_page(outcome), Ok(None));
 }
@@ -388,10 +373,7 @@ fn the_last_page_is_judged_before_non_ssrn_records_are_dropped() {
 
     let (outcome, _) = search(
         &request,
-        vec![json_response(&work_list(
-            10,
-            &[listed_work("1"), elsewhere],
-        ))],
+        vec![ok_json(&work_list(10, &[listed_work("1"), elsewhere]))],
     );
 
     assert_eq!(
@@ -412,11 +394,11 @@ fn no_next_page_is_named_for_a_page_that_would_end_past_the_crossref_offset_limi
 
     let (before_limit, _) = search(
         &at_page(request.clone(), "9960"),
-        vec![json_response(&work_list(50_000, &works(&ids)))],
+        vec![ok_json(&work_list(50_000, &works(&ids)))],
     );
     let (at_limit, requests) = search(
         &at_page(request, "9980"),
-        vec![json_response(&work_list(50_000, &works(&ids)))],
+        vec![ok_json(&work_list(50_000, &works(&ids)))],
     );
 
     assert_eq!(
@@ -455,7 +437,7 @@ fn a_page_past_the_crossref_offset_limit_is_refused_before_any_request() {
 fn a_legitimate_empty_result_is_an_empty_success() {
     let request = first_page("no such words", 10, SsrnSearchOptions::default());
 
-    let (outcome, _) = search(&request, vec![json_response(&work_list(0, &[]))]);
+    let (outcome, _) = search(&request, vec![ok_json(&work_list(0, &[]))]);
 
     assert_eq!(
         outcome
@@ -487,7 +469,7 @@ fn a_search_answered_with_another_message_type_is_a_runtime_failure() {
 fn a_search_sends_no_credential_and_records_one_anonymous_attempt() {
     let request = first_page("momentum", 10, SsrnSearchOptions::default());
 
-    let (outcome, requests) = search(&request, vec![json_response(&work_list(1, &works(&["1"])))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&work_list(1, &works(&["1"])))]);
 
     let outcome = outcome.expect("a page");
     let attempts = outcome
@@ -574,7 +556,7 @@ fn a_fetch_reads_the_work_of_the_papers_ssrn_doi() {
 fn a_record_without_an_abstract_succeeds_at_metadata_depth() {
     let (outcome, _) = fetch(
         ContentDepth::Metadata,
-        json_response(&work_with(&json!({"abstract": null}))),
+        ok_json(&work_with(&json!({"abstract": null}))),
     );
 
     let item = to_json(&outcome.expect("a paper").item);
@@ -592,7 +574,7 @@ fn an_abstract_request_succeeds_only_with_an_abstract() {
     );
     let (without_abstract, _) = fetch(
         ContentDepth::Abstract,
-        json_response(&work_with(&json!({"abstract": null}))),
+        ok_json(&work_with(&json!({"abstract": null}))),
     );
 
     assert_eq!(
@@ -646,7 +628,7 @@ fn a_rate_limited_request_ends_the_route_without_retrying() {
 fn a_record_for_another_doi_is_a_runtime_failure() {
     let (outcome, _) = fetch(
         ContentDepth::Metadata,
-        json_response(&work_with(&json!({"DOI": "10.2139/ssrn.1"}))),
+        ok_json(&work_with(&json!({"DOI": "10.2139/ssrn.1"}))),
     );
 
     assert_eq!(

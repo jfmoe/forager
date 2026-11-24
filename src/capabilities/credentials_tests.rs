@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use tempfile::tempdir;
 
 use super::{CredentialPool, claim_persistent_index};
+use crate::fixture_server::block_on;
 
 #[test]
 fn persistent_claims_round_robin_independently_per_provider() {
@@ -41,11 +42,8 @@ fn a_pool_rotates_through_the_state_file_its_caller_supplies() {
         vec!["first".into(), "second".into()],
         Some(path.clone()),
     );
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .expect("test runtime");
 
-    let claims = runtime.block_on(async {
+    let claims = block_on(async {
         let first = pool.claim().await;
         let second = pool.claim().await;
         [
@@ -126,11 +124,8 @@ fn a_busy_cursor_lock_falls_back_to_optimistic_selection() {
         vec!["first".into(), "second".into()],
         Some(path.clone()),
     );
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .expect("test runtime");
 
-    let selection = runtime.block_on(pool.claim());
+    let selection = block_on(pool.claim());
     FileExt::unlock(&lock).expect("release credential lock");
 
     assert_eq!(

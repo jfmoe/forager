@@ -1,10 +1,11 @@
-mod support;
+#[path = "support/process.rs"]
+mod process;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-use support::{command_behind_closed_proxy, run_command};
+use process::{command_behind_closed_proxy, run_command};
 use tempfile::TempDir;
 
 #[cfg(unix)]

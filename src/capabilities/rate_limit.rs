@@ -334,18 +334,11 @@ mod tests {
     use tokio::time::Instant;
 
     use super::{AccessPolicy, RateLimiter, WallClock};
+    use crate::fixture_server::block_on_paused;
     use crate::state_file;
     use crate::types::{AttemptErrorKind, Deadline};
 
     const INTERVAL: Duration = Duration::from_secs(3);
-
-    fn runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .start_paused(true)
-            .build()
-            .expect("test runtime")
-    }
 
     fn state_file(directory: &Path) -> PathBuf {
         directory.join("forager/rate_limit_state.json")
@@ -374,7 +367,7 @@ mod tests {
     #[test]
     fn consecutive_sends_are_spaced_by_the_minimum_interval() {
         let directory = tempdir().expect("create state directory");
-        runtime().block_on(async {
+        block_on_paused(async {
             let limiter = limiter(Some(state_file(directory.path())));
             let started = Instant::now();
 
@@ -390,7 +383,7 @@ mod tests {
     #[test]
     fn a_window_that_fits_the_remaining_budget_is_awaited() {
         let directory = tempdir().expect("create state directory");
-        runtime().block_on(async {
+        block_on_paused(async {
             let limiter = limiter(Some(state_file(directory.path())));
             drop(limiter.acquire(budget(10)).await.expect("first window"));
             let started = Instant::now();
@@ -404,7 +397,7 @@ mod tests {
     #[test]
     fn a_window_beyond_the_budget_times_out_without_reserving_it() {
         let directory = tempdir().expect("create state directory");
-        runtime().block_on(async {
+        block_on_paused(async {
             let limiter = limiter(Some(state_file(directory.path())));
             let started = Instant::now();
             drop(limiter.acquire(budget(10)).await.expect("first window"));
@@ -436,7 +429,7 @@ mod tests {
             drop(limiter.acquire(budget(10)).await.expect("second window"));
             started.elapsed()
         };
-        runtime().block_on(async {
+        block_on_paused(async {
             let unpaced = two_sends(RateLimiter::new("unpaced_route", policy)).await;
             let paced = {
                 let _paced = super::test_pacing::paced_limiters();
@@ -451,7 +444,7 @@ mod tests {
     #[test]
     fn a_held_permit_beyond_max_concurrency_times_out() {
         let directory = tempdir().expect("create state directory");
-        runtime().block_on(async {
+        block_on_paused(async {
             let limiter = limiter(Some(state_file(directory.path())));
             let _held = limiter.acquire(budget(10)).await.expect("first window");
 
@@ -468,7 +461,7 @@ mod tests {
     #[test]
     fn reservations_persist_for_every_limiter_sharing_the_state_file() {
         let directory = tempdir().expect("create state directory");
-        runtime().block_on(async {
+        block_on_paused(async {
             let path = state_file(directory.path());
             // Separate processes share the wall clock, so both limiters use one clock.
             let clock = WallClock::new();
@@ -494,7 +487,7 @@ mod tests {
     #[test]
     fn a_send_in_flight_in_another_process_blocks_the_next_send() {
         let directory = tempdir().expect("create state directory");
-        runtime().block_on(async {
+        block_on_paused(async {
             let path = state_file(directory.path());
             let _in_flight = limiter(Some(path.clone()))
                 .acquire(budget(10))
@@ -523,7 +516,7 @@ mod tests {
         let path = state_file(directory.path());
         fs::create_dir_all(path.parent().expect("state parent")).expect("create state parent");
         fs::write(&path, "not json").expect("write corrupt state");
-        runtime().block_on(async {
+        block_on_paused(async {
             let started = Instant::now();
 
             drop(
@@ -554,7 +547,7 @@ mod tests {
             .expect("open state lock");
         lock.lock_exclusive().expect("hold state lock");
 
-        let error = runtime().block_on(async {
+        let error = block_on_paused(async {
             limiter(Some(path))
                 .acquire(budget(10))
                 .await
@@ -572,7 +565,7 @@ mod tests {
         let path = state_file(directory.path());
         fs::create_dir_all(&path).expect("occupy the state path with a directory");
 
-        let error = runtime().block_on(async {
+        let error = block_on_paused(async {
             limiter(Some(path))
                 .acquire(budget(10))
                 .await
@@ -585,7 +578,7 @@ mod tests {
 
     #[test]
     fn an_unresolved_state_directory_fails_with_runtime() {
-        let error = runtime().block_on(async {
+        let error = block_on_paused(async {
             limiter(None)
                 .acquire(budget(10))
                 .await
@@ -600,7 +593,7 @@ mod tests {
     fn queued_state_work_beyond_the_budget_times_out_without_reserving() {
         let directory = tempdir().expect("create state directory");
         let path = state_file(directory.path());
-        runtime().block_on(async {
+        block_on_paused(async {
             let _busy = state_file::state_work_turn(&path).await;
             let started = Instant::now();
 
