@@ -42,6 +42,48 @@ fn agents_md_stays_short() {
 }
 
 #[test]
+fn the_agent_instructions_carry_every_command_the_testing_procedure_gives() {
+    let procedure = read(&root().join("docs/agents/testing.md"));
+    let missing = commands_missing_from(&procedure, &read(&root().join("AGENTS.md")));
+
+    assert!(
+        missing.is_empty(),
+        "AGENTS.md quotes every test command docs/agents/testing.md gives, because it is the copy \
+         loaded in every session; change both together, so neither sends an agent to a stale \
+         command: {missing:#?}"
+    );
+}
+
+#[test]
+fn a_procedure_command_the_instructions_do_not_quote_is_reported() {
+    let procedure = "Run:\n\n```sh\ncargo nextest run --invented\n```\n\n```toml\nkey = 1\n```\n\n\
+                     ```sh\ncargo nextest run -E 'test(=kept)'\n```\n";
+    let instructions = "- Kept: `cargo nextest run -E 'test(=kept)'`.\n- Elsewhere: key = 1\n";
+
+    assert_eq!(
+        commands_missing_from(procedure, instructions),
+        ["cargo nextest run --invented"]
+    );
+}
+
+/// The lines of `procedure`'s `sh` blocks that `instructions` does not quote in backticks.
+fn commands_missing_from<'a>(procedure: &'a str, instructions: &str) -> Vec<&'a str> {
+    let mut in_shell_block = false;
+    procedure
+        .lines()
+        .filter(|line| {
+            if line.starts_with("```") {
+                in_shell_block = !in_shell_block && *line == "```sh";
+                return false;
+            }
+            in_shell_block
+        })
+        .map(str::trim)
+        .filter(|command| !command.is_empty() && !instructions.contains(&format!("`{command}`")))
+        .collect()
+}
+
+#[test]
 fn the_runner_never_retries_and_every_exemption_says_why() {
     let problems = runner::runner_problems(&read(&root().join(".config/nextest.toml")));
 

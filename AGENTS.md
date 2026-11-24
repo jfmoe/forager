@@ -7,7 +7,7 @@ A Rust CLI that gives AI agents search, fetch and per-platform retrieval through
 - Quick: `cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings`.
 - Full: `cargo nextest run --all-targets --all-features --locked` (install with `brew install cargo-nextest`).
 - Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`.
-- One provider or one platform: the filter `docs/agents/testing.md` gives.
+- One provider or one platform: `cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/)'`, with `IDS` as `docs/agents/testing.md` gives it.
 - Real-browser tests: the `real-browser` profile, run as `docs/agents/browser-routes.md` describes.
 - Test runs use the profiles in `.config/nextest.toml`; without `--profile`, that is `default`.
 - CI runs the same configuration through the `ci` profile, and every pull request runs the whole workflow: the quick and full checks on `linux`, and the permission and release artifact gate tests on `windows`.

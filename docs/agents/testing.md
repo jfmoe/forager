@@ -10,6 +10,7 @@ Each rule is proven once, at the cheapest layer that can observe it breaking. Pl
 | Binary unit tests | Does the binary present a result correctly? | Rendering of command outputs and the mapping from errors to exit codes |
 | Command contract tests | Does the real binary keep its outer contract? | Each command's outer path and the items of the [outer checklist](#the-outer-checklist) |
 | Rule tests | Do the repository's documents and layout follow their rules? | The repository rules and the product skill contract |
+| Release and permission tests | Does what CI and a release rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, and private file permissions on each operating system; each is a binary CI names |
 | Real-browser tests | Do the browser transport and Page Logic work in the Managed Browser? | Off by default; [`browser-routes.md`](browser-routes.md) runs them |
 
 Start in the crate and move outward only when the rule is a fact of the outer layer.
@@ -34,7 +35,9 @@ No in-crate test waits on real time, because a suite that sleeps grows slower wi
 - The runner terminates any other test that runs past its limit and names it in the summary, so a slow test is caught when it is written. The CI profile's limit is higher, because CI runners have far fewer cores.
 - The shared test environment's own deadlines stay under the limit that applies to the test, so a test that waits for something that never comes fails with its own diagnosis instead of a termination: the commands a test starts are killed once they use up a share of that limit, which the exemption list raises for the tests it names, and a fixture still missing a request when the test finishes it fails naming how many requests arrived. A test that waits without being on the list therefore fails at the command deadline, with the command's output.
 
-## Selecting a subset
+## Naming a test and selecting a subset
+
+Name a test after the rule it proves, as a sentence about what its caller observes, such as `a_history_prints_the_price_series_of_the_market`, so the failure summary says which rule broke before anyone opens the test.
 
 A test's path names what it belongs to. A *word* is one `_`-separated part of a module name in the test's path. In the crate, a provider's tests live in its adapter's modules, which carry the provider ID, and a platform's types live in `types::platform_<platform>`. In the command contract binary, a platform's tests live in `platforms::<platform>`, and on a platform with several routes one level further down, in a module named after the route that serves the command, such as `platforms::youtube::youtube_web`. A module about one provider elsewhere carries its ID, such as `web::exa_search` or `doctor::serpapi`, and a module about a shared mechanism, such as `access_windows`, names that mechanism; a test in a module that covers several providers, such as the doctor tests at the root of `doctor`, carries no provider's word, so no provider filter selects it. Because placement sets the words, moving a test to the right module is enough to make the filters find it.
 
