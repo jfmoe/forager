@@ -56,10 +56,6 @@ impl Fixture {
         Self::start_sequence_with_deadline(responses, ACCEPT_DEADLINE)
     }
 
-    pub(crate) fn start_parallel_sequence(responses: Vec<Response>) -> Self {
-        Self::start_parallel_sequence_with_deadline(responses, ACCEPT_DEADLINE)
-    }
-
     pub(crate) fn start_synchronized_sequence(responses: Vec<Response>) -> Self {
         Self::start_synchronized_sequences(vec![responses])
             .pop()
@@ -109,33 +105,6 @@ impl Fixture {
                 }
             })
             .collect()
-    }
-
-    pub(crate) fn start_parallel_sequence_with_deadline(
-        responses: Vec<Response>,
-        accept_deadline: Duration,
-    ) -> Self {
-        let listener = fixture_listener("parallel fixture");
-        let address = listener.local_addr().expect("parallel fixture address");
-        let expected_requests = responses.len();
-        let (stop, stopped) = mpsc::channel();
-        let handle = thread::spawn(move || {
-            let mut workers = Vec::with_capacity(expected_requests);
-            for response in responses {
-                let stream =
-                    accept_request(&listener, accept_deadline, expected_requests, workers.len());
-                workers.push(thread::spawn(move || respond(stream, &response)));
-            }
-            let requests = join_workers(workers);
-            observe_extra_requests(&listener, &stopped, requests)
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-            stop: Some(stop),
-            expected_requests: Some(expected_requests),
-            arrived: None,
-        }
     }
 
     pub(crate) fn start_sequence_with_deadline(
