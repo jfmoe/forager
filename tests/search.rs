@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use support::main_search_samples::{answer_with, failed_event};
 use support::x_samples::completed_events;
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, request_json};
 
 #[test]
 fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
@@ -326,6 +326,53 @@ fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
         "diagnostic leaked the canary"
     );
     main.finish();
+}
+
+#[test]
+fn a_search_sends_its_model_and_deadline_to_the_first_backend_and_stops_there_without_fallback() {
+    let xai = Fixture::start(
+        200,
+        "text/event-stream",
+        &format!("data: {}\n\n", failed_event("xai")),
+    );
+    let openai = Fixture::start_canary();
+    let config = format!(
+        "[search]\nbackends = [\"xai\", \"openai\"]\n{}\n[providers.openai]\nurl = \"{}/v1\"\nkeys = [\"openai-key\"]\nmodel = \"openai-model\"\n",
+        search_config(&xai.url, true),
+        openai.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Override",
+        "--capabilities",
+        "none",
+        "--model",
+        "override-model",
+        "--fallback",
+        "off",
+        "--timeout",
+        "7",
+    ]);
+    let record = support::read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &request_json(&xai.finish())["model"],
+            openai.finish_all().len(),
+            &record["execution"]["deadline_budget"]["total_ms"],
+        ),
+        (
+            Some(4),
+            &Value::String("override-model".into()),
+            0,
+            &Value::from(7_000),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 fn search_config(xai_url: &str, journal_enabled: bool) -> String {
