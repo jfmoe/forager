@@ -30,6 +30,7 @@ pub(crate) mod samples;
 pub(crate) mod scholar;
 pub(crate) mod smoke;
 pub(crate) mod ssrn_samples;
+pub(crate) mod web_samples;
 pub(crate) mod x;
 pub(crate) mod x_samples;
 pub(crate) mod youtube;
@@ -38,22 +39,6 @@ pub(crate) mod youtube_web;
 
 const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(5);
-
-/// The stored Jina Reader answer whose page content is `content`.
-pub(crate) fn jina_response(content: &str) -> String {
-    let mut answer: serde_json::Value =
-        serde_json::from_str(&samples::sample("jina/read.json")).expect("stored Reader answer");
-    answer["data"]["content"] = serde_json::json!(content);
-    answer.to_string()
-}
-
-pub(crate) fn request_json(request: &str) -> serde_json::Value {
-    let body = request
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .expect("request body");
-    serde_json::from_str(body).expect("parse request JSON")
-}
 
 /// Reads the single Search Result Journal record an environment wrote.
 /// Every key of the execution object in a Search Result Journal record of schema version 1.

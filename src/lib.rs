@@ -74,6 +74,11 @@ mod smoke;
 mod state_file;
 #[path = "infra/types/mod.rs"]
 pub mod types;
+// The Web Fetch and web search answers derived from the stored samples, shared like the sample
+// reader.
+#[cfg(test)]
+#[path = "../tests/support/web_samples.rs"]
+mod web_samples;
 // The xAI Responses bodies derived from the stored samples, shared like the sample reader.
 #[cfg(test)]
 #[path = "../tests/support/x_samples.rs"]

@@ -5,7 +5,8 @@ use serde_json::Value;
 use std::time::Duration;
 
 use support::doctor::{assert_deep_success, reachable_responses, shallow_config};
-use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
+use support::web_samples::jina;
+use support::{Fixture, Response, RunEnvironment, request_json};
 
 #[test]
 fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view() {
@@ -240,7 +241,7 @@ fn firecrawl_deep_doctor_executes_the_registry_search_probe() {
 
 #[test]
 fn jina_deep_doctor_executes_the_registry_fetch_probe() {
-    let fixture = Fixture::start(200, "application/json", &jina_response(&"rich ".repeat(60)));
+    let fixture = Fixture::start_sequence(vec![jina(&"rich ".repeat(60))]);
     let environment = RunEnvironment::new(&format!(
         "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
         fixture.url
@@ -557,7 +558,7 @@ fn shallow_doctor_reports_jina_without_keys_as_configured_and_anonymous() {
 
 #[test]
 fn jina_deep_doctor_without_keys_probes_anonymously() {
-    let fixture = Fixture::start(200, "application/json", &jina_response(&"rich ".repeat(60)));
+    let fixture = Fixture::start_sequence(vec![jina(&"rich ".repeat(60))]);
     let environment = RunEnvironment::new(&format!(
         "[providers.jina]\nurl = {:?}\nkeys = []\n",
         fixture.url
@@ -577,7 +578,7 @@ fn jina_deep_doctor_without_keys_probes_anonymously() {
 fn jina_deep_doctor_reports_a_failing_key_although_an_anonymous_request_succeeds() {
     let fixture = Fixture::start_sequence(vec![
         Response::json(401, r#"{"message":"Invalid API key"}"#),
-        Response::json(200, &jina_response(&"rich ".repeat(60))),
+        jina(&"rich ".repeat(60)),
     ]);
     let environment = RunEnvironment::new(&format!(
         "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
