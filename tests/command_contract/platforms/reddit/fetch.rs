@@ -2,8 +2,8 @@
 //! the read deadline, and the enabling steps are the search's, one browser transport; this
 //! proves that a fetch passes the same preflight and reaches the browser on the Reddit profile.
 //! The judgement of the post page projection is unit-tested with the route, the projection
-//! script runs on local pages in the real-browser tests, and only the live smoke C51 reads a
-//! post on the site.
+//! script runs on local pages in the real-browser tests, and only the Live Check
+//! `reddit_browser:fetch` reads a post on the site.
 #![cfg(unix)]
 
 use serde_json::json;

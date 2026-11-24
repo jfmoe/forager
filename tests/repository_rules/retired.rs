@@ -27,6 +27,10 @@ pub const RETIRED: &[&str] = &[
     "fetch_before_claim",
     "classifier",
     "context7",
+    "forager smoke",
+    "smoke --live",
+    "smoke --probe",
+    "outage-evidence",
 ];
 
 /// Paths where a retired identifier legitimately appears, each with its reason. A `*` matches
@@ -51,11 +55,12 @@ pub fn allowed(path: &str) -> bool {
 
 /// The retired identifiers `text` mentions, ignoring case and treating `-` and `_` as equal.
 pub fn mentions(text: &str) -> Vec<&'static str> {
-    let normalized = text.to_lowercase().replace('-', "_");
+    let normalize = |text: &str| text.to_lowercase().replace('-', "_");
+    let normalized = normalize(text);
     RETIRED
         .iter()
         .copied()
-        .filter(|identifier| normalized.contains(identifier))
+        .filter(|identifier| normalized.contains(&normalize(identifier)))
         .collect()
 }
 
@@ -66,8 +71,10 @@ mod tests {
     #[test]
     fn reports_a_retired_identifier_in_any_case_or_separator() {
         assert_eq!(
-            mentions("Install the OpenCLI adapter, then try `ssrn-browser`."),
-            ["opencli", "ssrn_browser"]
+            mentions(
+                "Install the OpenCLI adapter, then try `ssrn-browser` and `--outage_evidence`."
+            ),
+            ["opencli", "ssrn_browser", "outage-evidence"]
         );
     }
 }

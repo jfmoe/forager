@@ -53,8 +53,13 @@ For a configuration error, use `forager config path` and `forager config list`; 
 document with `forager config set` or `forager config unset`, and edit the reported path when its
 TOML is malformed.
 
-For provider authentication, availability, or connectivity failures, use
-`forager doctor --provider PROVIDER --format json`.
+For a provider's configuration, prerequisites, or key validity, use
+`forager doctor --provider PROVIDER --format json`; it sends no billed request and opens no page.
+For connectivity of every configured provider, use `forager doctor --format json`. To check
+against the real service that a provider's operations still work, use
+`forager doctor --live --provider PROVIDER`, but only when the user asks for it: its requests can
+spend quota, and for a route in the `attended` tier, naming it is the user's consent to open pages
+of a logged-in site or put the egress address at risk.
 
 Diagnosis is complete when the reported cause and recovery command are actionable.
 

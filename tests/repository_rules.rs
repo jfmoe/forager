@@ -99,7 +99,7 @@ fn runner_rule_breaks_are_reported() {
     let config = "[profile.ci]\nretries = 2\n\n[[profile.default.overrides]]\n\
                   filter = \"test(=web::invented)\"\n\n\
                   # Waits on its route's pacing.\n[[profile.default.overrides]]\n\
-                  filter = \"test(=smoke::invented)\"\n";
+                  filter = \"test(=doctor::invented)\"\n";
 
     assert_eq!(
         runner::runner_problems(config),

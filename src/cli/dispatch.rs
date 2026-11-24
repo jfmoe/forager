@@ -680,90 +680,63 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             lang,
         } => run_interactive_setup(lang),
         Command::Doctor {
-            provider: None,
+            provider,
             offline,
+            live,
+            tier,
+            platform,
+            list,
+            unattended,
             timeout,
             format,
+            supplemental_web_search,
+            query,
         } => {
-            let (report, exit_code) = if offline {
-                crate::doctor::offline()?
+            if let Some(provider) = supplemental_web_search {
+                return run_supplemental_web_search(
+                    provider,
+                    &query.unwrap_or_default(),
+                    timeout.unwrap_or(DOCTOR_TIMEOUT_SECONDS),
+                );
+            }
+            if live {
+                let selection = crate::live::LiveSelection {
+                    tiers: tier,
+                    provider,
+                    platform,
+                    unattended: unattended || ci_environment(std::env::var_os("CI")),
+                };
+                return run_live_doctor(
+                    &selection,
+                    list,
+                    timeout.unwrap_or(LIVE_TIMEOUT_SECONDS),
+                    format,
+                );
+            }
+            let timeout = timeout.unwrap_or(DOCTOR_TIMEOUT_SECONDS);
+            let (stdout, exit_code) = if let Some(provider) = provider {
+                let (report, exit_code) = crate::doctor::one_provider(provider, timeout)?;
+                let stdout = match format {
+                    OutputFormat::Json => serde_json::to_string(&report)
+                        .map_err(|error| AppError::Runtime(error.to_string()))?,
+                    OutputFormat::Markdown => render_provider_doctor_markdown(&report)?,
+                };
+                (stdout, exit_code)
             } else {
-                crate::doctor::shallow(timeout)?
-            };
-            let stdout = match format {
-                OutputFormat::Json => serde_json::to_string(&report)
-                    .map_err(|error| AppError::Runtime(error.to_string()))?,
-                OutputFormat::Markdown => render_doctor_markdown(&report)?,
-            };
-            Ok(CommandOutput::Text {
-                stdout,
-                stderr: None,
-                exit_code,
-            })
-        }
-        Command::Doctor {
-            provider: Some(provider),
-            timeout,
-            format,
-            ..
-        } => {
-            let (report, exit_code) = crate::doctor::one_provider(provider, timeout)?;
-            let stdout = match format {
-                OutputFormat::Json => serde_json::to_string(&report)
-                    .map_err(|error| AppError::Runtime(error.to_string()))?,
-                OutputFormat::Markdown => render_provider_doctor_markdown(&report)?,
+                let (report, exit_code) = if offline {
+                    crate::doctor::offline()?
+                } else {
+                    crate::doctor::shallow(timeout)?
+                };
+                let stdout = match format {
+                    OutputFormat::Json => serde_json::to_string(&report)
+                        .map_err(|error| AppError::Runtime(error.to_string()))?,
+                    OutputFormat::Markdown => render_doctor_markdown(&report)?,
+                };
+                (stdout, exit_code)
             };
             Ok(CommandOutput::Text {
                 stdout,
-                stderr: None,
-                exit_code,
-            })
-        }
-        Command::Smoke {
-            probe: Some(case_id),
-            probe_timeout,
-            probe_url,
-            ..
-        } => run_smoke_probe(&case_id, probe_timeout, probe_url.as_deref()),
-        Command::Smoke {
-            live: false,
-            probe: None,
-            ..
-        } => {
-            let (report, exit_code) = crate::smoke::run_offline()?;
-            Ok(CommandOutput::Text {
-                stdout: serde_json::to_string(&report)
-                    .map_err(|error| AppError::Runtime(error.to_string()))?,
-                stderr: None,
-                exit_code,
-            })
-        }
-        Command::Smoke {
-            live: true,
-            list: true,
-            probe: None,
-            ..
-        } => Ok(CommandOutput::Text {
-            stdout: serde_json::to_string(&crate::smoke::live_registry())
-                .map_err(|error| AppError::Runtime(error.to_string()))?,
-            stderr: None,
-            exit_code: 0,
-        }),
-        Command::Smoke {
-            live: true,
-            list: false,
-            timeout,
-            outage_evidence,
-            opt_in,
-            probe: None,
-            ..
-        } => {
-            let outage_evidence = crate::smoke::parse_outage_evidence(&outage_evidence)
-                .map_err(AppError::Argument)?;
-            let (report, exit_code) = crate::smoke::run_live(timeout, &outage_evidence, opt_in)?;
-            Ok(CommandOutput::Text {
-                stdout: serde_json::to_string(&report)
-                    .map_err(|error| AppError::Runtime(error.to_string()))?,
                 stderr: None,
                 exit_code,
             })
@@ -771,83 +744,108 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     }
 }
 
-fn run_smoke_probe(
-    case_id: &str,
+/// The default deadline of `doctor`, and of a whole `doctor --live` run.
+const DOCTOR_TIMEOUT_SECONDS: u64 = 30;
+const LIVE_TIMEOUT_SECONDS: u64 = 420;
+
+/// Whether the `CI` variable says the process runs in CI: set, non-empty and not `false`.
+fn ci_environment(value: Option<std::ffi::OsString>) -> bool {
+    value.is_some_and(|value| !value.is_empty() && value != "false")
+}
+
+fn run_live_doctor(
+    selection: &crate::live::LiveSelection,
+    list: bool,
     timeout_seconds: u64,
-    url: Option<&str>,
+    format: OutputFormat,
 ) -> Result<CommandOutput, AppError> {
-    match crate::smoke::probe_kind(case_id).map_err(AppError::Argument)? {
-        crate::smoke::ProbeKind::Supplemental(provider) => {
-            run_supplemental_smoke_probe(provider.name(), timeout_seconds)
-        }
-        crate::smoke::ProbeKind::Outage => run_outage_smoke_probe(
-            url.ok_or_else(|| AppError::Argument("outage probe requires --probe-url".into()))?,
-            timeout_seconds,
-        ),
-    }
-}
-
-fn run_outage_smoke_probe(url: &str, timeout_seconds: u64) -> Result<CommandOutput, AppError> {
-    let dependencies = NetworkDependencies::load()?;
-    let status_page = crate::smoke::is_official_status_url(url);
-    let result = dependencies.runtime.block_on(async {
-        tokio::time::timeout(Duration::from_secs(timeout_seconds), async {
-            let response = dependencies
-                .client
-                .get(url)
-                .send()
-                .await
-                .map_err(net::CappedStreamError::Transport)?;
-            let status = response.status();
-            let server_error = status.is_server_error();
-            let body = if status_page {
-                net::read_response_body(
-                    response,
-                    net::ResponseBodyPolicy::for_status(
-                        status,
-                        net::ResponseBodyPolicy::CompleteProtocol,
-                    ),
-                )
-                .await?
-                .text
-            } else {
-                String::new()
-            };
-            Ok::<_, net::CappedStreamError<reqwest::Error>>((server_error, body))
-        })
-        .await
-    });
-    let outage = if status_page {
-        result
-            .ok()
-            .and_then(Result::ok)
-            .is_some_and(|(_, body)| crate::smoke::status_page_reports_outage(&body))
+    let live_error = |error| match error {
+        crate::live::LiveError::Refused(message) => AppError::Argument(message),
+        crate::live::LiveError::Config(error) => AppError::Config(error),
+        crate::live::LiveError::Executable(error) => AppError::Runtime(error.to_string()),
+    };
+    let (value, exit_code) = if list {
+        let listing = crate::live::list(selection).map_err(live_error)?;
+        (serde_json::to_value(listing), 0)
     } else {
-        match result {
-            Ok(Ok((server_error, _))) => server_error,
-            Ok(Err(_)) | Err(_) => true,
-        }
+        let (report, exit_code) =
+            crate::live::run(selection, timeout_seconds).map_err(live_error)?;
+        (serde_json::to_value(report), exit_code)
+    };
+    let value = value.map_err(|error| AppError::Runtime(error.to_string()))?;
+    let stdout = match format {
+        OutputFormat::Json => value.to_string(),
+        OutputFormat::Markdown => live_markdown(&value),
     };
     Ok(CommandOutput::Text {
-        stdout: serde_json::json!({"outage": outage}).to_string(),
+        stdout,
         stderr: None,
-        exit_code: if outage { 4 } else { 0 },
+        exit_code,
     })
 }
 
-fn run_supplemental_smoke_probe(
-    provider: &str,
+/// One line per check, after the summary of a run.
+fn live_markdown(value: &Value) -> String {
+    let mut output = String::from("# forager doctor --live\n\n");
+    if let Some(summary) = value["summary"].as_object() {
+        let _ = writeln!(
+            output,
+            "ok: {}\nunattended: {}\ntiers: {}\n",
+            value["ok"].as_bool().unwrap_or(false),
+            value["unattended"].as_bool().unwrap_or(false),
+            value["tiers"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        let counts = summary
+            .iter()
+            .map(|(status, count)| format!("{status}={count}"))
+            .collect::<Vec<_>>();
+        let _ = writeln!(output, "summary: {}\n", counts.join(", "));
+    }
+    for check in value["checks"].as_array().into_iter().flatten() {
+        let _ = write!(
+            output,
+            "- {} ({})",
+            check["id"].as_str().unwrap_or_default(),
+            check["tier"].as_str().unwrap_or_default()
+        );
+        if let Some(status) = check["status"].as_str() {
+            let _ = write!(output, ": {status}");
+        }
+        if let Some(selected) = check["selected"].as_bool() {
+            let _ = write!(output, ": selected={selected}");
+            for flag in ["expensive", "manual_only"] {
+                if check[flag] == true {
+                    let _ = write!(output, ", {flag}");
+                }
+            }
+        }
+        if let Some(message) = check["message"].as_str() {
+            let _ = write!(output, " ({message})");
+        }
+        output.push('\n');
+    }
+    output
+}
+
+/// Runs one supplemental web search provider alone: the hidden entry behind its Live Check.
+fn run_supplemental_web_search(
+    provider: ProviderId,
+    query: &str,
     timeout_seconds: u64,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
     let mut config = dependencies.config.web_search;
-    let provider = ProviderId::parse(provider)
-        .ok_or_else(|| AppError::Argument(format!("unknown provider `{provider}`")))?;
     config.retain(provider);
     let outcome = dependencies
         .runtime
         .block_on(crate::engine::supplemental_web_search(
-            crate::smoke::MAIN_CANARY_QUERY,
+            query,
             3,
             config,
             crate::engine::CapabilityExecution::new(
@@ -870,7 +868,7 @@ fn run_supplemental_smoke_probe(
         Err(_) => Ok(CommandOutput::Text {
             stdout: serde_json::json!({
                 "error_kind": "runtime",
-                "message": "supplemental live contract probe failed"
+                "message": "the supplemental web search failed"
             })
             .to_string(),
             stderr: None,
@@ -1368,7 +1366,10 @@ mod tests {
 
     use serde_json::{Value, json};
 
-    use super::{AppError, ConfigError, doctor_markdown, read_secret, search_plan};
+    use super::{
+        AppError, ConfigError, ci_environment, doctor_markdown, live_markdown, read_secret,
+        search_plan,
+    };
     use crate::journal::PlanSource;
 
     #[test]
@@ -1407,6 +1408,62 @@ mod tests {
              - state: writable=true\n\
              - journal: enabled=true, writable=false (Not a directory)\n\
              \n## Effective configuration\n\n```json\n{}\n```\n"
+        );
+    }
+
+    #[test]
+    fn only_a_set_non_empty_ci_variable_other_than_false_marks_a_ci_environment() {
+        let values = [None, Some(""), Some("false"), Some("true"), Some("1")];
+
+        assert_eq!(
+            values.map(|value| ci_environment(value.map(std::ffi::OsString::from))),
+            [false, false, false, true, true]
+        );
+    }
+
+    #[test]
+    fn live_doctor_markdown_shows_the_summary_and_one_line_per_check_with_its_reason() {
+        let report = json!({
+            "mode": "live",
+            "ok": false,
+            "unattended": true,
+            "tiers": ["free", "metered"],
+            "summary": {
+                "failed": 1,
+                "not_started": 0,
+                "passed": 1,
+                "unconfigured": 1,
+                "unselected": 30,
+            },
+            "checks": [
+                {"id": "jina:web_fetch:anonymous", "tier": "free", "status": "passed", "attempts": 1},
+                {
+                    "id": "hn_api:search",
+                    "tier": "free",
+                    "status": "failed",
+                    "attempts": 2,
+                    "error_kind": "network",
+                    "message": "the command failed with network: connection refused",
+                },
+                {
+                    "id": "exa:docs_search",
+                    "tier": "metered",
+                    "status": "unconfigured",
+                    "attempts": 0,
+                    "message": "providers.exa.keys has no configured credentials",
+                },
+            ],
+        });
+
+        assert_eq!(
+            live_markdown(&report),
+            "# forager doctor --live\n\n\
+             ok: false\nunattended: true\ntiers: free, metered\n\n\
+             summary: failed=1, not_started=0, passed=1, unconfigured=1, unselected=30\n\n\
+             - jina:web_fetch:anonymous (free): passed\n\
+             - hn_api:search (free): failed (the command failed with network: connection refused)\n\
+             - exa:docs_search (metered): unconfigured \
+             (providers.exa.keys has no configured credentials)\n"
         );
     }
 

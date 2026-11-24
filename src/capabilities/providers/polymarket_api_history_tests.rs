@@ -1,15 +1,35 @@
 use chrono::NaiveDate;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::decode_page;
 use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
-use crate::polymarket_api_samples::{event, market, price_page, resolved, tokens};
-use crate::providers::polymarket_api::tests::{reference, route};
+use crate::polymarket_api_samples::{market, resolved, tokens};
+use crate::providers::polymarket_api::tests::{event, reference, route};
 use crate::samples::{sample, sample_json, with};
 use crate::types::{
     AttemptErrorKind, PolymarketBucket, PolymarketHistoryOutcome, PolymarketHistoryRequest,
     PolymarketInterval, PolymarketWindow, ProviderError,
 };
+
+/// The stored Data API price history page holding `(timestamp, price, resolution_seconds)`
+/// points; `next_cursor` marks that another page follows.
+fn price_page(points: &[(i64, f64, i64)], next_cursor: Option<&str>) -> Value {
+    let stored = sample_json("polymarket_api/price-history.json");
+    let point = &stored["data"][0];
+    let data = points
+        .iter()
+        .map(|(timestamp, price, resolution)| {
+            with(
+                point.clone(),
+                &json!({"timestamp": timestamp, "price": price, "resolution_seconds": resolution}),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut page = with(stored, &json!({"data": data}));
+    page["pagination"]["has_more"] = json!(next_cursor.is_some());
+    page["pagination"]["next_cursor"] = json!(next_cursor);
+    page
+}
 
 const WINNER: &str = "will-donald-trump-win-the-2024-us-presidential-election";
 const OPEN: &str = "will-no-fed-rate-cuts-happen-in-2026";

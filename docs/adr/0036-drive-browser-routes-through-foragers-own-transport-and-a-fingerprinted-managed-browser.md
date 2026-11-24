@@ -78,8 +78,8 @@ user's everyday browser and never through an external browser driver.
 - **A fake browser that speaks CDP in tests.** Simulating navigation, network events and
   evaluation would cost far more than the code it tests, and passing would only show agreement
   with the simulation. Offline tests cover the pure judgements and the transport without a real
-  site, and live smoke proves the page logic on the site. The cost is that no offline test runs a
-  browser route's success path end to end.
+  site, and the route's Live Checks prove the page logic on the site. The cost is that no offline
+  test runs a browser route's success path end to end.
 
 ## Revisit when
 

@@ -1,4 +1,5 @@
 mod gemini_api;
+mod live;
 mod offline;
 #[cfg(unix)]
 mod one_provider;

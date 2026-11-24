@@ -1,7 +1,6 @@
-//! Gamma, CLOB and Data API bodies derived from the stored samples in
-//! `tests/samples/polymarket_api/`, shared by the command contract tests and, through the crate
-//! root, the in-crate tests. A variant changes only what its test is about, so every other field
-//! stays as the sample has it.
+//! Gamma market bodies derived from the stored samples in `tests/samples/polymarket_api/`,
+//! shared by the command contract tests and, through the crate root, the in-crate tests. A
+//! variant changes only what its test is about, so every other field stays as the sample has it.
 
 use serde_json::{Value, json};
 
@@ -43,72 +42,4 @@ pub(crate) fn resolved(slug: &str, label: &str, won: bool) -> Value {
             "bestAsk": 0.998
         }),
     )
-}
-
-/// The stored neg-risk event renamed `slug`, holding `markets`.
-pub(crate) fn event(slug: &str, markets: &[Value]) -> Value {
-    with(
-        sample_json("polymarket_api/event.json"),
-        &json!({"slug": slug, "markets": markets}),
-    )
-}
-
-/// The stored search page holding `events`; `has_more` says whether another page follows.
-pub(crate) fn search_page(events: &[Value], has_more: bool) -> Value {
-    let mut page = with(
-        sample_json("polymarket_api/search.json"),
-        &json!({"events": events}),
-    );
-    page["pagination"]["hasMore"] = json!(has_more);
-    page
-}
-
-/// A CLOB prices answer in the stored answer's shape: each token's best bid and best ask.
-pub(crate) fn prices(quotes: &[(&str, &str, &str)]) -> Value {
-    let stored = sample_json("polymarket_api/prices.json");
-    let sides = stored
-        .as_object()
-        .and_then(|answer| answer.values().next())
-        .expect("a stored quote");
-    Value::Object(
-        quotes
-            .iter()
-            .map(|(token, bid, ask)| {
-                let quote = with(sides.clone(), &json!({"BUY": bid, "SELL": ask}));
-                ((*token).to_owned(), quote)
-            })
-            .collect(),
-    )
-}
-
-/// A CLOB last trades answer in the stored answer's shape: each token's last trade price.
-pub(crate) fn last_trades(trades: &[(&str, &str)]) -> Value {
-    let stored = sample_json("polymarket_api/last-trades.json");
-    let trade = &stored[0];
-    Value::Array(
-        trades
-            .iter()
-            .map(|(token, price)| with(trade.clone(), &json!({"token_id": token, "price": price})))
-            .collect(),
-    )
-}
-
-/// The stored Data API price history page holding `(timestamp, price, resolution_seconds)`
-/// points; `next_cursor` marks that another page follows.
-pub(crate) fn price_page(points: &[(i64, f64, i64)], next_cursor: Option<&str>) -> Value {
-    let stored = sample_json("polymarket_api/price-history.json");
-    let point = &stored["data"][0];
-    let data = points
-        .iter()
-        .map(|(timestamp, price, resolution)| {
-            with(
-                point.clone(),
-                &json!({"timestamp": timestamp, "price": price, "resolution_seconds": resolution}),
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut page = with(stored, &json!({"data": data}));
-    page["pagination"]["has_more"] = json!(next_cursor.is_some());
-    page["pagination"]["next_cursor"] = json!(next_cursor);
-    page
 }

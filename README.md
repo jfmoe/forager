@@ -122,4 +122,4 @@ The checks to run before committing are listed in [AGENTS.md](AGENTS.md).
 
 ## Releases
 
-release-plz manages the version and the changelog; dist builds the cross-platform archives, installers, checksums and the GitHub Release. A release is published only after the archive checks, architecture checks and real-binary smoke tests pass for all five target platforms.
+release-plz manages the version and the changelog; dist builds the cross-platform archives, installers, checksums and the GitHub Release. A release is published only after the archive checks, architecture checks and checks that run each packaged binary pass for all five target platforms.

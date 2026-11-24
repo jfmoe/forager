@@ -366,7 +366,6 @@ pub(super) fn read_request(stream: &mut TcpStream) -> String {
 }
 
 pub(super) fn write_response(mut stream: TcpStream, response: &Response) {
-    thread::sleep(response.delay);
     let reason = if response.status == 200 {
         "OK"
     } else {
@@ -420,7 +419,6 @@ pub(crate) struct Response {
     status: u16,
     content_type: String,
     body: String,
-    pub(super) delay: Duration,
     pub(super) declared_content_length: Option<usize>,
 }
 
@@ -430,7 +428,6 @@ impl Response {
             status,
             content_type: content_type.into(),
             body: body.into(),
-            delay: Duration::ZERO,
             declared_content_length: None,
         }
     }

@@ -10,9 +10,7 @@ use crate::fixture_server::{
     Fixture, Response, block_on, ok_json, pairs, path, query, request_json,
 };
 use crate::net::{RetryPolicy, build_client};
-use crate::polymarket_api_samples::{
-    event, last_trades, market, prices, resolved, search_page, tokens,
-};
+use crate::polymarket_api_samples::{market, resolved, tokens};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::refused;
 use crate::samples::{sample, sample_json, with, without};
@@ -21,6 +19,54 @@ use crate::types::{
     PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
     PlatformSearchRequest, PolymarketRef, PolymarketSearchOptions, ProviderError,
 };
+
+/// The stored neg-risk event renamed `slug`, holding `markets`.
+pub(super) fn event(slug: &str, markets: &[Value]) -> Value {
+    with(
+        sample_json("polymarket_api/event.json"),
+        &json!({"slug": slug, "markets": markets}),
+    )
+}
+
+/// The stored search page holding `events`; `has_more` says whether another page follows.
+fn search_page(events: &[Value], has_more: bool) -> Value {
+    let mut page = with(
+        sample_json("polymarket_api/search.json"),
+        &json!({"events": events}),
+    );
+    page["pagination"]["hasMore"] = json!(has_more);
+    page
+}
+
+/// A CLOB prices answer in the stored answer's shape: each token's best bid and best ask.
+fn prices(quotes: &[(&str, &str, &str)]) -> Value {
+    let stored = sample_json("polymarket_api/prices.json");
+    let sides = stored
+        .as_object()
+        .and_then(|answer| answer.values().next())
+        .expect("a stored quote");
+    Value::Object(
+        quotes
+            .iter()
+            .map(|(token, bid, ask)| {
+                let quote = with(sides.clone(), &json!({"BUY": bid, "SELL": ask}));
+                ((*token).to_owned(), quote)
+            })
+            .collect(),
+    )
+}
+
+/// A CLOB last trades answer in the stored answer's shape: each token's last trade price.
+fn last_trades(trades: &[(&str, &str)]) -> Value {
+    let stored = sample_json("polymarket_api/last-trades.json");
+    let trade = &stored[0];
+    Value::Array(
+        trades
+            .iter()
+            .map(|(token, price)| with(trade.clone(), &json!({"token_id": token, "price": price})))
+            .collect(),
+    )
+}
 
 /// [`market`] as a neg-risk placeholder: open in name and accepting orders, but inactive, with
 /// no cached prices and no order book on the CLOB.

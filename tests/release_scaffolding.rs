@@ -48,11 +48,11 @@ fn one_workflow_runs_the_required_jobs_on_every_pull_request_and_main_push() {
 // Live checks spend the maintainer's keys against real sites; #19 kept them out of every
 // pull-request run.
 #[test]
-fn ci_does_not_run_live_smoke_checks() {
+fn no_pull_request_workflow_command_runs_a_live_check() {
     assert!(
         workflow_run_commands(&pull_request_workflow())
             .iter()
-            .all(|command| !command.contains("smoke --live"))
+            .all(|command| !command.contains("doctor --live"))
     );
 }
 

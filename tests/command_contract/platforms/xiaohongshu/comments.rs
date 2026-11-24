@@ -1,7 +1,7 @@
 //! The `xiaohongshu_browser` comments against a shell stand-in for the browser: the access token
 //! rules of the input and the browser launch. The stand-in speaks no CDP, so no test here
 //! reaches a page: the comments judgement is unit-tested with the route, and the page logic
-//! itself only the live smoke C29 runs.
+//! itself only the Live Check `xiaohongshu_browser:comments` runs.
 #![cfg(unix)]
 
 use std::process::Output;

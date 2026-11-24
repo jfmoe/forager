@@ -179,14 +179,6 @@ pub(crate) enum ResponseBodyPolicy {
 }
 
 impl ResponseBodyPolicy {
-    pub(crate) fn for_status(status: StatusCode, success: Self) -> Self {
-        if status.is_success() {
-            success
-        } else {
-            Self::Error
-        }
-    }
-
     const fn limit(self) -> usize {
         match self {
             Self::TruncatableContent | Self::CompleteProtocol => MAX_RESPONSE_BYTES,
@@ -462,31 +454,6 @@ mod tests {
         let policy = RetryPolicy::new(3, f64::MAX, Duration::from_secs(10));
 
         assert_eq!(policy.wait(2), Duration::from_secs(10));
-    }
-
-    #[test]
-    fn response_body_policy_selects_error_heads_only_for_non_success_statuses() {
-        assert_eq!(
-            (
-                ResponseBodyPolicy::for_status(
-                    StatusCode::OK,
-                    ResponseBodyPolicy::TruncatableContent,
-                ),
-                ResponseBodyPolicy::for_status(
-                    StatusCode::OK,
-                    ResponseBodyPolicy::CompleteProtocol,
-                ),
-                ResponseBodyPolicy::for_status(
-                    StatusCode::BAD_REQUEST,
-                    ResponseBodyPolicy::CompleteProtocol,
-                ),
-            ),
-            (
-                ResponseBodyPolicy::TruncatableContent,
-                ResponseBodyPolicy::CompleteProtocol,
-                ResponseBodyPolicy::Error,
-            )
-        );
     }
 
     #[test]

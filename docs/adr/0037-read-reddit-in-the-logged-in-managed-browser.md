@@ -53,7 +53,7 @@ route is opt-in (ADR-0020), does not retry, and follows the browser transport's 
 - **Keeping the anonymous route `reddit_web`, alone or beside the browser route.** It read the
   site's own server-rendered search fragments, comment-tree fragments and embed pages over HTTP,
   with no account, on any host. It worked on the same egress at launch on 2026-10-28, but no test
-  layer exercised it for 24 days, because it was opt-in and the release's live smoke ran on a
+  layer exercised it for 24 days, because it was opt-in and the release's live run ran on a
   configuration without it, and by 2026-11-21 the site refused that egress outright. Two routes
   would mean two page parsers and two cursor semantics, and a fallback would spend the egress
   IP's standing before touching the account. It is retired with no compatibility layer. The HTTP/2
@@ -84,12 +84,12 @@ route is opt-in (ADR-0020), does not retry, and follows the browser transport's 
 - An account used through the route is warned, limited or banned, or logged-in pages begin to show
   challenges. Reddit's User Agreement does not allow automated access, and the risk now falls on
   the logged-in account instead of the egress IP. The evidence is thin: one account, one egress
-  and one evening, with 9 prototype page opens, 13 runs of the route and 3 live smoke runs. Every
+  and one evening, with 9 prototype page opens, 13 runs of the route and 3 live test runs. Every
   logged-in page runs an invisible reCAPTCHA score whose threshold for a visible challenge is
   unknown, and the headless traits ADR-0036 lists remain.
 - The page shape changes. Reading depends on attribute names of Reddit's custom elements, which
-  have no public contract and already changed once between 2026-10 and 2026-11; only live smoke
-  notices.
+  have no public contract and already changed once between 2026-10 and 2026-11; only the route's
+  Live Checks notice.
 - Reddit offers official access suitable for a personal CLI.
 - Reddit must be read reliably on hosts other than macOS arm64, where the browser transport has no
   Managed Browser package or does not run.

@@ -11,7 +11,9 @@ Every browser route is opt-in; an HTTP route is opt-in when its access carries s
   the platform catalog saying what enabling it risks and where the risk falls. The enable
   instructions that configuration errors print read that one place, with no branch on a route ID.
 - **Unused routes stay idle.** Doctor checks an opt-in route only when an order enables it, so a
-  route the user never chose never runs and never affects the health result.
+  route the user never chose never runs and never affects the health result. A Live Check runs an
+  opt-in route only when the user selects the `attended` tier or names the route (ADR-0039),
+  whatever the order says: that selection is the user's choice for the one run.
 - **Stop at a challenge.** A route never solves or bypasses a site's challenge, verification page
   or block. It fails as Auth, does not retry, and tells the user how to deal with it themselves; a
   blocked result is never reported as a legitimate empty one.

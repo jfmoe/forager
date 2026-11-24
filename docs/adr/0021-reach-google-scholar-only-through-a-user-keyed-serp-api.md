@@ -17,8 +17,8 @@ plan.
   page costs the same whatever its size; fetch reads one page of a cluster with no automatic
   paging and only at metadata depth, leaving the body to the target platform or Web Fetch. Quota
   state is not persisted. Plain doctor sends one keyless request that costs nothing, a targeted
-  doctor asks the free account endpoint about each key, and only live smoke, and only with a key
-  configured, spends quota.
+  doctor asks the free account endpoint about each key, and only the route's Live Checks, and only
+  with a key configured, spend quota.
 - **Named after the vendor**, not the platform: one SerpApi account's quota and throughput are
   shared across engines, so another SerpApi engine can reuse the same key pool and
   credential cursor.
