@@ -681,10 +681,15 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
         } => run_interactive_setup(lang),
         Command::Doctor {
             provider: None,
+            offline,
             timeout,
             format,
         } => {
-            let (report, exit_code) = crate::doctor::shallow(timeout)?;
+            let (report, exit_code) = if offline {
+                crate::doctor::offline()?
+            } else {
+                crate::doctor::shallow(timeout)?
+            };
             let stdout = match format {
                 OutputFormat::Json => serde_json::to_string(&report)
                     .map_err(|error| AppError::Runtime(error.to_string()))?,
@@ -700,6 +705,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             provider: Some(provider),
             timeout,
             format,
+            ..
         } => {
             let (report, exit_code) = crate::doctor::deep(provider, timeout)?;
             let stdout = match format {
@@ -873,11 +879,16 @@ fn run_supplemental_smoke_probe(
     }
 }
 
-fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result<String, AppError> {
-    let value =
-        serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?;
+fn render_doctor_markdown(report: &crate::doctor::DoctorReport) -> Result<String, AppError> {
+    doctor_markdown(
+        &serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?,
+    )
+}
+
+fn doctor_markdown(value: &Value) -> Result<String, AppError> {
     let mut output = format!(
-        "# forager doctor\n\nok: {}\n\n",
+        "# forager doctor\n\nmode: {}\nok: {}\n\n",
+        value["mode"].as_str().unwrap_or_default(),
         value["ok"].as_bool().unwrap_or(false)
     );
     for provider in value["providers"]
@@ -886,14 +897,35 @@ fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result
     {
         let _ = write!(
             output,
-            "- {}: configured={}, key_count={}, source={}, reachable={}",
+            "- {}: configured={}, key_count={}, source={}",
             provider["provider"].as_str().unwrap_or_default(),
             provider["configured"].as_bool().unwrap_or(false),
             provider["key_count"].as_u64().unwrap_or(0),
             provider["source"].as_str().unwrap_or_default(),
-            provider["reachable"].as_bool().unwrap_or(false),
         );
+        for check in ["reachable", "preflight"] {
+            if let Some(passed) = provider[check].as_bool() {
+                let _ = write!(output, ", {check}={passed}");
+            }
+        }
         if let Some(message) = provider["message"].as_str() {
+            let _ = write!(output, " ({message})");
+        }
+        output.push('\n');
+    }
+    output.push_str("\n## State directories\n\n");
+    for name in ["state", "journal"] {
+        let directory = &value["state_directories"][name];
+        let fields = ["enabled", "writable"]
+            .into_iter()
+            .filter_map(|field| {
+                directory[field]
+                    .as_bool()
+                    .map(|flag| format!("{field}={flag}"))
+            })
+            .collect::<Vec<_>>();
+        let _ = write!(output, "- {name}: {}", fields.join(", "));
+        if let Some(message) = directory["message"].as_str() {
             let _ = write!(output, " ({message})");
         }
         output.push('\n');
@@ -1336,8 +1368,47 @@ mod tests {
 
     use serde_json::{Value, json};
 
-    use super::{AppError, ConfigError, read_secret, search_plan};
+    use super::{AppError, ConfigError, doctor_markdown, read_secret, search_plan};
     use crate::journal::PlanSource;
+
+    #[test]
+    fn offline_doctor_markdown_shows_preflight_and_state_directories_without_reachability() {
+        let report = json!({
+            "mode": "offline",
+            "ok": false,
+            "providers": [
+                {"provider": "exa", "configured": true, "key_count": 1, "source": "file"},
+                {
+                    "provider": "xiaohongshu_browser",
+                    "configured": true,
+                    "key_count": 0,
+                    "source": "default",
+                    "preflight": false,
+                    "message": "no browser",
+                },
+            ],
+            "state_directories": {
+                "state": {"writable": true},
+                "journal": {"enabled": true, "writable": false, "message": "Not a directory"},
+            },
+            "permission_warnings": [],
+            "config": {},
+        });
+
+        let markdown = doctor_markdown(&report).expect("render markdown");
+
+        assert_eq!(
+            markdown,
+            "# forager doctor\n\nmode: offline\nok: false\n\n\
+             - exa: configured=true, key_count=1, source=file\n\
+             - xiaohongshu_browser: configured=true, key_count=0, source=default, \
+             preflight=false (no browser)\n\
+             \n## State directories\n\n\
+             - state: writable=true\n\
+             - journal: enabled=true, writable=false (Not a directory)\n\
+             \n## Effective configuration\n\n```json\n{}\n```\n"
+        );
+    }
 
     #[test]
     fn a_search_runs_the_declared_capabilities_or_else_main_search_alone() {

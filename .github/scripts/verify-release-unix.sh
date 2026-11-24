@@ -7,7 +7,6 @@ config_dir="$RUNNER_TEMP/forager-config"
 state_dir="$RUNNER_TEMP/forager-state"
 home_dir="$RUNNER_TEMP/forager-home"
 mkdir -p "$install_dir" "$state_dir" "$home_dir"
-install -d -m 700 "$config_dir"
 tar -xJf "artifacts/forager-$TARGET.$ARCHIVE" -C "$install_dir"
 binary=$(find "$install_dir" -type f -name forager -print -quit)
 test -n "$binary"
@@ -19,26 +18,15 @@ PATH="$binary_dir:$PATH"
 export PATH
 test "$(command -v forager)" = "$binary"
 test "$(forager --version)" = "forager $version"
-printf '%s\n' \
-  '[providers.xai]' \
-  'url = "https://example.invalid/v1"' \
-  'keys = ["release-gate"]' \
-  '[providers.tavily]' \
-  'keys = ["release-gate"]' \
-  '[providers.firecrawl]' \
-  'keys = ["release-gate"]' \
-  '[providers.jina]' \
-  'keys = ["release-gate"]' \
-  '[providers.exa]' \
-  'keys = ["release-gate"]' \
-  > "$config_dir/config.toml"
-chmod 600 "$config_dir/config.toml"
+# `config set` writes the file with the private permissions the report checks.
+printf '%s' '["release-gate"]' | FORAGER_CONFIG_DIR="$config_dir" HOME="$home_dir" \
+  forager config set providers.exa.keys - > /dev/null
 doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
-  HOME="$home_dir" forager doctor --timeout 1 || test "$?" -eq 4)
+  HOME="$home_dir" forager doctor --offline)
 jq -e '
-  .ok == false
-  and .mode == "shallow"
-  and ([.providers[] | select(.configured)] | length) == 9
+  .ok == true
+  and .mode == "offline"
+  and all(.providers[]; has("reachable") | not)
   and .config.providers.exa.keys.source == "file"
   and (.permission_warnings | length) == 0
 ' <<< "$doctor"
