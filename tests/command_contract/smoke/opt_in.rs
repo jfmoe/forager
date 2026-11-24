@@ -1,15 +1,10 @@
 //! Live smoke with `--opt-in`: a platform case whose route the order leaves out runs when this
 //! machine meets the route's prerequisites, and otherwise names the one it misses.
 
-use std::time::Duration;
-
 use crate::support::browser::StandIn;
 use crate::support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, anonymous_routes_at, case};
 use crate::support::{Fixture, Response};
 use serde_json::Value;
-
-// The cases before C38 wait out their routes' access limits, so its first request comes late.
-const LATE_REQUEST: Duration = Duration::from_mins(1);
 
 fn refusing() -> Fixture {
     Fixture::start_repeating(Response::json(401, "{}"))
@@ -32,7 +27,7 @@ fn run<const N: usize>(config: &str, arguments: &[&str], ids: [&str; N]) -> [(Va
 #[test]
 fn opt_in_runs_a_platform_case_whose_route_the_order_leaves_out() {
     let refusing = refusing();
-    let youtube = Fixture::start_sequence_for_with_deadline(LATE_REQUEST, |origin| {
+    let youtube = Fixture::start_sequence_for(|origin| {
         vec![
             crate::support::youtube_web::watch_page(),
             crate::support::youtube_web::player(origin),

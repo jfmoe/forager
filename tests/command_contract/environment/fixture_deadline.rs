@@ -2,23 +2,21 @@ use std::any::Any;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::panic::{self, AssertUnwindSafe};
-use std::time::Duration;
 
 use crate::support::{Fixture, Response, Route};
 
 #[test]
-fn fixture_timeout_reports_expected_and_received_requests() {
-    let fixture = Fixture::start_sequence_with_deadline(
-        vec![Response::new(200, "text/plain", "ok")],
-        Duration::from_millis(50),
-    );
+fn a_fixture_finished_before_its_requests_arrive_names_how_many_it_expected_and_received() {
+    let ok = || Response::new(200, "text/plain", "ok");
+    let fixture = Fixture::start_sequence(vec![ok(), ok()]);
 
+    send_request(&fixture.url);
     let panic = panic::catch_unwind(AssertUnwindSafe(|| fixture.finish_all()))
-        .expect_err("fixture must time out");
+        .expect_err("the fixture must report the missing request");
 
     assert_eq!(
         panic_message(&panic),
-        "fixture timed out waiting for requests: expected 1, received 0"
+        "fixture finished before receiving its requests: expected 2, received 1"
     );
 }
 
