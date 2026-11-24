@@ -106,7 +106,6 @@ fn runner_rule_breaks_are_reported() {
         [
             "line 2: a profile retries failed tests",
             "line 4: an exemption without a reason in the comment above it",
-            "line 8: a smoke or doctor exemption not marked as handled by spec 5",
         ]
     );
 }

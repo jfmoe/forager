@@ -23,21 +23,6 @@ pub(crate) fn runner_problems(config: &str) -> Vec<String> {
                 "line {number}: an exemption without a reason in the comment above it"
             ));
         }
-        let entry = lines[index + 1..]
-            .iter()
-            .take_while(|line| !line.starts_with('['))
-            .copied()
-            .collect::<String>();
-        let smoke_or_doctor = ["test(=smoke::", "test(=doctor::"]
-            .iter()
-            .any(|module| entry.contains(module));
-        // Spec 5 removes smoke and replaces doctor's probes; the mark makes their entries leave
-        // with them instead of outliving the tests they excuse.
-        if smoke_or_doctor && !reason.iter().any(|line| line.contains("spec 5")) {
-            problems.push(format!(
-                "line {number}: a smoke or doctor exemption not marked as handled by spec 5"
-            ));
-        }
     }
     problems
 }

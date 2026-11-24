@@ -15,7 +15,7 @@ A change to code is done only after the quick and full checks pass; a change to 
 - Real-browser tests: the `real-browser` profile, run as `docs/agents/browser-routes.md` describes.
 - Test runs use the profiles in `.config/nextest.toml`; without `--profile`, that is `default`.
 - CI runs the same configuration through the `ci` profile, and every pull request runs the whole workflow: the quick and full checks on `linux`, and the permission and release artifact gate tests on `windows`.
-- A local default run runs every test the CI run does except the release artifact gate, which it counts among the skipped tests; apart from that the profiles differ only in how long a test may take. After a change to the release scripts, run `cargo nextest run --profile ci --locked --test release_artifact_gate`; under the default profile that command selects no tests.
+- After a change to the release scripts, run the release artifact gate, which the default run leaves out, with `cargo nextest run --profile ci --locked --test release_artifact_gate`; `docs/agents/testing.md` says how the local and CI runs differ.
 - `git config core.hooksPath .githooks` enables a pre-commit hook that runs `cargo fmt --check`.
 
 A test that fails in the full suite but passes alone depends on something outside itself, such as a real host or another test's state. Find that dependency before closing the task.
