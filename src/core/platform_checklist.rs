@@ -3,7 +3,7 @@
 //! The compiler names every dispatch site a new route must handle, but not whether facts declared
 //! in separate places agree: the platform catalog, the provider registration, the route
 //! declaration and the route built from it, and the configuration schema, nor whether a platform
-//! and its routes have the samples, tests and live cases they need. Each [`Rule`] states one such
+//! and its routes have the samples, tests and Live Checks they need. Each [`Rule`] states one such
 //! fact and what to add when it breaks.
 
 use crate::catalog::{
@@ -26,7 +26,7 @@ enum Rule {
     Declaration,
     BrowserEnvironment,
     ConfigLeaves,
-    SmokeCase,
+    LiveCheck,
     SampleRefs,
     AccessWindowTest,
     ContractLayout,
@@ -60,9 +60,9 @@ impl Rule {
                 "the configuration schema has the platform's order and each route's leaves: `url` and `timeout` for an HTTP route (`url` alone for a main-search backend, whose platform requests use the command's remaining time), `timeout` for a browser route, and `keys` exactly when the route reads credentials",
                 "add the leaves to the configuration schema and to the runtime projection",
             ),
-            Self::SmokeCase => (
-                "each platform operation has a route that registers a live smoke case",
-                "register a smoke case for the operation in a route's registration, under the next unused case number",
+            Self::LiveCheck => (
+                "each platform operation has a route that declares a Live Check",
+                "declare a Live Check of the operation with a route's registration",
             ),
             Self::SampleRefs => (
                 "the sample refs cover every kind of the platform, each round-trips through its canonical URL, and the first is a ref a fetch route of the platform accepts",
@@ -215,7 +215,7 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<Violation> {
         );
     }
     for operation in catalog.operations {
-        check_smoke_case(platform, operation.operation, registry, &mut found);
+        check_live_check(platform, operation.operation, registry, &mut found);
     }
     check_refs(
         platform,
@@ -246,26 +246,26 @@ fn check_operation(
             ));
         }
     }
-    check_smoke_case(platform, name, registry, found);
+    check_live_check(platform, name, registry, found);
 }
 
-fn check_smoke_case(
+fn check_live_check(
     platform: Platform,
     operation: &str,
     registry: &Registry<'_>,
     found: &mut Vec<Violation>,
 ) {
-    let has_smoke_case = registry.registrations.iter().any(|registration| {
+    let has_live_check = registry.registrations.iter().any(|registration| {
         registration
-            .smoke_cases
+            .live_checks
             .iter()
-            .any(|case| case.platform == Some(platform) && case.operation == operation)
+            .any(|check| check.platform() == Some(platform) && check.operation() == operation)
     });
-    if !has_smoke_case {
+    if !has_live_check {
         found.push(violation(
             platform,
-            Rule::SmokeCase,
-            &format!("no route registers a {operation} smoke case"),
+            Rule::LiveCheck,
+            &format!("no route declares a {operation} Live Check"),
         ));
     }
 }
@@ -668,11 +668,11 @@ fn a_browser_route_is_not_required_to_have_a_url_leaf() {
 }
 
 #[test]
-fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
+fn a_platform_without_a_live_check_breaks_the_live_check_rule() {
     let registrations = catalog::registrations()
         .iter()
         .map(|registration| ProviderRegistration {
-            smoke_cases: &[],
+            live_checks: &[],
             ..*registration
         })
         .collect::<Vec<_>>();
@@ -681,19 +681,19 @@ fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
         ..baseline()
     };
 
-    assert_reports(&violations(Platform::Arxiv, &registry), Rule::SmokeCase);
+    assert_reports(&violations(Platform::Arxiv, &registry), Rule::LiveCheck);
 }
 
 #[test]
-fn an_operation_of_the_platform_without_a_smoke_case_breaks_the_smoke_rule() {
+fn an_operation_of_the_platform_without_a_live_check_breaks_the_live_check_rule() {
     let registrations = catalog::registrations()
         .iter()
         .map(|registration| ProviderRegistration {
-            smoke_cases: registration
-                .smoke_cases
+            live_checks: registration
+                .live_checks
                 .iter()
                 .copied()
-                .filter(|case| case.operation != CITED_BY)
+                .filter(|check| check.operation() != CITED_BY)
                 .collect::<Vec<_>>()
                 .leak(),
             ..*registration
@@ -711,7 +711,7 @@ fn an_operation_of_the_platform_without_a_smoke_case_breaks_the_smoke_rule() {
             .iter()
             .map(|violation| (violation.rule, violation.detail.as_str()))
             .collect::<Vec<_>>(),
-        [(Rule::SmokeCase, "no route registers a cited_by smoke case")],
+        [(Rule::LiveCheck, "no route declares a cited_by Live Check")],
         "{found:#?}"
     );
 }

@@ -108,20 +108,9 @@ impl MainSearchProviderConfig {
             Self::Openai(config) => provider_configured(ProviderId::Openai, &config.keys),
         }
     }
-
-    pub(crate) fn url(&self) -> &str {
-        match self {
-            Self::Xai(config) => &config.url,
-            Self::Openai(config) => &config.url,
-        }
-    }
 }
 
 impl MainSearchRuntimeConfig {
-    pub(crate) fn entries(&self) -> &[SeamEntry<MainSearchProviderConfig>] {
-        &self.entries
-    }
-
     pub(crate) fn into_entries(self) -> Vec<SeamEntry<MainSearchProviderConfig>> {
         self.entries
     }

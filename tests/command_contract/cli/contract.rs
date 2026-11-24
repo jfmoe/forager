@@ -29,7 +29,6 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
             ("config", vec![]),
             ("setup", vec![]),
             ("doctor", vec![]),
-            ("smoke", vec![]),
         ]
     );
     let config = command

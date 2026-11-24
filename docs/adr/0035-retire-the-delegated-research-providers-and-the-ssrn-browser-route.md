@@ -26,7 +26,7 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
 ## Why
 
 - **Maintenance only by live testing.** The Deep Research adapters' page reading, completion
-  conditions and click paths could be proven only on the live site, and no live smoke case was
+  conditions and click paths could be proven only on the live site, and no Live Check was
   possible: one would either read the user's private sessions or spend Deep Research quota. Live
   tests also met Google's unusual-traffic page, response bodies the Browser Bridge dropped at
   random, and rejected navigations, each investigated within a budget of page opens.

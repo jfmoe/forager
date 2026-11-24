@@ -61,7 +61,7 @@ mod windows {
         assert!(owner_only);
     }
 
-    // `doctor` and offline `smoke` read the configuration through this check.
+    // `doctor` reads the configuration through this check.
     #[test]
     fn configuration_access_granted_beyond_the_windows_owner_is_rejected() {
         let root = tempfile::tempdir().expect("create temporary root");

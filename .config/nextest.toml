@@ -65,26 +65,11 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = "binary_id(forager::command_contract) & test(=access_windows::every_route_with_an_access_policy_waits_for_its_window_before_sending)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
-# Offline smoke tests above the limit: each runs a whole live-smoke pass, which makes several paced
-# requests or applies a whole-second deadline, and the whole pass is the rule it proves, so no
-# operation without a wait can stand in for it.
+# The rule is that the binary's own precheck chain, under an order that lists `youtube_web` first,
+# reads the video through `youtube_api` alone; only the model checks run that chain, no selection
+# runs one of them alone, and the two share `youtube_api`'s paced window.
 [[profile.default.overrides]]
-filter = """
-binary_id(forager::command_contract) & (
-  test(=smoke::live_smoke_enforces_one_hard_deadline_and_reports_the_cases_it_left_no_time_for)
-  | test(=smoke::live_smoke_runs_the_platform_cases_through_their_configured_route)
-  | test(=smoke::opt_in::opt_in_keeps_the_configured_order_for_a_model_operation)
-  | test(=smoke::opt_in::opt_in_names_a_browser_profile_never_logged_in_without_launching_the_browser)
-  | test(=smoke::opt_in::opt_in_names_a_missing_managed_browser)
-  | test(=smoke::opt_in::opt_in_names_the_keys_a_left_out_route_misses)
-  | test(=smoke::opt_in::opt_in_runs_a_platform_case_whose_route_the_order_leaves_out)
-  | test(=smoke::polymarket::live_smoke_reads_the_canary_without_the_clob_the_found_event_with_it_and_the_canary_history)
-  | test(=smoke::polymarket::the_live_quote_case_does_not_start_without_an_event_from_the_search_case)
-  | test(=smoke::youtube::live_smoke_reads_the_youtube_transcript_only_while_the_order_enables_youtube_web)
-  | test(=smoke::youtube::live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key)
-  | test(=smoke::youtube::live_smoke_runs_the_youtube_model_cases_after_a_metadata_check_through_the_configured_order)
-)
-"""
+filter = "binary_id(forager::command_contract) & test(=doctor::live::a_model_check_reads_its_video_through_youtube_api_whatever_the_configured_order)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 [profile.ci]

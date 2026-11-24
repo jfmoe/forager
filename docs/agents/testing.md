@@ -12,7 +12,7 @@ Each rule is proven once, at the cheapest layer that can observe it breaking. Pl
 | Rule tests | Do the repository's documents and layout follow their rules? | The repository rules and the product skill contract |
 | Release and permission tests | Does what CI and a release rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, and private file permissions on each operating system |
 | Real-browser tests | Do the browser transport and Page Logic work in the Managed Browser? | Off by default; [`browser-routes.md`](browser-routes.md) runs them |
-| Live smoke | Do real sites and keys still answer as forager expects? | A few canary cases against real sites, run before a release by [`release.md`](release.md); never offline |
+| Live Checks | Do real sites and keys still answer as forager expects? | Canaries of each provider's operations against the real services, run by `forager doctor --live` after a release, as [`release.md`](release.md) says, and with `--provider <provider>` after a change to that provider's adapter, which for an attended provider needs the user present; never offline |
 
 Start in the crate and move outward only when the rule is a fact of the outer layer.
 
@@ -97,6 +97,7 @@ Only the real binary can prove these facts, and each is proven through the binar
 - The Search Result Journal being written when it is on and not written when it is off.
 - The file names and the default location of a content directory.
 - Environment isolation: the spawned binary reads only the configuration and state the test gives it, and a route its configuration missed fails instead of reaching a site.
+- The exit codes of a live run (`doctor --live`): 0, 2, 3 and 4.
 
 Every command keeps at least one command contract test, and every platform keeps at least one successful path that its offline stand-in can produce. The browser platforms' stand-in does not speak the browser protocol, so for them the contract layer keeps the outermost path it can prove (preflight, launch arguments, refusal and timeout); their successful path is proven by the Page Logic tests in the crate and by the real-browser tests.
 
@@ -109,7 +110,7 @@ Every command keeps at least one command contract test, and every platform keeps
 - **Rule tests** prove nothing about what forager does, only that the documents and layout follow their rules.
 - **Release and permission tests** do not prove that a published release works; the release procedure checks that.
 - **Real-browser tests** run against local pages, so they prove Page Logic's scripts, not a real site.
-- **Live smoke** covers a few canary cases, not each rule, and depends on real sites and keys.
+- **Live Checks** cover one canary per operation, not each rule, and depend on real sites and keys; an `unconfigured` or not-started check proves nothing about its upstream.
 
 ## Retiring or rewriting a test
 

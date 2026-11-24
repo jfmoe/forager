@@ -2,7 +2,8 @@
 //! the route chain, the enabling steps, and how one search launches the browser. The stand-in
 //! speaks no CDP, so no test here reaches a page: the judgement of what the page projection
 //! shows is unit-tested with the route, the projection script runs on local pages in the
-//! real-browser tests, and only the live smoke C50 runs the search on the site.
+//! real-browser tests, and only the Live Check `reddit_browser:search` runs the search on the
+//! site.
 #![cfg(unix)]
 
 use std::process::Output;

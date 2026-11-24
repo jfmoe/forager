@@ -18,7 +18,7 @@ Routine `search` stays on its branch reference. Treat
 ## Shared behavior
 
 The public top-level commands are `search`, `fetch`, `map`, `exa`, `platform`,
-`browser`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+`browser`, `config`, `setup`, and `doctor`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
@@ -69,8 +69,7 @@ result or the exit code.
 `--verbose` and journal attempts.
 
 `content` output is available only for `search`, `fetch`, and `platform <id> fetch`.
-All other commands with `--format` accept only `json` and `markdown`. `smoke` emits JSON and does
-not expose `--format`.
+All other commands with `--format` accept only `json` and `markdown`.
 
 ## Smart pipelines
 
@@ -1296,16 +1295,31 @@ with the started browser is also `runtime`.
 ### `doctor`
 
 ```console
-forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown]
+forager doctor [--timeout SECONDS] [--format json|markdown]
 forager doctor --offline [--format json|markdown]
+forager doctor --provider PROVIDER [--timeout SECONDS] [--format json|markdown]
+forager doctor --live [--tier TIER[,TIER...]] [--provider PROVIDER] [--platform PLATFORM]
+               [--unattended] [--timeout SECONDS] [--format json|markdown]
+forager doctor --live --list [--tier TIER[,TIER...]] [--provider PROVIDER]
+               [--platform PLATFORM] [--unattended] [--format json|markdown]
 ```
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Check one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api` without a billed request: its configuration, its prerequisites and, where the provider offers one, its free account check. Without it, run the shallow all-provider report. | Omitted |
-| `--offline` | Run the shallow report's checks that send no request. Conflicts with `--provider` and `--timeout`. | Off |
-| `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
+| `--provider PROVIDER` | Check one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api` without a billed request: its configuration, its prerequisites and, where the provider offers one, its free account check. Without it, run the shallow all-provider report. With `--live`, run only that provider's Live Checks. | Omitted |
+| `--offline` | Run the shallow report's checks that send no request. Conflicts with `--provider`, `--live`, and `--timeout`. | Off |
+| `--live` | Run Live Checks against the real services instead of the report. | Off |
+| `--tier TIER[,TIER...]` | Run the Live Checks of these Live Tiers: `free`, `metered`, `attended`. Requires `--live`. | `free,metered`; all three with `--provider` |
+| `--platform PLATFORM` | Run only the Live Checks of this platform's operations. Requires `--live`. | Omitted |
+| `--list` | List the Live Checks and whether this selection runs them, without running any. Requires `--live`. | Off |
+| `--unattended` | Mark the live run as one no person watches: refuse the `attended` tier and leave out expensive and manual-only checks. Requires `--live`. | Off |
+| `--timeout SECONDS` | Set the diagnostic deadline; with `--live`, the time limit of the whole run. | `30`; `420` with `--live` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
+
+`doctor` has four modes. The default shallow report checks configuration, permissions, state
+directories, the browser preflight check and the reachability of every configured provider.
+`--offline` runs the same checks without any request. `--provider` checks one provider without a
+billed request. `--live` runs Live Checks, which send real requests and are described below.
 
 Use `doctor` for credentials, connectivity, and effective configuration inspection. In shallow
 mode, `ok` covers every configured provider: if any configured provider is unreachable, the
@@ -1330,7 +1344,7 @@ the hourly limit). Any failing key fails the check with exit 4, and `message` na
 `providers.serpapi.keys[N]`. `--provider gemini_api` calls no model: it lists the models once with
 every key, recorded as the `models` check, and its `keys` entries have only `key_index`, `ok`, and
 `error_kind` for a failing key, with the failing key named as `providers.gemini_api.keys[N]`.
-Neither account check proves that an operation's requests decode; `smoke --live` does. Do not use
+Neither account check proves that an operation's requests decode; `doctor --live` does. Do not use
 doctor as the recovery path for configuration that cannot be loaded.
 
 The shallow report also has a `config` block shaped like `config list`, `permission_warnings`
@@ -1353,53 +1367,81 @@ preflight check, plus its `message` when the check fails. Its `ok` is true when 
 directories are writable, whatever is configured, including no main search; otherwise it exits 4.
 Use it to check configuration, permissions and state directories without a network.
 
-### `smoke`
+#### Live Checks
 
-```console
-forager smoke
-forager smoke --live [--opt-in] [--timeout SECONDS]
-                   [--outage-evidence CASE_ID=EVIDENCE_URL ...]
-forager smoke --live --list
-```
+`doctor --live` runs Live Checks: each one runs a forager command against the real service, held
+to the route it checks whatever the configured orders say, and judges the output against the
+fields forager reads. Its requests are real: they can spend quota, and a check in the `attended`
+tier opens pages of a logged-in site or puts the egress address at risk. Each check has an `id`
+of the form `<provider>:<operation>` or `<provider>:<operation>:<variant>`, and one check of the
+whole search pipeline, `pipeline:search`, belongs to no provider.
 
-| Option | Meaning | Default |
-| --- | --- | --- |
-| `--live` | Run the live acceptance registry instead of offline checks. | Off |
-| `--list` | Print the live case registry without running it. Requires `--live`. | Off |
-| `--opt-in` | Also run a platform case whose route the platform order leaves out, when this machine meets the route's prerequisites. Requires `--live`. | Off |
-| `--timeout SECONDS` | Set the live run deadline. Requires `--live`. | `420` |
-| `--outage-evidence CASE_ID=EVIDENCE_URL` | Attach repeatable provider-outage evidence to a live case. Requires `--live`. | Empty |
+Each check belongs to one Live Tier, the highest of the routes it can reach:
 
-The offline form performs local configuration, registry, credential-presence, and journal
-writability checks without contacting providers. `smoke` emits JSON. Hidden acceptance-harness
-probe flags are internal and are not part of the public CLI.
+| Tier | Meaning |
+| --- | --- |
+| `free` | Needs no credential and carries no account or egress risk. |
+| `metered` | Needs a credential or spends quota, billed or not. |
+| `attended` | Puts an account or the egress address at risk, such as a browser route on a logged-in site; runs only with a person present. |
 
-All live cases share the one `--timeout` deadline. A case runs up to three times, but only once
-when it fails on Auth or an attempt-level Parameter error. A case that did not start is `skipped`
-with a message beginning `not started:`. That prefix has three kinds of source,
-and the rest of the message says which:
+Selection:
 
-- The deadline elapsed before the case began: raise `--timeout` and rerun.
-- An earlier case on the same site met a login wall, a verification page or a block, so the run
-  stopped all access to that site: do not rerun. Another run only triggers the block again; the
-  user logs in with `forager browser login <platform>` and handles the check in the window.
-- An upstream case produced no input for this one, such as a search that found nothing to fetch:
-  look at that upstream case; a larger `--timeout` does not help.
+- Without `--tier`, a run selects `free` and `metered`, never `attended`, unless `--provider` names
+  a provider: then it selects all three tiers of that provider.
+- Selecting the `attended` tier, or naming a provider that has attended checks, is the user's
+  consent to run them; there is no other consent option. `--platform` alone is not consent, so it
+  runs none of the platform's attended checks.
+- `--provider` and `--platform` narrow the selection. A check that reads another check's output,
+  shown as `depends_on` in the listing, also selects that check.
+- A check runs its route even when the platform's order leaves the route out. A check whose route
+  lacks a prerequisite on this machine (the Managed Browser, a logged-in Browser Profile, or keys)
+  does not run: it is `unconfigured`, and its `message` names the missing prerequisite and how to
+  meet it.
+- `--unattended` marks a run that no person watches, such as a scheduled job. Such a run refuses
+  the `attended` tier, whether selected with `--tier` or reached by naming an attended provider,
+  with exit `2` and an `argument_error:` line on stderr before any request, and it leaves out every
+  expensive and manual-only check. A run whose environment sets `CI` to a non-empty value other
+  than `false` behaves as if `--unattended` were given.
 
-None of them is a provider failure of the skipped case itself.
+`--list` prints `{mode: "live_list", checks}` and runs nothing. Each entry has `id`, `provider`
+(absent for the pipeline check), `operation`, `platform` (for a platform operation), `tier`,
+`depends_on` (when it reads another check's output), `time_limit_seconds`, `expensive`,
+`manual_only`, and `selected`, which says whether this selection would run it. An `expensive` check
+spends a notable share of a quota in one run. A `manual_only` check uses a service in a way not
+confirmed to comply with the provider's terms, so only a person starts it.
 
-A platform case runs only when its platform order lists the route and the route has the keys it
-requires. With `--opt-in`, a platform case whose route the order leaves out also runs when the
-route's prerequisites hold: a browser route needs a locatable browser and, if it needs a login, a
-logged-in Browser Profile; an HTTP route that requires keys needs them; an anonymous HTTP route
-always qualifies. The check launches no browser and sends no request. The YouTube model operations
-(ask and transcribe) read the video through the configured order, so `--opt-in` does not change
-them. A case that does not run is `unconfigured`, and its `message` names why: the order does not
-list the route, the browser is not installed, the profile was never logged in, or the keys are
-missing, with the fix. `unconfigured` is not a pass.
+A run prints `{mode: "live", ok, unattended, tiers, summary, checks}`. `tiers` lists the tiers the
+selection used. `summary` counts `passed`, `failed`, `unconfigured`, `not_started`, and
+`unselected`, the declared checks this selection does not run. `checks` has one entry per selected
+check with `id`, `provider`, `operation`, `platform`, `tier`, `status`, `attempts`, and, when they
+apply, `cause`, `error_kind`, and `message`. `status` is one of:
 
-A live run's `ok` is true only when every case passed; the command then exits `0`, and otherwise
-`4`. A configuration that cannot be loaded exits `3`.
+- `passed`: the command succeeded and its output met the check's contract.
+- `failed`: the command failed, with the command's own `error_kind` and `message`, or its output
+  broke the contract, with `error_kind: "contract"` and a `message` naming the rule it broke.
+- `unconfigured`: a prerequisite is missing, as above. It is neither a pass nor a failure.
+- `not_started`: the check did not begin, and `cause` says why:
+  - `deadline`: the run's `--timeout` ended first. This counts as a failure; rerun with a larger
+    `--timeout`.
+  - `site_stop`: an earlier check on the same site met a stop signal, so the run opened no more
+    pages there. On Xiaohongshu the signals are an `auth`, `parameter` or `runtime` failure,
+    which includes a verification page and an answer the route cannot classify, and two timeouts
+    in a row; on Reddit, an `auth` failure and two timeouts in a row. Do not rerun: another run
+    only triggers the block again. The user logs in with `forager browser login <platform>` and
+    handles any check in the window.
+  - `no_input`: the check it depends on did not pass or returned nothing it can read, such as a
+    search that found nothing to fetch. Look at that check; a larger `--timeout` does not help.
+
+Each check runs forager as a separate process with its own time limit, without that command's own
+retries and without writing the Search Result Journal. A check on an HTTP route that fails with
+`network` or `timeout` is run once more; any other failure, and any failure of a browser route's
+check, is final.
+
+A live run exits `0` when at least one check ran and every check that ran passed, so unconfigured
+and unselected checks do not fail it; `ok` is true exactly then. It exits `4` when a check failed
+or the time limit left a check unstarted, `3` when none of the selected checks ran or the
+configuration cannot be loaded, and `2` when an unattended or CI run asks for the `attended` tier.
+`--list` exits `0`, or `2` for that same refusal.
 
 ## Exit codes
 

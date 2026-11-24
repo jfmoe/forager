@@ -5,7 +5,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::mpsc;
-use std::time::Duration;
 
 mod fixture_server;
 mod process;
@@ -26,21 +25,12 @@ pub(crate) mod polymarket;
 pub(crate) mod polymarket_api_samples;
 pub(crate) mod samples;
 pub(crate) mod scholar;
-pub(crate) mod smoke;
 pub(crate) mod ssrn_crossref_samples;
 pub(crate) mod web_samples;
 pub(crate) mod x;
 pub(crate) mod youtube;
 pub(crate) mod youtube_api_samples;
 pub(crate) mod youtube_web;
-
-impl Response {
-    /// Holds the response back for `delay` after the request arrives.
-    pub(crate) fn with_delay(mut self, delay: Duration) -> Self {
-        self.delay = delay;
-        self
-    }
-}
 
 /// A fixture whose one response waits until the test releases it, for a test that acts while
 /// the request is in flight.

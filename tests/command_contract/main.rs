@@ -12,5 +12,4 @@ mod config;
 mod doctor;
 mod environment;
 mod platforms;
-mod smoke;
 mod web;

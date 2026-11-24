@@ -7,7 +7,7 @@ use super::thread::decode_tree;
 use super::{FirebaseItem, HnApi, decode_json, fetch_support, thread_item};
 use crate::config::HnRouteRuntimeConfig;
 use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
-use crate::hn_api_samples::{discussion, search_page, story_hit, story_item, story_list};
+use crate::hn_api_samples::story_list;
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::{failure, to_json};
@@ -19,6 +19,33 @@ use crate::types::{
     PlatformFetchRequest, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
     PlatformSearchRequest, ProviderError,
 };
+
+/// The stored search page holding `hits` as page `page` of `pages`.
+fn search_page(hits: &[Value], page: u64, pages: u64) -> Value {
+    with(
+        sample_json("hn_api/search.json"),
+        &json!({"hits": hits, "nbHits": hits.len(), "page": page, "nbPages": pages, "hitsPerPage": hits.len()}),
+    )
+}
+
+/// The stored hit of the 2007 Dropbox launch story, `hn:8863`.
+fn story_hit() -> Value {
+    sample_json("hn_api/search.json")["hits"][0].clone()
+}
+
+/// The stored Algolia tree of the Dropbox story: three top-level comments in ID order, the
+/// first with replies listed out of order.
+fn discussion() -> Value {
+    sample_json("hn_api/item-tree.json")
+}
+
+/// The stored Firebase item of the Dropbox story, with `kids` as its ranked replies.
+fn story_item(kids: &[u64]) -> Value {
+    with(
+        sample_json("hn_api/firebase-item.json"),
+        &json!({"kids": kids}),
+    )
+}
 
 /// The stored hit of a comment on the Dropbox story, `hn:8952`.
 fn comment_hit() -> Value {

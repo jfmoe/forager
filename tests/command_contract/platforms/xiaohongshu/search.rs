@@ -1,8 +1,8 @@
 //! The `xiaohongshu_browser` search against a shell stand-in for the browser: the preflight
 //! before the route chain, the enabling steps, and how one search launches the browser. The
 //! stand-in speaks no CDP, so no test here reaches a page: the judgement of what the page logic
-//! observes is unit-tested with the route, and the page logic itself only the live smoke C27
-//! runs.
+//! observes is unit-tested with the route, and the page logic itself only the Live Check
+//! `xiaohongshu_browser:search` runs.
 #![cfg(unix)]
 
 use std::fs;

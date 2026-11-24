@@ -29,7 +29,7 @@ makes `openai` primary.
   it was called in 13 searches, and all 39 of its attempts failed with the upstream's "service
   temporarily unavailable". It was configured with the same endpoint and model as `xai`, so it
   failed whenever `xai` did, while its machinery reached across providers, chain, configuration,
-  doctor, smoke and setup, with about 900 lines in the provider alone.
+  doctor, the live tests and setup, with about 900 lines in the provider alone.
 - That data showed only that a fallback in the same failure domain is worthless, not that an
   independent one is; this is why the seam was kept for a later candidate.
 - `openai` is independent: its upstream model provider is OpenAI rather than xAI, through a

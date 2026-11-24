@@ -74,8 +74,9 @@ const SAMPLES: &[(&str, &str, &str, &str)] = &[
 ];
 
 /// Options of browser routes: they become clicks and navigation in Page Logic, which no
-/// ordinary test can drive, so only the live smoke proves them.
-const LIVE_SMOKE_ONLY: &[(&str, &str, &str)] = &[
+/// offline test can drive, so only a run on the site, such as an attended Live Check, proves
+/// them.
+const LIVE_CHECK_ONLY: &[(&str, &str, &str)] = &[
     ("xiaohongshu", "search", "--sort"),
     ("xiaohongshu", "search", "--note-type"),
     ("xiaohongshu", "search", "--publish-time"),
@@ -176,7 +177,7 @@ fn every_route_option_has_a_sample_value() {
     let known = SAMPLES
         .iter()
         .map(|(platform, operation, option, _)| (*platform, *operation, *option))
-        .chain(LIVE_SMOKE_ONLY.iter().copied())
+        .chain(LIVE_CHECK_ONLY.iter().copied())
         .map(|(platform, operation, option)| format!("{platform} {operation} {option}"))
         .collect::<BTreeSet<_>>();
     let missing = listed_options()
@@ -191,7 +192,7 @@ fn every_route_option_has_a_sample_value() {
 
     assert!(
         missing.is_empty(),
-        "add a non-default value for each of these options to SAMPLES, or to LIVE_SMOKE_ONLY when only a browser route reads it: {missing:#?}"
+        "add a non-default value for each of these options to SAMPLES, or to LIVE_CHECK_ONLY when only a browser route reads it: {missing:#?}"
     );
 }
 

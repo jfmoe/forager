@@ -30,12 +30,3 @@ pub(crate) fn player(origin: &str) -> Response {
         &sample("youtube_web/player.json").replace(STORED_ORIGIN, origin),
     )
 }
-
-/// The stored srv1 caption track.
-pub(crate) fn srv1() -> Response {
-    Response::new(
-        200,
-        "text/xml; charset=UTF-8",
-        &sample("youtube_web/srv1.xml"),
-    )
-}

@@ -72,7 +72,8 @@ Measured and read on 2026-10-17:
   is maintained against youtube-transcript-api's fixes; datacenter IPs are often blocked on the
   first request, so it does not suit CI. Frequent breakage would reopen yt-dlp.
 - The search quota becomes the bottleneck. Day to day, 100 searches a day limit `youtube_api`, and
-  deep doctor and live smoke each spend one; fetch, comments and each page of videos cost one unit.
+  its search Live Check spends one, which is why that check is expensive; fetch, comments and each
+  page of videos cost one unit.
 - Whether using subscription quota through a third-party Gemini-compatible gateway complies with
   Google's terms is checked. It has not been, so `gemini_api` points at the official API by
   default.

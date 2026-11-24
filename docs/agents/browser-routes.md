@@ -9,9 +9,9 @@ A browser route (`xiaohongshu_browser`, `reddit_browser`) goes through forager's
 | Unit tests of the judgements (`*_tests.rs`) | The full test suite | The rules from an observed page to classification, checks, decoding and output |
 | Binary tests against a stand-in browser | The full test suite | Launch arguments, the preflight check, setup hints, the deadline and process cleanup; the stand-in does not speak CDP |
 | Real-browser tests (`browser_real_tests.rs`, the login wait in `ops/browser_setup.rs`, and the projections in `reddit_browser_search_tests.rs` and `reddit_browser_post_tests.rs`) | Ignored by default; see below | Native input, the single hittable target, wheel loading, request capture, the profile on disk, the browser exiting when forager is killed, and the values the Reddit projection scripts read on a page; they open only local pages |
-| The platform's live smoke cases | `forager smoke --live` | Page driving and the success path on the real site; the only layer that notices a site redesign |
+| The route's Live Checks, in the `attended` tier | `forager doctor --live --provider <route>`, with the user present | Page driving and the success path on the real site; the only layer that notices a site redesign |
 
-A change to page driving (navigation, input, waiting, the capture filter) is proven only by live smoke; a change to a judgement is proven by the unit tests.
+A change to page driving (navigation, input, waiting, the capture filter) is proven only by the route's Live Checks; a change to a judgement is proven by the unit tests.
 
 ## Real-browser tests
 
@@ -27,19 +27,19 @@ cargo nextest run --locked --profile real-browser --run-ignored only
 
 ## Before a live test
 
-Run a command that opens site pages (a platform command, `doctor --provider <route>`, `smoke --live`) only when all of the following hold. Below, `<platform>` is `xiaohongshu` or `reddit`.
+Run a command that opens site pages (a platform command on a browser route, or `doctor --live` with the `attended` tier selected or a browser route named) only when all of the following hold. Below, `<platform>` is `xiaohongshu` or `reddit`.
 
 - The Managed Browser is installed: `forager browser install` exits 0.
 - The user has logged in in person: the user runs `forager browser login <platform>` and logs in in the window it opens (a QR scan for Xiaohongshu, an account login for Reddit). Only after that command exits 0 does the Browser Profile carry a login marker. On Reddit the risk falls on the logged-in account, so the user chooses which account.
-- `platforms.<platform>.order` contains the route. Enabling a route is the user's decision; do not edit the configuration file unless the user asks. To verify, enable it for one command through an environment variable, such as `FORAGER_PLATFORMS__REDDIT__ORDER='["reddit_browser"]'`. `smoke --live --opt-in` (the live step of a release) does not need this condition: with the browser installed and a login marker in the Browser Profile, it runs that platform's cases too, and the user's login is the consent.
-- `forager doctor` shows the route as `reachable: true`. Shallow doctor runs only the preflight check, without starting the browser or visiting the site; when it fails, its `message` gives the fix.
+- For a platform command: `platforms.<platform>.order` contains the route. Enabling a route is the user's decision; do not edit the configuration file unless the user asks. To verify, enable it for one command through an environment variable, such as `FORAGER_PLATFORMS__REDDIT__ORDER='["reddit_browser"]'`. Then `forager doctor` shows the route as `reachable: true`. Shallow doctor runs only the preflight check, without starting the browser or visiting the site; when it fails, its `message` gives the fix.
+- For `doctor --live`: the user has agreed to this run. A browser route's checks are in the `attended` tier, and selecting that tier (`--tier attended`) or naming the route (`--provider <route>`) is the user's consent to open the site's pages with their account, so make that selection only when the user asks for it or agrees to it in person. Selecting the platform alone (`--platform <platform>`) runs none of its attended checks. The order condition does not apply, because each check holds itself to its route; a check whose browser is not installed or whose Browser Profile was never logged in is `unconfigured`, opens nothing, and names the fix in its `message`.
 
 To verify an unreleased change, run `./target/debug/forager`; the installed `forager` is the last release.
 
 ## Pacing and budget
 
 - A route paces itself (one browser command at a time across processes) and does not retry. Do not start several commands in parallel to get around the pacing.
-- **Page-open budget.** Every live platform command, deep doctor and smoke case opens real pages. Open at most about 10 on one site per investigation, and ask the user before going over. Questions that need repeated samples, such as how often a failure occurs, are bound by the same budget.
+- **Page-open budget.** Every live platform command on a browser route opens real pages, and so does every attended Live Check of that route: a `doctor --live` run that selects the `attended` tier or names the route runs all of the route's checks, each opening its own pages, and `doctor --live --list` shows which ones it would run. Open at most about 10 on one site per investigation, and ask the user before going over. Questions that need repeated samples, such as how often a failure occurs, are bound by the same budget.
 - **Save every open.** Write the full stdout and stderr of each live command to a file and analyse from the file; do not run the command again to look at another field.
 - **Take Reddit post IDs only from search results**, never from memory. A misremembered ID once opened a post in an NSFW subreddit, and it stays in the account's browsing history. Do not open NSFW content.
 
@@ -54,6 +54,8 @@ On Xiaohongshu, stop every live command and loop on the site at once when any of
 - two `timeout` results in a row.
 
 On Reddit, stop at once on `auth` (the verification page `Prove your humanity`, a document 403 or 429, or a logged-out page) and on two `timeout` results in a row.
+
+`doctor --live` applies these rules to its own checks: after a stop signal, it starts none of the site's remaining checks and reports them as `not_started` with the cause `site_stop`. Do not rerun them; stop the session as for any other live command.
 
 After stopping, finish what can be done offline, then report the errors seen and how many times to the user. The user runs `forager browser login <platform>` and handles the login or verification in the window. A block does not lift quickly by waiting, and a run after a cool-down only triggers it again.
 

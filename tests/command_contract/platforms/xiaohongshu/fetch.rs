@@ -1,7 +1,7 @@
 //! The `xiaohongshu_browser` fetch against a shell stand-in for the browser: the access token
 //! rules of the input and the browser launch. The stand-in speaks no CDP, so no test here
 //! reaches a page: the note judgement and the full text are unit-tested with the route, and the
-//! page logic itself only the live smoke C28 runs.
+//! page logic itself only the Live Check `xiaohongshu_browser:fetch` runs.
 #![cfg(unix)]
 
 use std::process::Output;

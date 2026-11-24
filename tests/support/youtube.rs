@@ -15,45 +15,6 @@ pub(crate) fn config(url: &str) -> String {
     )
 }
 
-/// The stored first search result as the video `video_id` titled `title` with `description`.
-pub(crate) fn search_result(video_id: &str, title: &str, description: &str) -> Value {
-    let mut result = sample_json("youtube_api/search.json")["items"][0].clone();
-    result["etag"] = json!(format!("etag-{video_id}"));
-    result["id"]["videoId"] = json!(video_id);
-    let snippet = &mut result["snippet"];
-    snippet["title"] = json!(title);
-    snippet["description"] = json!(description);
-    snippet["thumbnails"]["default"]["url"] =
-        json!(format!("https://i.ytimg.com/vi/{video_id}/default.jpg"));
-    result
-}
-
-/// The stored details of a commented video as those of `video_id`, lasting `duration`, with
-/// `views` and, when given, `comments`.
-pub(crate) fn video_stats(
-    video_id: &str,
-    duration: &str,
-    views: &str,
-    comments: Option<&str>,
-) -> Value {
-    let mut video = sample_json("youtube_api/video-details.json")["items"][1].clone();
-    video["etag"] = json!(format!("etag-{video_id}"));
-    video["id"] = json!(video_id);
-    video["contentDetails"]["duration"] = json!(duration);
-    let statistics = &mut video["statistics"];
-    statistics["viewCount"] = json!(views);
-    match comments {
-        Some(comments) => statistics["commentCount"] = json!(comments),
-        None => {
-            statistics
-                .as_object_mut()
-                .expect("statistics")
-                .remove("commentCount");
-        }
-    }
-    video
-}
-
 /// The stored first top-level comment as comment `id` by `author` saying `text`, with `likes`;
 /// the author's channel ID is `UC` and the author name padded with `_` to 22 characters.
 pub(crate) fn comment(id: &str, author: &str, text: &str, likes: u64) -> Value {

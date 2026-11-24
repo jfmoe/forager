@@ -126,8 +126,9 @@ _Avoid_: throttle, retry backoff, provider quota
 
 **Capability Catalog**:
 The single source of the legal providers of each Capability Seam. Default configuration order,
-order validation, provider construction, doctor probes and smoke cases all derive from it; there
-is no second, parallel list of which provider belongs to which seam.
+order validation and provider construction derive from it, and each provider's registration in it
+declares the provider's Live Checks and its per-key account check, if it has one; there is no
+second, parallel list of which provider belongs to which seam.
 _Avoid_: provider registry, BACKENDS allowlist, per-call-site provider list
 
 **Provider HTTP Read Contract**:
@@ -156,8 +157,8 @@ How a Platform Route reaches its source, declared in the provider's registration
 with `url`, plus `keys` when the route needs credentials), or forager's browser transport. A route
 on the browser transport is a browser route; its only setting is `timeout`, and its registration
 also declares the browser language. It uses the Browser Profile of the platform it serves, which
-needs a login. A browser route runs only when the user adds it to the platform's order
-(ADR-0020).
+needs a login. A browser route runs only when the user adds it to the platform's order, or, for
+its Live Checks, when the user selects the `attended` Live Tier or names the route (ADR-0020).
 _Avoid_: route kind, backend type, process route
 
 **Page Logic**:
@@ -361,3 +362,22 @@ _Avoid_: response type, endpoint
 A test that spawns the real forager binary to prove what only the binary seen from outside can
 show. A rule that a test in the crate or a binary unit test can observe is not a command contract.
 _Avoid_: end-to-end test, integration test, offline end-to-end test
+
+**Live Check**:
+One check of a provider against its real service: it runs one forager command, held to the routes
+the check names whatever the user's orders say, and judges the output against a contract of the
+fields forager reads. Each check is declared with the registration of the provider it proves; only
+the check of the whole search pipeline belongs to no provider. Live Checks run only through
+`forager doctor --live`, never in an offline test. A check whose prerequisites this machine lacks
+is unconfigured, which is neither a pass nor a failure. A per-key account check, which asks only
+whether a key is valid and spends nothing, is not a Live Check, and a Live Check is a canary, not
+use: it writes no Search Result Journal record.
+_Avoid_: live case, provider probe, end-to-end test
+
+**Live Tier**:
+What one run of a Live Check puts at stake, and so who may start it: `free` needs no credential and
+carries no account or egress risk; `metered` needs a credential or spends quota, billed or not;
+`attended` puts an account or the egress address at risk and runs only with a person present. A
+check's tier is the highest of the routes it can reach (ADR-0039). A tier is not a priority, and
+the expensive and manual-only flags sit beside it, not inside it.
+_Avoid_: level, risk class, opt-in flag

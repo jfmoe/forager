@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::catalog::{self, ProviderId};
+use crate::catalog::{self, LiveTier, ProviderId};
 use crate::providers::SearchType;
-use crate::types::{CapabilitySet, FallbackPolicy};
+use crate::types::{CapabilitySet, FallbackPolicy, Platform};
 
 /// Parsed `forager` command-line arguments.
 #[derive(Debug, Parser)]
@@ -127,33 +127,38 @@ pub(super) enum Command {
         lang: Option<Language>,
     },
     Doctor {
+        /// The provider to check alone, or, with `--live`, whose Live Checks to run.
         #[arg(long, value_parser = parse_provider)]
         provider: Option<ProviderId>,
         /// Run only the checks that send no request.
-        #[arg(long, conflicts_with_all = ["provider", "timeout"])]
+        #[arg(long, conflicts_with_all = ["provider", "timeout", "live"])]
         offline: bool,
-        #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: u64,
-        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-        format: OutputFormat,
-    },
-    Smoke {
+        /// Run the Live Checks against the real services.
         #[arg(long)]
         live: bool,
+        /// The Live Tiers to run; without it, `free` and `metered`.
+        #[arg(long, requires = "live", value_delimiter = ',', num_args = 1.., value_parser = parse_tier)]
+        tier: Vec<LiveTier>,
+        /// Run only the Live Checks of this platform's operations.
+        #[arg(long, requires = "live", value_parser = parse_platform)]
+        platform: Option<Platform>,
+        /// List the Live Checks and whether the selection runs them, without running any.
         #[arg(long, requires = "live")]
         list: bool,
-        #[arg(long, requires = "live", default_value_t = 420, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: u64,
-        #[arg(long, requires = "live", value_name = "CASE_ID=EVIDENCE_URL")]
-        outage_evidence: Vec<String>,
+        /// Mark the run as unattended: refuse the attended tier and leave out expensive and
+        /// manual-only checks.
         #[arg(long, requires = "live")]
-        opt_in: bool,
-        #[arg(long, hide = true, conflicts_with = "live", value_parser = ["C05", "C06", "OUTAGE"])]
-        probe: Option<String>,
-        #[arg(long, hide = true, requires = "probe", default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
-        probe_timeout: u64,
-        #[arg(long, hide = true, requires = "probe")]
-        probe_url: Option<String>,
+        unattended: bool,
+        /// Seconds the checks may take; 30 by default, 420 for the whole live run.
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        /// Runs one supplemental web search provider alone, for its Live Check.
+        #[arg(long, hide = true, value_parser = parse_provider, requires = "query", conflicts_with_all = ["live", "offline", "provider"])]
+        supplemental_web_search: Option<ProviderId>,
+        #[arg(long, hide = true, requires = "supplemental_web_search")]
+        query: Option<String>,
     },
 }
 
@@ -294,6 +299,27 @@ pub enum ContentOutputFormat {
     Json,
     Markdown,
     Content,
+}
+
+fn parse_tier(value: &str) -> Result<LiveTier, String> {
+    LiveTier::parse(value).ok_or_else(|| {
+        format!(
+            "invalid tier `{value}`; expected one of: {}",
+            LiveTier::ALL.map(LiveTier::as_str).join(", ")
+        )
+    })
+}
+
+fn parse_platform(value: &str) -> Result<Platform, String> {
+    Platform::ALL
+        .into_iter()
+        .find(|platform| platform.as_str() == value)
+        .ok_or_else(|| {
+            format!(
+                "invalid platform `{value}`; expected one of: {}",
+                Platform::ALL.map(Platform::as_str).join(", ")
+            )
+        })
 }
 
 fn parse_provider(value: &str) -> Result<ProviderId, String> {
@@ -602,7 +628,10 @@ mod search_tests {
 /// The `doctor` command's argument rules, proven by parsing its definition in process.
 #[cfg(test)]
 mod doctor_tests {
-    use super::parse;
+    use clap::CommandFactory;
+
+    use super::{Cli, Command, parse};
+    use crate::catalog::LiveTier;
 
     #[test]
     fn the_offline_mode_refuses_a_provider_and_a_timeout_naming_the_option() {
@@ -616,5 +645,86 @@ mod doctor_tests {
                 "{option:?}: {error}"
             );
         }
+    }
+
+    #[test]
+    fn the_live_selection_options_require_the_live_mode_naming_it() {
+        for option in [
+            &["--tier", "free"][..],
+            &["--platform", "hn"],
+            &["--list"],
+            &["--unattended"],
+        ] {
+            let arguments = [&["doctor"][..], option].concat();
+            let error = parse(&arguments).expect_err("the parser refuses the option alone");
+
+            assert_eq!(
+                (error.exit_code(), error.to_string().contains("--live")),
+                (2, true),
+                "{option:?}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_live_mode_refuses_the_offline_mode() {
+        let error = parse(&["doctor", "--live", "--offline"])
+            .expect_err("the parser refuses the combination");
+
+        assert_eq!(
+            (error.exit_code(), error.to_string().contains("--offline")),
+            (2, true),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_tier_is_refused_naming_the_accepted_tiers() {
+        let error = parse(&["doctor", "--live", "--tier", "cheap"])
+            .expect_err("the parser refuses the tier");
+
+        assert_eq!(
+            (
+                error.exit_code(),
+                error
+                    .to_string()
+                    .contains("expected one of: free, metered, attended")
+            ),
+            (2, true),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn tiers_parse_from_a_comma_separated_list_or_a_repeated_option() {
+        let tiers = [
+            &["doctor", "--live", "--tier", "free,metered"][..],
+            &["doctor", "--live", "--tier", "free", "--tier", "metered"],
+        ]
+        .map(|arguments| match parse(arguments) {
+            Ok(Command::Doctor { tier, .. }) => tier,
+            other => panic!("{arguments:?} parse as doctor: {other:?}"),
+        });
+
+        assert_eq!(
+            tiers,
+            [[LiveTier::Free, LiveTier::Metered]; 2].map(Vec::from)
+        );
+    }
+
+    #[test]
+    fn the_supplemental_web_search_entry_stays_out_of_the_doctor_help() {
+        let mut cli = Cli::command();
+        let help = cli
+            .find_subcommand_mut("doctor")
+            .expect("doctor command")
+            .render_long_help()
+            .to_string();
+
+        assert_eq!(
+            (help.contains("--live"), help.contains("supplemental")),
+            (true, false),
+            "{help}"
+        );
     }
 }

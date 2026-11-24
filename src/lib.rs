@@ -41,6 +41,8 @@ mod gemini_api_samples;
 mod hn_api_samples;
 #[path = "evidence/journal.rs"]
 mod journal;
+#[path = "ops/live.rs"]
+mod live;
 #[cfg(test)]
 #[path = "../tests/support/main_search_samples.rs"]
 mod main_search_samples;
@@ -77,8 +79,6 @@ mod samples;
 mod search_fanout;
 #[path = "infra/secure_fs.rs"]
 mod secure_fs;
-#[path = "ops/smoke.rs"]
-mod smoke;
 #[cfg(test)]
 #[path = "../tests/support/ssrn_crossref_samples.rs"]
 mod ssrn_crossref_samples;
@@ -87,7 +87,7 @@ mod state_file;
 #[path = "infra/types/mod.rs"]
 pub mod types;
 #[cfg(test)]
-#[path = "../tests/support/web_samples.rs"]
+#[path = "capabilities/web_samples.rs"]
 mod web_samples;
 #[cfg(test)]
 #[path = "../tests/support/youtube_api_samples.rs"]
