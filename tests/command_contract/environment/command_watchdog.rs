@@ -6,12 +6,12 @@ use std::env;
 use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::support::{
-    COMMAND_DEADLINE, command_behind_closed_proxy, spawn_command, wait_for_child,
+    command_behind_closed_proxy, command_deadline, process_exists, spawn_command, wait_for_child,
 };
 
 const HELPER_MODE: &str = "FORAGER_WATCHDOG_HELPER";
@@ -71,7 +71,7 @@ fn watchdog_helper_waits_forever() {
 
 /// The helper's process ID, once it has started.
 fn wait_for_pid(pid_file: &std::path::Path) -> String {
-    let deadline = Instant::now() + COMMAND_DEADLINE;
+    let deadline = Instant::now() + command_deadline();
     loop {
         if let Ok(pid) = fs::read_to_string(pid_file) {
             return pid;
@@ -79,13 +79,6 @@ fn wait_for_pid(pid_file: &std::path::Path) -> String {
         assert!(Instant::now() < deadline, "the helper did not start");
         thread::sleep(Duration::from_millis(5));
     }
-}
-
-fn process_exists(pid: &str) -> bool {
-    Command::new("/bin/kill")
-        .args(["-0", pid])
-        .output()
-        .is_ok_and(|output| output.status.success())
 }
 
 /// The helper's name as the test harness lists it: its module path inside the binary.

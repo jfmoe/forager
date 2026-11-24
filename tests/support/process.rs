@@ -2,14 +2,69 @@
 //! cannot leave the machine and waits for it under a deadline. The release tests use it alone;
 //! the command contract tests reach it through the rest of the environment.
 
+use std::env;
 use std::ffi::OsStr;
 use std::io::{self, Read, Write};
 use std::process::{Child, ChildStdin, Command, ExitStatus, Output, Stdio};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// How long a test waits for a command it started before failing with what the command printed.
-pub(crate) const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
+/// The runner configuration, which sets the time limit of each test.
+const RUNNER_CONFIG: &str = include_str!("../../.config/nextest.toml");
+
+/// How long a test may still wait for a command it started before failing with what the command
+/// printed: what is left of three quarters of the time limit the runner applies to the running
+/// test, counted from the test's first wait, so a command that hangs is reported with its output
+/// before the runner would terminate the test, however many commands ran before it. Outside the
+/// runner, which sets no limit, the limit is that of the exemption list's entries.
+pub(crate) fn command_deadline() -> Duration {
+    const UNLIMITED: Duration = Duration::from_mins(1);
+    static BUDGET_ENDS: OnceLock<Instant> = OnceLock::new();
+    let ends =
+        BUDGET_ENDS.get_or_init(|| Instant::now() + runner_limit().unwrap_or(UNLIMITED) * 3 / 4);
+    ends.saturating_duration_since(Instant::now())
+}
+
+/// The time limit of the running test under its profile: that of the first override whose
+/// filter names the test or its binary, from the profile's own overrides before the default
+/// profile's, and otherwise the profile's own limit or the default profile's.
+fn runner_limit() -> Option<Duration> {
+    let profile = env::var("NEXTEST_PROFILE").ok()?;
+    let binary = env::var("NEXTEST_BINARY_ID").ok()?;
+    let test = env::var("NEXTEST_TEST_NAME").ok()?;
+    let config: toml::Table = RUNNER_CONFIG
+        .parse()
+        .expect("parse the runner configuration");
+    let profiles = [profile.as_str(), "default"]
+        .iter()
+        .filter_map(|name| config.get("profile")?.get(*name))
+        .collect::<Vec<_>>();
+    let names_this_test = |filter: &str| {
+        filter.contains(&format!("test(={test})")) || filter == format!("binary_id({binary})")
+    };
+    let overridden = profiles.iter().find_map(|profile| {
+        profile
+            .get("overrides")?
+            .as_array()?
+            .iter()
+            .find(|entry| entry["filter"].as_str().is_some_and(&names_this_test))
+    });
+    let timeout = match overridden {
+        Some(entry) => &entry["slow-timeout"],
+        None => profiles
+            .iter()
+            .find_map(|profile| profile.get("slow-timeout"))?,
+    };
+    let period = timeout["period"]
+        .as_str()?
+        .strip_suffix('s')?
+        .parse::<u64>()
+        .ok()?;
+    let terminate_after = u32::try_from(timeout["terminate-after"].as_integer()?).ok()?;
+    Some(Duration::from_secs(period) * terminate_after)
+}
+
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(5);
 
 /// The proxy every spawned binary uses: a closed port, so a request that reaches past the
@@ -43,7 +98,7 @@ pub(crate) fn proxy_through(command: &mut Command, proxy: &str) {
 }
 
 pub(crate) fn run_command(command: &mut Command, stdin: Option<&[u8]>) -> Output {
-    run_command_with_deadline(command, stdin, COMMAND_DEADLINE)
+    run_command_with_deadline(command, stdin, command_deadline())
 }
 
 pub(crate) fn run_command_with_deadline(
@@ -125,7 +180,9 @@ pub(crate) fn wait_for_child(
             let status = child.child.wait().expect("reap timed out test command");
             let output = child.finish(status);
             panic!(
-                "test command exceeded {deadline:?}: {command_label}\nstatus: {}\nstdout: {}\nstderr: {}",
+                "test command exceeded {deadline:?}: {command_label}\nstatus: {}\nstdout: {}\nstderr: {}\n\
+                 A test that must wait on production pacing or a whole-second timeout belongs on the \
+                 exemption list in .config/nextest.toml.",
                 output.status,
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr),

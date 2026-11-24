@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::thread;
 
 use clap::CommandFactory;
 use forager::app::Cli;
@@ -196,25 +197,44 @@ fn every_route_option_has_a_sample_value() {
 
 #[test]
 fn a_route_does_not_silently_ignore_an_explicitly_passed_option() {
-    let mut ignored = Vec::new();
-    for (platform, operation, option, value) in SAMPLES {
-        let base = baseline(platform, operation);
-        let (_, base_sent) = requests(&base);
-        assert!(!base_sent.is_empty(), "{base:?} sends no request");
-        let mut with_option = base.clone();
-        with_option.push((*option).to_owned());
-        if !value.is_empty() {
-            with_option.push((*value).to_owned());
-        }
-        let (status, sent) = requests(&with_option);
-        let refused = status == Some(2) && sent.is_empty();
-        if !refused && sent == base_sent {
-            ignored.push((*platform, *operation, *option));
-        }
-    }
+    // Each sample runs its own commands in its own environment; running the samples on a few
+    // threads keeps the test's many processes within its time limit.
+    let workers = thread::available_parallelism().map_or(4, |count| count.get().min(8));
+    let ignored = thread::scope(|scope| {
+        SAMPLES
+            .chunks(SAMPLES.len().div_ceil(workers))
+            .map(|samples| {
+                scope.spawn(move || {
+                    samples
+                        .iter()
+                        .filter(|sample| is_ignored(sample))
+                        .map(|(platform, operation, option, _)| (*platform, *operation, *option))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .flat_map(|worker| worker.join().expect("run the samples"))
+            .collect::<Vec<_>>()
+    });
 
     assert!(
         ignored.is_empty(),
         "these options neither change the request nor stop the command before it sends; make the route use them or refuse them in its support check: {ignored:#?}"
     );
+}
+
+/// Whether passing the sample's option leaves the request as it is without refusing the command.
+fn is_ignored((platform, operation, option, value): &(&str, &str, &str, &str)) -> bool {
+    let base = baseline(platform, operation);
+    let (_, base_sent) = requests(&base);
+    assert!(!base_sent.is_empty(), "{base:?} sends no request");
+    let mut with_option = base;
+    with_option.push((*option).to_owned());
+    if !value.is_empty() {
+        with_option.push((*value).to_owned());
+    }
+    let (status, sent) = requests(&with_option);
+    let refused = status == Some(2) && sent.is_empty();
+    !refused && sent == base_sent
 }

@@ -4,7 +4,7 @@
 #![cfg(unix)]
 
 use std::fs;
-use std::process::{Command, Output};
+use std::process::Output;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -12,17 +12,10 @@ use fs2::FileExt;
 use serde_json::json;
 
 use crate::support::browser::StandIn;
-use crate::support::{COMMAND_DEADLINE, RunEnvironment, payload};
+use crate::support::{RunEnvironment, command_deadline, payload, process_exists};
 
 fn login(environment: &RunEnvironment) -> Output {
     environment.run(&["browser", "login", "xiaohongshu", "--timeout", "10"])
-}
-
-fn process_exists(pid: &str) -> bool {
-    Command::new("/bin/kill")
-        .args(["-0", pid.trim()])
-        .output()
-        .is_ok_and(|output| output.status.success())
 }
 
 #[test]
@@ -130,7 +123,7 @@ fn a_browser_that_never_answers_is_killed_with_its_process_group_at_the_working_
         .map(|name| fs::read_to_string(stand_in.path(name)).expect("recorded pid"));
     // The group is killed before the command ends, but the sleeping child, now an orphan, is
     // reaped by the system a moment later.
-    let deadline = Instant::now() + COMMAND_DEADLINE;
+    let deadline = Instant::now() + command_deadline();
     while pids.iter().any(|pid| process_exists(pid)) && Instant::now() < deadline {
         thread::sleep(Duration::from_millis(50));
     }

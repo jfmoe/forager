@@ -30,7 +30,9 @@ No in-crate test waits on real time, because a suite that sleeps grows slower wi
 - A test may combine the paused clock with a real loopback socket only when it waits for the request to arrive before it advances the clock. Otherwise the paused clock jumps ahead while the response is in flight and the outcome depends on scheduling.
 - No in-crate test waits out a deadline either. On the paused clock any deadline works; on the real clock the test makes the deadline decide at once, as a window that cannot fit it does, or sets it far longer than the test runs.
 - The spawned binary keeps production pacing, so a command contract test pays one interval for every paced request after the first. Pick the operation that makes the fewest paced requests.
-- A command contract test may wait on pacing only when it is on the exemption list in the runner configuration, whose entry says in one sentence why no operation without a wait proves its rule. A new entry needs such a reason; otherwise the rule moves into the crate or to an operation that does not wait.
+- A command contract test may wait on pacing, or on a deadline that the CLI takes in whole seconds, only when it is on the exemption list in the runner configuration, whose entry says in one sentence why no operation without a wait proves its rule. A new entry needs such a reason; otherwise the rule moves into the crate or to an operation that does not wait. The list is kept short, because each entry is time every run pays.
+- The runner terminates any other test that runs past its limit and names it in the summary, so a slow test is caught when it is written. The CI profile's limit is higher, because CI runners have far fewer cores.
+- The shared test environment's own deadlines stay under the limit that applies to the test, so a test that waits for something that never comes fails with its own diagnosis instead of a termination: the commands a test starts are killed once they use up a share of that limit, which the exemption list raises for the tests it names, and a fixture still missing a request when the test finishes it fails naming how many requests arrived. A test that waits without being on the list therefore fails at the command deadline, with the command's output.
 
 ## Selecting a subset
 
@@ -46,6 +48,16 @@ cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/)'
 - **A platform:** its ID, plus each of its routes that serves nothing else. Google Scholar is `scholar|serpapi`. X is `x` alone: the `xai` route also backs main search, and listing it would select main-search tests.
 
 The routes of each platform are in the platform catalog and in the product skill. Words match whole, so the X filter never selects `xai`, and `hn` never selects a module that merely starts with the letters.
+
+## Local and CI runs
+
+The local default run runs every test the CI run does except the release artifact gate, which packages a release and takes longer than any one test may; apart from that the two profiles differ only in how long a test may take. The default run's summary counts the gate's tests among the skipped ones, beside the ignored real-browser tests. After a change to the release scripts, run the gate through the CI profile, because under the default profile naming its target selects no tests:
+
+```sh
+cargo nextest run --profile ci --locked --test release_artifact_gate
+```
+
+No profile retries a failed test, so a red run always means something; a test that fails only sometimes is fixed, not retried.
 
 ## Upstream samples
 

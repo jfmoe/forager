@@ -9,13 +9,18 @@ final-status-level = "fail"
 failure-output = "immediate"
 success-output = "never"
 fail-fast = false
-# Above the command deadline the shared test environment gives a spawned binary, so that
-# deadline fires first and the test reports what it expected and what it received.
-slow-timeout = { period = "30s", terminate-after = 2 }
+# The release artifact gate packages a release and runs only in the CI profile; the summary counts
+# its tests among the skipped ones.
+default-filter = "not (binary_id(forager::release_artifact_gate) & test(/^/))"
+# A test that runs longer is terminated and named. The shared test environment's deadlines stay
+# under this limit, so a test that waits for something that never comes fails with its own
+# diagnosis first.
+slow-timeout = { period = "1s", terminate-after = 2 }
 
-# The exemption list: command contract tests allowed to wait on production pacing, because no
-# operation without a wait proves their rule. Each entry keeps this generous limit when the
-# profile's own limit tightens; docs/agents/testing.md says when a test may join.
+# The exemption list: tests allowed to wait on production pacing or on a whole-second deadline,
+# because no operation without a wait proves their rule. Each entry keeps a generous limit, and
+# the shared test environment gives the tests it names a command deadline under that limit;
+# docs/agents/testing.md says when a test may join.
 
 # Writing fetched content to a directory needs an arXiv full text, which is the metadata request
 # and the HTML probe, two paced requests.
@@ -46,9 +51,44 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = "binary_id(forager::command_contract) & (test(=platforms::xiaohongshu::search::a_browser_that_never_answers_is_one_timed_out_attempt) | test(=platforms::reddit::search::a_browser_that_never_answers_is_one_timed_out_attempt))"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
+# The browser transport kills a hung browser's process group only at the working deadline, which
+# the whole-second `--timeout` leaves at whole seconds after the cleanup reserve.
+[[profile.default.overrides]]
+filter = "binary_id(forager::command_contract) & test(=browser::a_browser_that_never_answers_is_killed_with_its_process_group_at_the_working_deadline)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# Offline smoke and doctor tests above the limit, which wait on pacing or whole-second deadlines;
+# handled by spec 5 (#318), which removes smoke and replaces doctor's probes.
+[[profile.default.overrides]]
+filter = """
+binary_id(forager::command_contract) & (
+  test(=smoke::live_smoke_enforces_one_hard_deadline_and_reports_the_cases_it_left_no_time_for)
+  | test(=smoke::live_smoke_runs_the_platform_cases_through_their_configured_route)
+  | test(=smoke::opt_in::opt_in_keeps_the_configured_order_for_a_model_operation)
+  | test(=smoke::opt_in::opt_in_names_a_browser_profile_never_logged_in_without_launching_the_browser)
+  | test(=smoke::opt_in::opt_in_names_a_missing_managed_browser)
+  | test(=smoke::opt_in::opt_in_names_the_keys_a_left_out_route_misses)
+  | test(=smoke::opt_in::opt_in_runs_a_platform_case_whose_route_the_order_leaves_out)
+  | test(=smoke::polymarket::live_smoke_reads_the_canary_without_the_clob_the_found_event_with_it_and_the_canary_history)
+  | test(=smoke::polymarket::the_live_quote_case_does_not_start_without_an_event_from_the_search_case)
+  | test(=smoke::youtube::live_smoke_reads_the_youtube_transcript_only_while_the_order_enables_youtube_web)
+  | test(=smoke::youtube::live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key)
+  | test(=smoke::youtube::live_smoke_runs_the_youtube_model_cases_after_a_metadata_check_through_the_configured_order)
+  | test(=doctor::deep_doctor_applies_one_hard_deadline_and_redacts_failed_output)
+  | test(=doctor::platform_routes::youtube_web_deep_doctor_fetches_the_canary_video_metadata)
+)
+"""
+slow-timeout = { period = "30s", terminate-after = 2 }
+
 [profile.ci]
-retries = 0
-fail-fast = false
+# CI runners have far fewer cores than a development machine.
+slow-timeout = { period = "2s", terminate-after = 3 }
+default-filter = "all()"
+
+# Packaging and verifying a release archive takes longer than any limit for one test.
+[[profile.ci.overrides]]
+filter = "binary_id(forager::release_artifact_gate)"
+slow-timeout = { period = "30s", terminate-after = 2 }
 
 # For the real-browser tests, which are ignored by default. A profile cannot select ignored
 # tests, so the command line passes `--run-ignored only`; docs/agents/browser-routes.md has the
