@@ -148,11 +148,39 @@ impl From<ProviderError> for ProbeFailure {
     }
 }
 
-pub(crate) fn shallow(timeout_seconds: u64) -> Result<(DoctorReport, u8), config::ConfigError> {
+/// The effective view that `config list` prints, and the runtime configuration.
+fn load_configuration() -> Result<(Value, RuntimeConfig), config::ConfigError> {
     let effective = serde_json::to_value(config::effective_view()?)
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
-    let runtime_config = config::runtime_config()?;
-    let state_directories = state_directories(&runtime_config);
+    Ok((effective, config::runtime_config()?))
+}
+
+/// Completes an all-provider report: it fails when a state directory is not writable or
+/// `providers_ok` is false.
+fn report(
+    mode: &'static str,
+    providers: Vec<ProviderStatus>,
+    providers_ok: bool,
+    runtime: &RuntimeConfig,
+    effective: Value,
+) -> Result<(DoctorReport, u8), config::ConfigError> {
+    let state_directories = state_directories(runtime);
+    let ok = providers_ok && state_directories.writable();
+    Ok((
+        DoctorReport {
+            mode,
+            ok,
+            providers,
+            state_directories,
+            permission_warnings: permission_warnings()?,
+            config: effective,
+        },
+        if ok { 0 } else { 4 },
+    ))
+}
+
+pub(crate) fn shallow(timeout_seconds: u64) -> Result<(DoctorReport, u8), config::ConfigError> {
+    let (effective, runtime_config) = load_configuration()?;
     let deadline = Deadline::new(Duration::from_secs(timeout_seconds));
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -173,31 +201,17 @@ pub(crate) fn shallow(timeout_seconds: u64) -> Result<(DoctorReport, u8), config
         .zip(checks)
         .map(|(registration, check)| status(registration.id, &effective, check, &runtime_config))
         .collect::<Vec<_>>();
-    let ok = state_directories.writable()
-        && providers
-            .iter()
-            .filter(|provider| provider.configured)
-            .all(|provider| provider.reachable == Some(true));
-    Ok((
-        DoctorReport {
-            mode: "shallow",
-            ok,
-            providers,
-            state_directories,
-            permission_warnings: permission_warnings()?,
-            config: effective,
-        },
-        if ok { 0 } else { 4 },
-    ))
+    let reachable = providers
+        .iter()
+        .filter(|provider| provider.configured)
+        .all(|provider| provider.reachable == Some(true));
+    report("shallow", providers, reachable, &runtime_config, effective)
 }
 
 /// Runs the shallow report's checks that send nothing. No provider needs to be configured, so
 /// `ok` depends only on the state directories.
 pub(crate) fn offline() -> Result<(DoctorReport, u8), config::ConfigError> {
-    let effective = serde_json::to_value(config::effective_view()?)
-        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
-    let runtime_config = config::runtime_config()?;
-    let state_directories = state_directories(&runtime_config);
+    let (effective, runtime_config) = load_configuration()?;
     let providers = catalog::registrations()
         .iter()
         .map(|registration| {
@@ -205,38 +219,21 @@ pub(crate) fn offline() -> Result<(DoctorReport, u8), config::ConfigError> {
             status(registration.id, &effective, finding, &runtime_config)
         })
         .collect();
-    let ok = state_directories.writable();
-    Ok((
-        DoctorReport {
-            mode: "offline",
-            ok,
-            providers,
-            state_directories,
-            permission_warnings: permission_warnings()?,
-            config: effective,
-        },
-        if ok { 0 } else { 4 },
-    ))
+    report("offline", providers, true, &runtime_config, effective)
 }
 
 pub(crate) fn deep(
     provider: ProviderId,
     timeout_seconds: u64,
 ) -> Result<(DeepDoctorReport, u8), config::ConfigError> {
-    let effective = serde_json::to_value(config::effective_view()?)
-        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
-    let runtime_config = config::runtime_config()?;
+    let (effective, runtime_config) = load_configuration()?;
     let unconfigured = deep_unconfigured_reason(provider, &runtime_config);
     let provider_status = status(
         provider,
         &effective,
         ProviderFinding {
             configured: unconfigured.is_none(),
-            reachable: Some(endpoint_is_valid(provider_endpoint(
-                provider,
-                &runtime_config,
-            ))),
-            preflight: None,
+            check: None,
             message: None,
         },
         &runtime_config,
@@ -703,17 +700,21 @@ fn local_check(registration: &ProviderRegistration, runtime: &RuntimeConfig) -> 
 /// What a report states about one provider.
 struct ProviderFinding {
     configured: bool,
-    reachable: Option<bool>,
-    preflight: Option<bool>,
+    check: Option<ProviderCheck>,
     message: Option<String>,
+}
+
+/// The one check a report ran on a provider beyond its configuration.
+enum ProviderCheck {
+    Reachable(bool),
+    Preflight(bool),
 }
 
 fn offline_finding(check: LocalCheck) -> ProviderFinding {
     match check {
         LocalCheck::NotEnabled => ProviderFinding {
             configured: false,
-            reachable: None,
-            preflight: None,
+            check: None,
             message: None,
         },
         LocalCheck::Http {
@@ -721,14 +722,12 @@ fn offline_finding(check: LocalCheck) -> ProviderFinding {
             anonymous,
         } => ProviderFinding {
             configured,
-            reachable: None,
-            preflight: None,
+            check: None,
             message: anonymous_note(anonymous),
         },
         LocalCheck::Browser { preflight } => ProviderFinding {
             configured: true,
-            reachable: None,
-            preflight: Some(preflight.is_ok()),
+            check: Some(ProviderCheck::Preflight(preflight.is_ok())),
             message: preflight.err(),
         },
     }
@@ -746,8 +745,7 @@ async fn shallow_check(
     match local_check(registration, runtime) {
         LocalCheck::NotEnabled => ProviderFinding {
             configured: false,
-            reachable: Some(false),
-            preflight: None,
+            check: Some(ProviderCheck::Reachable(false)),
             message: None,
         },
         LocalCheck::Http {
@@ -755,7 +753,7 @@ async fn shallow_check(
             anonymous,
         } => ProviderFinding {
             configured,
-            reachable: Some(
+            check: Some(ProviderCheck::Reachable(
                 probe_reachability(
                     client.clone(),
                     provider_endpoint(id, runtime).to_owned(),
@@ -763,14 +761,13 @@ async fn shallow_check(
                     deadline,
                 )
                 .await,
-            ),
-            preflight: None,
+            )),
             message: anonymous_note(anonymous),
         },
+        // The shallow report has always called a browser route's preflight check `reachable`.
         LocalCheck::Browser { preflight } => ProviderFinding {
             configured: true,
-            reachable: Some(preflight.is_ok()),
-            preflight: None,
+            check: Some(ProviderCheck::Reachable(preflight.is_ok())),
             message: preflight.err(),
         },
     }
@@ -853,8 +850,14 @@ fn status(
             .as_str()
             .unwrap_or("default")
             .to_owned(),
-        reachable: finding.reachable,
-        preflight: finding.preflight,
+        reachable: match finding.check {
+            Some(ProviderCheck::Reachable(reachable)) => Some(reachable),
+            _ => None,
+        },
+        preflight: match finding.check {
+            Some(ProviderCheck::Preflight(passed)) => Some(passed),
+            _ => None,
+        },
         message: finding.message,
     }
 }
