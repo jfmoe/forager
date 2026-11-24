@@ -29,7 +29,8 @@ struct ProviderStatus {
     configured: bool,
     key_count: usize,
     source: String,
-    reachable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reachable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
@@ -131,7 +132,7 @@ pub(crate) fn shallow(
     let ok = providers
         .iter()
         .filter(|provider| provider.configured)
-        .all(|provider| provider.reachable);
+        .all(|provider| provider.reachable == Some(true));
     let exit_code = if ok { 0 } else { 4 };
     Ok((
         ShallowDoctorReport {
@@ -158,7 +159,10 @@ pub(crate) fn deep(
         &effective,
         ShallowCheck {
             configured: unconfigured.is_none(),
-            reachable: endpoint_is_valid(provider_endpoint(provider, &runtime_config)),
+            reachable: Some(endpoint_is_valid(provider_endpoint(
+                provider,
+                &runtime_config,
+            ))),
             message: None,
         },
         &runtime_config,
@@ -590,16 +594,47 @@ async fn probe_reachability(
     )
 }
 
+/// What doctor learns about one provider without sending a request.
+enum LocalCheck {
+    /// A platform route that users must enable, while no order lists it.
+    NotEnabled,
+    Http {
+        configured: bool,
+        anonymous: bool,
+    },
+    /// The browser preflight check, which launches no browser and opens no site.
+    Browser {
+        preflight: Result<(), String>,
+    },
+}
+
+/// Checks a provider without sending a request. A platform route that users must enable takes
+/// part only when an order enables it.
+fn local_check(registration: &ProviderRegistration, runtime: &RuntimeConfig) -> LocalCheck {
+    let id = registration.id;
+    if is_opt_in_route(id) && !route_enabled(id, runtime) {
+        return LocalCheck::NotEnabled;
+    }
+    match registration.transport {
+        ProviderTransport::Http => LocalCheck::Http {
+            configured: runtime.provider_configured(id),
+            anonymous: registration.lacks_optional_keys(runtime.provider_runtime(id).keys.len()),
+        },
+        ProviderTransport::Browser(_) => LocalCheck::Browser {
+            preflight: providers::browser_preflight(id, &runtime.browser),
+        },
+    }
+}
+
 /// The shallow result of one provider.
 struct ShallowCheck {
     configured: bool,
-    reachable: bool,
+    reachable: Option<bool>,
     message: Option<String>,
 }
 
 /// Checks an HTTP provider by a GET to its endpoint, and a browser route by its preflight
-/// check, which launches no browser and opens no site. A platform route that users must enable
-/// takes part only when an order enables it.
+/// check.
 async fn shallow_check(
     registration: &ProviderRegistration,
     runtime: &RuntimeConfig,
@@ -607,40 +642,38 @@ async fn shallow_check(
     deadline: Deadline,
 ) -> ShallowCheck {
     let id = registration.id;
-    if is_opt_in_route(id) && !route_enabled(id, runtime) {
-        return ShallowCheck {
+    match local_check(registration, runtime) {
+        LocalCheck::NotEnabled => ShallowCheck {
             configured: false,
-            reachable: false,
+            reachable: Some(false),
             message: None,
-        };
-    }
-    match registration.transport {
-        ProviderTransport::Http => {
-            let endpoint = provider_endpoint(id, runtime);
-            let limiter = providers::route_limiter(id);
-            let anonymous =
-                registration.lacks_optional_keys(runtime.provider_runtime(id).keys.len());
-            ShallowCheck {
-                configured: runtime.provider_configured(id),
-                reachable: probe_reachability(
+        },
+        LocalCheck::Http {
+            configured,
+            anonymous,
+        } => ShallowCheck {
+            configured,
+            reachable: Some(
+                probe_reachability(
                     client.clone(),
-                    endpoint.to_owned(),
-                    limiter,
+                    provider_endpoint(id, runtime).to_owned(),
+                    providers::route_limiter(id),
                     deadline,
                 )
                 .await,
-                message: anonymous.then(|| "runs anonymously without keys".to_owned()),
-            }
-        }
-        ProviderTransport::Browser(_) => {
-            let preflight = providers::browser_preflight(id, &runtime.browser);
-            ShallowCheck {
-                configured: true,
-                reachable: preflight.is_ok(),
-                message: preflight.err(),
-            }
-        }
+            ),
+            message: anonymous_note(anonymous),
+        },
+        LocalCheck::Browser { preflight } => ShallowCheck {
+            configured: true,
+            reachable: Some(preflight.is_ok()),
+            message: preflight.err(),
+        },
     }
+}
+
+fn anonymous_note(anonymous: bool) -> Option<String> {
+    anonymous.then(|| "runs anonymously without keys".to_owned())
 }
 
 /// Returns why the deep probe cannot run the provider, or `None` when it can. A platform route
