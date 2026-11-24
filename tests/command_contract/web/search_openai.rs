@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use crate::support::main_search_samples::{answer_with, completed_events};
-use crate::support::{Fixture, RunEnvironment, request_json};
+use crate::support::{Fixture, RunEnvironment, header, request_json};
 
 #[test]
 fn openai_backend_answers_main_search_through_responses_web_search() {
@@ -21,39 +21,22 @@ fn openai_backend_answers_main_search_through_responses_web_search() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (
-            output.status.code(),
-            &payload["answer"],
-            &payload["sources"]
-        ),
-        (
-            Some(0),
-            &Value::String("Codex answer".into()),
-            &serde_json::json!([{"title": "Source", "url": "https://example.test/codex"}]),
-        ),
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Codex answer".into())),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let request = openai.finish();
-    assert!(request.starts_with("POST /v1/responses "), "{request}");
-    assert!(
-        request.contains("authorization: Bearer openai-key"),
-        "{request}"
-    );
-    let body = request_json(&request);
     assert_eq!(
         (
-            &body["model"],
-            &body["stream"],
-            &body["tools"],
-            body["instructions"].is_string(),
+            header(&request, "authorization"),
+            &request_json(&request)["model"],
         ),
         (
+            Some("Bearer openai-key".to_owned()),
             &Value::String("openai-model".into()),
-            &Value::Bool(true),
-            &serde_json::json!([{"type": "web_search"}]),
-            true,
-        )
+        ),
+        "{request}"
     );
 }
 

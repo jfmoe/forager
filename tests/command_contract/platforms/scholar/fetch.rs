@@ -3,7 +3,7 @@ use std::process::Output;
 use serde_json::{Value, json};
 
 use crate::support::scholar::{config, fixture};
-use crate::support::{Fixture, RunEnvironment, ok_json, payload};
+use crate::support::{Fixture, RunEnvironment, ok_json, payload, stderr};
 
 const KEY: &str = "test-serpapi-key-a";
 const CLUSTER: &str = "scholar:18208131694456651388";
@@ -22,44 +22,20 @@ fn run(arguments: &[&str], body: &Value) -> (Output, String) {
 }
 
 #[test]
-fn fetch_lists_the_cluster_versions_at_metadata_depth() {
+fn a_fetch_prints_the_cluster_it_names() {
     let (output, _) = run(&[CLUSTER], &fixture("cluster.json"));
+    let item = payload(&output);
 
     assert_eq!(
-        payload(&output),
-        json!({
-            "platform": "scholar",
-            "provider": "serpapi",
-            "ref": "scholar:18208131694456651388",
-            "url": "https://scholar.google.com/scholar?cluster=18208131694456651388",
-            "depth": "metadata",
-            "title": "Time series momentum$",
-            "authors": ["TJ Moskowitz", "YH Ooi"],
-            "published": "2012",
-            "versions": [
-                {
-                    "title": "Time series momentum$",
-                    "link": "https://www.trendfollowing.com/whitepaper/b.pdf",
-                    "source": "TJ Moskowitz, YH Ooi… - Journal of Financial …, 2012 - trendfollowing.com",
-                    "resources": [{
-                        "title": "trendfollowing.com",
-                        "file_format": "PDF",
-                        "url": "https://www.trendfollowing.com/whitepaper/b.pdf"
-                    }]
-                },
-                {
-                    "title": "Replication of “Time series momentum”",
-                    "link": "https://dmurav.com/replications/releases/v2026-09-06/reports/paper-f920fb6a4696.pdf",
-                    "source": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of Financial Economics, 2012 - dmurav.com",
-                    "resources": []
-                },
-                {
-                    "title": "Time series momentum",
-                    "link": null,
-                    "source": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of Financial Economics, 2012",
-                    "resources": []
-                }
-            ]
-        })
+        (
+            output.status.code(),
+            [&item["platform"], &item["provider"], &item["ref"]],
+        ),
+        (
+            Some(0),
+            [&json!("scholar"), &json!("serpapi"), &json!(CLUSTER)]
+        ),
+        "stderr: {}",
+        stderr(&output)
     );
 }

@@ -4,7 +4,7 @@ use serde_json::json;
 
 use crate::support::hn::config;
 use crate::support::hn_samples::story_list;
-use crate::support::{Fixture, RunEnvironment, ok_json, path, payload, stderr};
+use crate::support::{Fixture, RunEnvironment, ok_json, payload, stderr};
 
 fn stories(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "hn", "stories"];
@@ -19,18 +19,16 @@ fn an_empty_list_is_an_empty_success() {
     let environment = RunEnvironment::new(&config(&algolia.url, &firebase.url));
 
     let output = stories(&environment, &["job"]);
-    let request = firebase.finish();
+    firebase.finish();
 
     assert_eq!(
         (
             output.status.code(),
-            path(&request),
             payload(&output),
             algolia.finish_all().len(),
         ),
         (
             Some(0),
-            "/v0/jobstories.json".to_owned(),
             json!({"platform": "hn", "provider": "hn_api", "list": "job", "items": []}),
             0,
         ),

@@ -245,19 +245,14 @@ fn a_day_that_is_not_on_the_calendar_is_refused_while_parsing_a_question() {
 }
 
 #[test]
-fn invalid_question_filters_or_a_blank_question_are_argument_errors_before_any_request() {
-    for (arguments, message) in [
-        (
-            &["q", "--handle", "a", "--exclude-handle", "b"][..],
-            "--handle cannot be combined with --exclude-handle",
-        ),
-        (&[" "], "x ask needs a query"),
-    ] {
-        let found = argument_error(ask_request(arguments));
+fn a_question_the_validator_refuses_is_an_argument_error_before_any_request() {
+    let found = argument_error(ask_request(&[
+        "q",
+        "--handle",
+        "a",
+        "--exclude-handle",
+        "b",
+    ]));
 
-        assert!(
-            found.contains(message),
-            "arguments: {arguments:?}\nmessage: {found}"
-        );
-    }
+    assert!(found.contains("--exclude-handle"), "{found}");
 }

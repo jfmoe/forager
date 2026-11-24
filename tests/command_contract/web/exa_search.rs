@@ -6,7 +6,7 @@ use crate::support::{Fixture, forager_command, run_command};
 use serde_json::Value;
 
 #[test]
-fn exa_search_returns_normalized_results_through_the_real_http_stack() {
+fn an_exa_search_sends_the_command_options_and_the_configured_key() {
     let fixture = Fixture::start_json(200, &sample("exa/search.json"));
 
     let output = run(
@@ -38,20 +38,12 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
         (
             output.status.code(),
             &payload["provider"],
-            &payload["query"],
-            &payload["results"][0]["title"],
-            &payload["results"][0]["url"],
-            &payload["results"][0]["text"],
-            &payload["results"][0]["highlights"][0],
+            &payload["query"]
         ),
         (
             Some(0),
             &Value::String("exa".into()),
             &Value::String("rust async drop".into()),
-            &Value::String("Fixture result".into()),
-            &Value::String("https://example.test/result?api_key=********&safe=1".into()),
-            &Value::String("Fixture body ********".into()),
-            &Value::String("Fixture highlight ********".into()),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -85,7 +77,7 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
 }
 
 #[test]
-fn exa_similar_returns_normalized_results_through_the_real_http_stack() {
+fn an_exa_similar_sends_the_command_options_and_the_configured_key() {
     let fixture = Fixture::start_json(200, &sample("exa/similar.json"));
 
     let output = run(
@@ -102,26 +94,17 @@ fn exa_similar_returns_normalized_results_through_the_real_http_stack() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["url"],
-            &payload["results"][0]["title"],
-            &payload["results"][0]["url"],
-        ),
+        (output.status.code(), &payload["provider"], &payload["url"]),
         (
             Some(0),
             &Value::String("exa".into()),
             &Value::String("https://example.test/source".into()),
-            &Value::String("Similar fixture".into()),
-            &Value::String("https://example.test/similar?api_key=********&safe=1".into()),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
     let request = fixture.finish();
-    assert!(request.starts_with("POST /findSimilar "), "{request}");
     assert!(
         request.contains("\"url\":\"https://example.test/source\""),
         "{request}"

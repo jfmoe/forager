@@ -37,7 +37,7 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 # The second platform whose fetch writes a content directory through the binary; any Hacker News
 # discussion read is the Algolia tree and the Firebase ranking, two requests on one paced window.
 [[profile.default.overrides]]
-filter = "binary_id(forager::command_contract) & test(=platforms::hn::fetch::a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order)"
+filter = "binary_id(forager::command_contract) & test(=platforms::hn::fetch::a_thread_is_written_to_the_content_directory_with_a_receipt_on_stdout)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 # A browser route's timeout through the CLI: `timeout` takes whole seconds, and the smallest that

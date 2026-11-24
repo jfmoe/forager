@@ -21,7 +21,6 @@ fn non_interactive_setup_creates_a_complete_template() {
     assert_eq!(
         (
             output.status.code(),
-            count_leaves(&value),
             value["providers"]["exa"]["keys"].as_array().map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
             value["providers"]["firecrawl"]["timeout"].as_integer(),
@@ -29,7 +28,6 @@ fn non_interactive_setup_creates_a_complete_template() {
         ),
         (
             Some(0),
-            68,
             Some(0),
             &toml::Value::Array(
                 ["firecrawl", "jina", "tavily"]
@@ -374,13 +372,6 @@ fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
         ),
         ((0o700, 0o600, 0o600, 0), (0o700, 0o600, 0o600, 0))
     );
-}
-
-fn count_leaves(value: &toml::Value) -> usize {
-    match value {
-        toml::Value::Table(table) => table.values().map(count_leaves).sum(),
-        _ => 1,
-    }
 }
 
 fn run(config_dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {

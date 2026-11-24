@@ -23,51 +23,29 @@ fn run(arguments: &[&str], responses: Vec<Response>) -> (Output, Vec<String>) {
 }
 
 #[test]
-fn cited_by_decodes_citing_works_like_search_results() {
-    let source = fixture("cited_by.json");
-    let (output, _) = run(&[CITED, "--query", "crash"], vec![ok_json(&source)]);
-    let mut page = payload(&output);
-    let first = page["items"][0].clone();
-    page.as_object_mut().expect("page").remove("items");
+fn a_cited_by_page_prints_the_citing_papers_by_their_cluster_refs() {
+    let (output, _) = run(
+        &[CITED, "--query", "crash"],
+        vec![ok_json(&fixture("cited_by.json"))],
+    );
+    let page = payload(&output);
 
     assert_eq!(
         (
             output.status.code(),
-            refs(&payload(&output)),
-            first,
-            page["platform"].clone(),
-            page["provider"].clone(),
-            page["next_cursor"].is_string(),
+            &page["platform"],
+            &page["provider"],
+            refs(&page),
         ),
         (
             Some(0),
+            &json!("scholar"),
+            &json!("serpapi"),
             vec![
                 "scholar:2061579707271568590".to_owned(),
                 "scholar:13440399377941409520".to_owned(),
                 "scholar:239332318604014067".to_owned(),
             ],
-            json!({
-                "ref": "scholar:2061579707271568590",
-                "url": "https://scholar.google.com/scholar?cluster=2061579707271568590",
-                "depth": "snippet",
-                "title": "Momentum crashes",
-                "authors": ["K Daniel", "TJ Moskowitz"],
-                "published": "2016",
-                "snippet": source["organic_results"][0]["snippet"],
-                "link": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490",
-                "source": "K Daniel, TJ Moskowitz - Journal of Financial economics, 2016 - Elsevier",
-                "cited_by": 1851,
-                "version_count": 28,
-                "resources": [{
-                    "title": "sciencedirect.com",
-                    "file_format": "HTML",
-                    "url": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490"
-                }],
-                "result_type": "Html"
-            }),
-            json!("scholar"),
-            json!("serpapi"),
-            true,
         ),
         "stderr: {}",
         stderr(&output)

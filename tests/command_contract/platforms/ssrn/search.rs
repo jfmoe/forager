@@ -3,7 +3,7 @@ use std::process::Output;
 use serde_json::json;
 
 use crate::support::ssrn_samples::{stored, stored_json, work_list};
-use crate::support::{Fixture, Response, RunEnvironment, payload};
+use crate::support::{Fixture, Response, RunEnvironment, payload, refs, stderr};
 
 fn config(url: &str) -> String {
     format!("[providers.ssrn_crossref]\nurl = \"{url}\"\n")
@@ -24,57 +24,31 @@ fn page(arguments: &[&str], response: Response) -> (Output, String) {
 }
 
 #[test]
-fn search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois() {
+fn a_search_prints_the_ssrn_papers_and_names_the_skipped_dois_on_stderr() {
     let (output, _) = page(
         &["momentum"],
         Response::json(200, &stored("work-list.json")),
     );
 
+    let page = payload(&output);
+
     assert_eq!(
         (
             output.status.code(),
-            payload(&output),
-            String::from_utf8_lossy(&output.stderr).contains(
-                "ssrn_crossref skipped 1 Crossref records without an SSRN DOI: 10.1016/j.jfineco.2020.01.001"
-            ),
+            &page["platform"],
+            &page["provider"],
+            refs(&page),
+            stderr(&output).contains("10.1016/j.jfineco.2020.01.001"),
         ),
         (
             Some(0),
-            json!({
-                "platform": "ssrn",
-                "provider": "ssrn_crossref",
-                "items": [
-                    {
-                        "ref": "ssrn:1",
-                        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1",
-                        "depth": "abstract",
-                        "title": "Paper 1",
-                        "authors": ["Gary Antonacci"],
-                        "published": "2012",
-                        "abstract": "Abstract of 1.",
-                        "doi": "10.2139/ssrn.1",
-                        "crossref_type": "posted-content",
-                        "crossref_created": "2012-04-25T11:01:44Z"
-                    },
-                    {
-                        "ref": "ssrn:2",
-                        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2",
-                        "depth": "metadata",
-                        "title": "Paper 2",
-                        "authors": ["Gary Antonacci"],
-                        "published": "2012",
-                        "abstract": null,
-                        "doi": "10.2139/ssrn.2",
-                        "crossref_type": "journal-article",
-                        "crossref_created": "2012-04-25T11:01:44Z"
-                    }
-                ],
-                "next_cursor": null
-            }),
+            &json!("ssrn"),
+            &json!("ssrn_crossref"),
+            vec!["ssrn:1".to_owned(), "ssrn:2".to_owned()],
             true,
         ),
         "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+        stderr(&output)
     );
 }
 

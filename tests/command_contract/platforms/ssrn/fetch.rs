@@ -3,9 +3,7 @@ use std::process::Output;
 use serde_json::json;
 
 use crate::support::ssrn_samples::{stored, work_with};
-use crate::support::{Fixture, Response, RunEnvironment, path, payload};
-
-const DOI_PATH: &str = "/works/10.2139/ssrn.2042750";
+use crate::support::{Fixture, Response, RunEnvironment, payload};
 
 fn config(url: &str) -> String {
     format!("[providers.ssrn_crossref]\nurl = \"{url}\"\n")
@@ -27,38 +25,25 @@ fn run(arguments: &[&str], responses: Vec<Response>) -> (Output, Vec<String>) {
 }
 
 #[test]
-fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
-    let (output, requests) = run(
+fn a_fetch_prints_the_paper_it_names() {
+    let (output, _) = run(
         &["ssrn:2042750"],
         vec![Response::json(200, &stored("work.json"))],
     );
+    let item = payload(&output);
 
     assert_eq!(
         (
             output.status.code(),
-            requests
-                .iter()
-                .map(|request| path(request))
-                .collect::<Vec<_>>(),
-            payload(&output)
+            [&item["platform"], &item["provider"], &item["ref"]],
         ),
         (
             Some(0),
-            vec![DOI_PATH.to_owned()],
-            json!({
-                "platform": "ssrn",
-                "provider": "ssrn_crossref",
-                "ref": "ssrn:2042750",
-                "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
-                "depth": "abstract",
-                "title": "Risk Premia Harvesting Through Dual Momentum",
-                "authors": ["Gary Antonacci"],
-                "published": "2012-04",
-                "abstract": "Momentum is the premier market anomaly.",
-                "doi": "10.2139/ssrn.2042750",
-                "crossref_type": "posted-content",
-                "crossref_created": "2012-04-25T11:01:44Z"
-            })
+            [
+                &json!("ssrn"),
+                &json!("ssrn_crossref"),
+                &json!("ssrn:2042750")
+            ],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

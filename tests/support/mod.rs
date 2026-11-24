@@ -41,15 +41,6 @@ impl Response {
     }
 }
 
-/// Every key of the execution object in a Search Result Journal record of schema version 1.
-pub(crate) const JOURNAL_EXECUTION_KEYS: [&str; 5] = [
-    "capability_gaps",
-    "deadline_budget",
-    "plan_summary",
-    "provider_attempts",
-    "terminal_attribution",
-];
-
 /// The keys of a JSON object, sorted, so a test can assert an object's complete shape.
 pub(crate) fn object_keys(value: &serde_json::Value) -> Vec<&str> {
     let mut keys = value
