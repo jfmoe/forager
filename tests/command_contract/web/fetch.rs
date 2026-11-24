@@ -209,12 +209,77 @@ enabled = false
     )
 }
 
+/// A page body long enough to pass the content gate.
+fn article() -> String {
+    (1..=5)
+        .map(|line| format!("Article paragraph {line} with enough words to pass the gate."))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// A configuration whose only Web Fetch provider is Jina at `url`.
+fn jina_only(url: &str) -> String {
+    fetch_config(
+        url,
+        &["jina-key"],
+        "http://127.0.0.1:9",
+        &[],
+        "http://127.0.0.1:9",
+        &[],
+        &["jina"],
+    )
+}
+
+#[test]
+fn a_fetched_body_prints_as_markdown_under_its_provider_or_as_the_bare_content() {
+    let content = article();
+    let printed = ["markdown", "content"].map(|format| {
+        let jina = Fixture::start_sequence(vec![jina(&content)]);
+        let environment = RunEnvironment::new(&jina_only(&jina.url));
+        let output =
+            environment.run(&["fetch", "https://example.test/article", "--format", format]);
+        jina.finish();
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout)
+                .trim_end()
+                .to_owned(),
+        )
+    });
+
+    assert_eq!(
+        printed,
+        [
+            (Some(0), format!("# Fetched with jina\n\n{content}")),
+            (Some(0), content),
+        ]
+    );
+}
+
+#[test]
+fn the_configured_log_level_prints_the_attempt_summary_on_stderr() {
+    let refusal = || Response::new(401, "application/json", &jina_refusal("bad credential"));
+    let jina = Fixture::start_sequence(vec![refusal(), refusal()]);
+    let environment = RunEnvironment::new(&format!(
+        "{}\n[log]\nlevel = \"debug\"\n",
+        jina_only(&jina.url)
+    ));
+
+    let output = environment.run(&["fetch", "https://example.test/article"]);
+    jina.finish_all();
+
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .any(|line| line.starts_with("forager attempts: ")),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn fetch_receipt_writes_the_result_file_and_prints_only_a_receipt() {
-    let content = (1..=5)
-        .map(|line| format!("Receipt fixture paragraph {line} with enough words to pass the gate."))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let content = article();
     let jina = Fixture::start_sequence(vec![jina(&content)]);
     let config = fetch_config(
         &jina.url,

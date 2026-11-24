@@ -702,8 +702,8 @@ mod tests {
     use super::{
         ContentOutputFormat, FAILURE_PAYLOAD_TARGET_BYTES, FetchOutcome, JournalOutcome,
         OutputTarget, RenderedOutput, SearchFailure, apply_tee, fit_failure_candidates,
-        format_failure_json, format_search_failure_json, render_fetch, render_search,
-        with_attempt_log,
+        format_failure_json, format_search_failure_json, postflight_exit_code, render_fetch,
+        render_search, with_attempt_log,
     };
 
     #[test]
@@ -1230,6 +1230,26 @@ mod tests {
         "tavily",
         "xai",
     ];
+
+    #[test]
+    fn a_content_failure_exits_five_and_every_other_attempt_failure_exits_four() {
+        let codes = [
+            (AttemptErrorKind::Auth, 4),
+            (AttemptErrorKind::RateLimited, 4),
+            (AttemptErrorKind::QuotaExhausted, 4),
+            (AttemptErrorKind::Parameter, 4),
+            (AttemptErrorKind::Timeout, 4),
+            (AttemptErrorKind::Network, 4),
+            (AttemptErrorKind::Runtime, 4),
+            (AttemptErrorKind::Quality, 5),
+            (AttemptErrorKind::Evidence, 5),
+        ];
+
+        assert_eq!(
+            codes.map(|(kind, _)| (kind, postflight_exit_code(kind))),
+            codes
+        );
+    }
 
     fn all_attempt_kinds() -> [AttemptErrorKind; 9] {
         [
