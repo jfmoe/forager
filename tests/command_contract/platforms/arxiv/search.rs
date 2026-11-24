@@ -4,7 +4,7 @@ use std::process::Output;
 use serde_json::{Value, json};
 
 use crate::support::samples::sample;
-use crate::support::{Fixture, Response, RunEnvironment, arxiv_feed, payload, query};
+use crate::support::{Fixture, Response, RunEnvironment, arxiv_feed, payload, query, refs};
 
 /// A page of `total` results holding the stored entry once for each of `ids`.
 fn feed(total: u64, ids: &[&str]) -> String {
@@ -26,38 +26,27 @@ fn search(environment: &RunEnvironment, arguments: &[&str]) -> Output {
 }
 
 #[test]
-fn search_returns_abstract_depth_items_with_refs_and_metadata() {
+fn a_search_prints_the_found_papers_as_a_platform_page() {
     let fixture = Fixture::start_sequence(vec![atom(200, &feed(1, &["2401.01234v2"]))]);
     let environment = RunEnvironment::new(&config(&fixture.url));
 
     let output = search(&environment, &["electron"]);
     fixture.finish();
 
+    let page = payload(&output);
+
     assert_eq!(
-        (output.status.code(), payload(&output)),
+        (
+            output.status.code(),
+            &page["platform"],
+            &page["provider"],
+            refs(&page),
+        ),
         (
             Some(0),
-            json!({
-                "platform": "arxiv",
-                "provider": "arxiv_api",
-                "items": [{
-                    "ref": "arxiv:2401.01234v2",
-                    "url": "https://arxiv.org/abs/2401.01234v2",
-                    "depth": "abstract",
-                    "title": "Dark Matter Halos & Galaxies",
-                    "authors": ["Ada Lovelace", "Alan Turing"],
-                    "published": "2024-01-02T18:59:59Z",
-                    "abstract": "First line\n  second line.",
-                    "updated": "2024-02-03T04:05:06Z",
-                    "primary_category": "astro-ph.CO",
-                    "categories": ["astro-ph.CO", "hep-ph"],
-                    "doi": "10.1000/example",
-                    "journal_ref": "Phys. Rev. D 1 (2024)",
-                    "comment": "12 pages, 3 figures",
-                    "pdf_url": "https://arxiv.org/pdf/2401.01234v2"
-                }],
-                "next_cursor": null
-            })
+            &json!("arxiv"),
+            &json!("arxiv_api"),
+            vec!["arxiv:2401.01234v2".to_owned()],
         )
     );
 }

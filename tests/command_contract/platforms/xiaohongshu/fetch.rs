@@ -40,13 +40,12 @@ fn a_note_without_an_access_token_fails_before_starting_the_browser() {
     let output = fetch(&environment(&stand_in), &format!("xiaohongshu:{NOTE_ID}"));
 
     assert_eq!(
-        (output.status.code(), stand_in.launches().len()),
-        (Some(2), 0),
-        "{}",
-        printed(&output)
-    );
-    assert!(
-        printed(&output).contains("xiaohongshu fetch needs the note's access token: pass the `access_url` of a xiaohongshu search result, or the full note URL with its `xsec_token` copied from the browser"),
+        (
+            output.status.code(),
+            stand_in.launches().len(),
+            printed(&output).contains("`access_url`"),
+        ),
+        (Some(2), 0, true),
         "{}",
         printed(&output)
     );

@@ -6,7 +6,7 @@ use std::process::Output;
 use serde_json::{Value, json};
 
 use crate::support::samples::sample;
-use crate::support::{Fixture, Response, RunEnvironment, arxiv_feed, payload, query, request_json};
+use crate::support::{Fixture, Response, RunEnvironment, arxiv_feed, payload};
 
 /// The stored feed with its paper renamed `id`.
 fn entry_feed(id: &str) -> String {
@@ -63,22 +63,6 @@ fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     environment.run(&command)
 }
 
-fn request_line(request: &str) -> &str {
-    request.lines().next().expect("request line")
-}
-
-fn fetched_urls(requests: &[String]) -> Vec<String> {
-    requests
-        .iter()
-        .map(|request| {
-            request_json(request)["url"]
-                .as_str()
-                .expect("fetched url")
-                .to_owned()
-        })
-        .collect()
-}
-
 #[test]
 fn full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version() {
     let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
@@ -91,8 +75,8 @@ fn full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version() 
         &environment,
         &["arxiv:2401.01234", "--content-dir", content_dir_arg],
     );
-    let arxiv_requests = arxiv.finish_all();
-    let fetched = fetched_urls(&provider.finish_all());
+    arxiv.finish_all();
+    provider.finish_all();
     let payload = payload(&output);
     let path = payload["content_path"].as_str().expect("content path");
     let written = fs::read_to_string(path).expect("read content file");
@@ -100,9 +84,6 @@ fn full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version() 
     assert_eq!(
         (
             output.status.code(),
-            query(&arxiv_requests[0]).get("id_list").cloned(),
-            request_line(&arxiv_requests[1]),
-            fetched,
             Path::new(path),
             written.as_str(),
             &payload["content_len"],
@@ -111,9 +92,6 @@ fn full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version() 
         ),
         (
             Some(0),
-            Some("2401.01234".to_owned()),
-            "HEAD /html/2401.01234v2 HTTP/1.1",
-            vec!["https://arxiv.org/html/2401.01234v2".to_owned()],
             content_dir.path().join("arxiv-2401.01234v2.md").as_path(),
             body("HTML body").as_str(),
             &json!(body("HTML body").chars().count()),

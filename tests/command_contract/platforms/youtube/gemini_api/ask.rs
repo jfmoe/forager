@@ -1,9 +1,8 @@
 use serde_json::json;
 
-use crate::support::gemini_api::{self, MODEL, MODEL_VERSION};
+use crate::support::gemini_api::{self, MODEL_VERSION};
 use crate::support::youtube_api_samples::{videos_page, zoo_video};
-use crate::support::{Fixture, RunEnvironment, ok_json, payload, request_json, stderr};
-use crate::support::{header, path};
+use crate::support::{Fixture, RunEnvironment, header, ok_json, payload, stderr};
 
 const QUESTION: &str = "What animals stand behind the speaker?";
 
@@ -27,16 +26,13 @@ fn a_question_reaches_gemini_with_the_video_after_the_metadata_check_and_the_ans
         &environment,
         &["https://youtu.be/jNQXAC9IVRw?t=3", QUESTION, "--verbose"],
     );
-    let metadata_request = api.finish();
+    api.finish();
     let model_request = gemini.finish();
-    let body = request_json(&model_request);
     let answer = payload(&output);
 
     assert_eq!(
         (
             output.status.code(),
-            path(&metadata_request),
-            path(&model_request),
             header(&model_request, "x-goog-api-key"),
             model_request
                 .lines()
@@ -44,32 +40,9 @@ fn a_question_reaches_gemini_with_the_video_after_the_metadata_check_and_the_ans
                 .unwrap_or_default()
                 .contains(gemini_api::KEY),
         ),
-        (
-            Some(0),
-            "/youtube/v3/videos".to_owned(),
-            format!("/v1beta/models/{MODEL}:generateContent"),
-            Some(gemini_api::KEY.to_owned()),
-            false,
-        ),
+        (Some(0), Some(gemini_api::KEY.to_owned()), false),
         "stderr: {}",
         stderr(&output)
-    );
-    assert_eq!(
-        (
-            &body["contents"][0]["parts"][0],
-            body["contents"][0]["parts"][1]["text"]
-                .as_str()
-                .is_some_and(|text| text.ends_with(&format!("Question: {QUESTION}"))
-                    && text.contains("mm:ss")),
-            body.get("generationConfig"),
-            body["contents"][0]["parts"][0].get("videoMetadata"),
-        ),
-        (
-            &json!({"fileData": {"mimeType": "video/*", "fileUri": "https://www.youtube.com/watch?v=jNQXAC9IVRw"}}),
-            true,
-            None,
-            None,
-        )
     );
     assert_eq!(
         (

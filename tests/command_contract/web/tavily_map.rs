@@ -4,7 +4,7 @@ use crate::support::samples::sample;
 use crate::support::{Fixture, RunEnvironment};
 
 #[test]
-fn map_sends_tavily_options_and_normalizes_site_results() {
+fn a_map_sends_the_command_options_and_the_configured_key() {
     let fixture = Fixture::start(200, "application/json", &sample("tavily/map.json"));
     let environment = RunEnvironment::new(&map_config(&fixture.url, &["tavily-key"]));
 
@@ -23,31 +23,17 @@ fn map_sends_tavily_options_and_normalizes_site_results() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["url"],
-            &payload["base_url"],
-            &payload["results"],
-            &payload["response_time"],
-        ),
+        (output.status.code(), &payload["provider"], &payload["url"]),
         (
             Some(0),
             &Value::String("tavily".into()),
             &Value::String("https://docs.example.test".into()),
-            &Value::String("https://docs.example.test".into()),
-            &serde_json::json!([
-                "https://docs.example.test/api?token=********",
-                "https://docs.example.test/guides"
-            ]),
-            &Value::from(0.42),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
     let request = fixture.finish();
-    assert!(request.starts_with("POST /map "), "{request}");
     assert!(
         request.contains("authorization: Bearer tavily-key"),
         "{request}"

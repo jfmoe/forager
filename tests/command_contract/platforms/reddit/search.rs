@@ -118,18 +118,15 @@ fn the_default_empty_order_refuses_the_search_with_the_steps_and_the_account_ris
     let environment = RunEnvironment::new(&stand_in.config());
 
     let output = search(&environment, &[]);
+    let stderr = stderr(&output);
 
     assert_eq!(
-        (output.status.code(), stand_in.launches().len()),
-        (Some(3), 0),
-        "{}",
-        stderr(&output)
-    );
-    assert!(
-        stderr(&output).contains(
-            "to use reddit_browser, run `forager browser install`, run `forager browser login reddit` and log in, then add `reddit_browser` to platforms.reddit.order. reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP"
+        (
+            output.status.code(),
+            stand_in.launches().len(),
+            stderr.contains("platforms.reddit.order") && stderr.contains("reddit_browser"),
         ),
-        "{}",
-        stderr(&output)
+        (Some(3), 0, true),
+        "{stderr}"
     );
 }

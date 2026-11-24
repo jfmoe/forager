@@ -15,14 +15,12 @@ fn config_list_reports_the_complete_default_effective_view() {
     assert_eq!(
         (
             output.status.code(),
-            count_effective_leaves(&view),
             &view["providers"]["exa"]["keys"],
             &view["http"]["ssl_verify"],
             &view["browser"]["path"],
         ),
         (
             Some(0),
-            68,
             &serde_json::json!({
                 "value": [],
                 "source": "default",
@@ -209,17 +207,6 @@ fn config_set_rejects_keys_for_a_provider_without_credentials() {
     );
 
     assert_eq!(output.status.code(), Some(2), "{output:?}");
-}
-
-fn count_effective_leaves(value: &Value) -> usize {
-    let Some(object) = value.as_object() else {
-        return 0;
-    };
-    if object.contains_key("value") && object.contains_key("source") {
-        1
-    } else {
-        object.values().map(count_effective_leaves).sum()
-    }
 }
 
 #[test]

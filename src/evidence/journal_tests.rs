@@ -154,10 +154,15 @@ fn record(plan_source: PlanSource, result: &Result<SearchOutcome, SearchFailure>
 }
 
 #[test]
-fn a_search_record_names_who_chose_its_capabilities() {
-    let result = Ok(outcome());
-    let summaries = [PlanSource::Caller, PlanSource::DefaultMainSearchOnly].map(|source| {
-        let record = record(source, &result);
+fn every_record_has_schema_version_one_and_the_same_execution_keys() {
+    let succeeded = record(PlanSource::Caller, &Ok(outcome()));
+    let preflight = build_search_preflight_record(SearchPreflightRecord {
+        query: "query",
+        budget: Duration::from_mins(3),
+        error_kind: "config",
+        message: "no capability",
+    });
+    let shape = |record: &Value| {
         let mut keys = record["execution"]
             .as_object()
             .expect("execution object")
@@ -165,35 +170,38 @@ fn a_search_record_names_who_chose_its_capabilities() {
             .cloned()
             .collect::<Vec<_>>();
         keys.sort();
-        (
-            record["schema_version"].clone(),
-            keys,
-            record["execution"]["plan_summary"].clone(),
-        )
-    });
-    let keys = [
-        "capability_gaps",
-        "deadline_budget",
-        "plan_summary",
-        "provider_attempts",
-        "terminal_attribution",
-    ]
-    .map(str::to_owned)
-    .to_vec();
+        (record["schema_version"].clone(), keys)
+    };
+    let expected = (
+        json!(1),
+        [
+            "capability_gaps",
+            "deadline_budget",
+            "plan_summary",
+            "provider_attempts",
+            "terminal_attribution",
+        ]
+        .map(str::to_owned)
+        .to_vec(),
+    );
+
+    assert_eq!(
+        [shape(&succeeded), shape(&preflight)],
+        [expected.clone(), expected]
+    );
+}
+
+#[test]
+fn a_search_record_names_who_chose_its_capabilities() {
+    let result = Ok(outcome());
+    let summaries = [PlanSource::Caller, PlanSource::DefaultMainSearchOnly]
+        .map(|source| record(source, &result)["execution"]["plan_summary"].clone());
 
     assert_eq!(
         summaries,
         [
-            (
-                json!(1),
-                keys.clone(),
-                json!({"source": "caller", "capabilities": []}),
-            ),
-            (
-                json!(1),
-                keys,
-                json!({"source": "default_main_search_only", "capabilities": []}),
-            ),
+            json!({"source": "caller", "capabilities": []}),
+            json!({"source": "default_main_search_only", "capabilities": []}),
         ]
     );
 }
