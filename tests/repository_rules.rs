@@ -56,7 +56,7 @@ fn the_agent_instructions_carry_every_command_the_testing_procedure_gives() {
 
 #[test]
 fn a_procedure_command_the_instructions_do_not_quote_is_reported() {
-    let procedure = "Run:\n\n```sh\ncargo nextest run --invented\n```\n\n```toml\nkey = 1\n```\n\n\
+    let procedure = "Run:\n\n  ```sh\n  cargo nextest run --invented\n  ```\n\n```toml\nkey = 1\n```\n\n\
                      ```sh\ncargo nextest run -E 'test(=kept)'\n```\n";
     let instructions = "- Kept: `cargo nextest run -E 'test(=kept)'`.\n- Elsewhere: key = 1\n";
 
@@ -71,6 +71,7 @@ fn commands_missing_from<'a>(procedure: &'a str, instructions: &str) -> Vec<&'a 
     let mut in_shell_block = false;
     procedure
         .lines()
+        .map(str::trim)
         .filter(|line| {
             if line.starts_with("```") {
                 in_shell_block = !in_shell_block && *line == "```sh";
@@ -78,7 +79,6 @@ fn commands_missing_from<'a>(procedure: &'a str, instructions: &str) -> Vec<&'a 
             }
             in_shell_block
         })
-        .map(str::trim)
         .filter(|command| !command.is_empty() && !instructions.contains(&format!("`{command}`")))
         .collect()
 }
