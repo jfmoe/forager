@@ -5,21 +5,16 @@ use serde_json::{Value, json};
 use super::{GeminiApi, GenerateResponse, decode_answer, decode_generated, failure_message};
 use crate::config::ModelRouteRuntimeConfig;
 use crate::fixture_server::{Fixture, Response, block_on, header, ok_json, path, request_json};
+use crate::gemini_api_samples::{error, generated};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::failure;
-// The stored bodies below read the sample store through this name.
-use crate::samples;
+use crate::samples::sample_json;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, ModelUsage,
     PlatformItem, PlatformItemData, PlatformRef, ProviderAttempt, TranscriptSource, YoutubeChapter,
     YoutubeItemData, YoutubeRef,
 };
-
-#[path = "../../../tests/support/gemini_api_samples.rs"]
-mod stored;
-
-use stored::{error, generated, stored};
 
 const KEY: &str = "gemini-fixture-key-0123456789";
 const MODEL: &str = "gemini-flash-latest";
@@ -85,7 +80,7 @@ fn failed(status: u16, reason: &str, message: &str) -> Response {
 
 /// The stored transcription answer's transcript, as the model wrote it in its answer text.
 pub(super) fn stored_transcript() -> Value {
-    let answer = stored("generate-content-transcript.json");
+    let answer = sample_json("gemini_api/generate-content-transcript.json");
     let text = answer["candidates"][0]["content"]["parts"][1]["text"]
         .as_str()
         .expect("answer text");
@@ -153,8 +148,11 @@ fn answer(finish_reason: &str) -> Result<String, AttemptErrorKind> {
 
 #[test]
 fn the_stored_answer_decodes_to_its_text_model_version_and_usage() {
-    let decoded = decode_generated(&stored("generate-content.json").to_string(), decode_answer)
-        .map_err(|refusal| refusal.message);
+    let decoded = decode_generated(
+        &sample_json("gemini_api/generate-content.json").to_string(),
+        decode_answer,
+    )
+    .map_err(|refusal| refusal.message);
 
     assert_eq!(
         decoded,
@@ -173,14 +171,14 @@ fn the_answer_joins_the_text_parts_and_leaves_out_reasoning() {
 
 #[test]
 fn a_truncated_withheld_or_blocked_answer_is_quality_and_an_unknown_stop_is_runtime() {
-    let mut blocked = stored("generate-content.json");
+    let mut blocked = sample_json("gemini_api/generate-content.json");
     let fields = blocked.as_object_mut().expect("generate response");
     fields.remove("candidates");
     fields.insert(
         "promptFeedback".to_owned(),
         json!({"blockReason": "SAFETY"}),
     );
-    let mut empty = stored("generate-content.json");
+    let mut empty = sample_json("gemini_api/generate-content.json");
     empty["candidates"] = json!([]);
     let [blocked, empty] =
         [blocked, empty].map(|body| response(&body).text().map_err(|failure| failure.kind));
@@ -207,7 +205,7 @@ fn a_truncated_withheld_or_blocked_answer_is_quality_and_an_unknown_stop_is_runt
 
 #[test]
 fn failures_name_the_status_reason_and_message_gemini_gives() {
-    let body = stored("error.json").to_string();
+    let body = sample_json("gemini_api/error.json").to_string();
 
     assert_eq!(
         [failure_message(&body, 403), failure_message("<html>", 502)],
@@ -222,7 +220,9 @@ fn failures_name_the_status_reason_and_message_gemini_gives() {
 
 #[test]
 fn a_question_travels_with_the_video_url_and_the_key_only_in_its_header() {
-    let fixture = Fixture::start_sequence(vec![ok_json(&stored("generate-content.json"))]);
+    let fixture = Fixture::start_sequence(vec![ok_json(&sample_json(
+        "gemini_api/generate-content.json",
+    ))]);
 
     let outcome = block_on(route(&fixture.url, &[KEY]).ask(&zoo(Some(19)), QUESTION))
         .expect("the answer is relayed");
@@ -296,8 +296,10 @@ fn an_empty_answer_is_a_runtime_failure() {
 
 #[test]
 fn a_rejected_key_is_an_auth_failure_naming_the_status_reason_and_message() {
-    let fixture =
-        Fixture::start_sequence(vec![Response::json(403, &stored("error.json").to_string())]);
+    let fixture = Fixture::start_sequence(vec![Response::json(
+        403,
+        &sample_json("gemini_api/error.json").to_string(),
+    )]);
 
     let outcome = block_on(route(&fixture.url, &[KEY]).ask(&zoo(Some(19)), QUESTION));
     fixture.finish();
@@ -317,7 +319,7 @@ fn a_rate_limited_key_rotates_to_the_next_key_of_the_pool() {
     let keys = ["gemini-first-key", "gemini-second-key"];
     let fixture = Fixture::start_sequence(vec![
         failed(429, "RESOURCE_EXHAUSTED", "Resource has been exhausted."),
-        ok_json(&stored("generate-content.json")),
+        ok_json(&sample_json("gemini_api/generate-content.json")),
     ]);
 
     let outcome = block_on(route(&fixture.url, &keys).ask(&zoo(Some(19)), QUESTION))
@@ -391,8 +393,9 @@ fn the_key_never_reaches_a_failure_or_its_attempts() {
 
 #[test]
 fn a_transcription_asks_for_the_transcript_schema_and_renders_the_model_transcript() {
-    let fixture =
-        Fixture::start_sequence(vec![ok_json(&stored("generate-content-transcript.json"))]);
+    let fixture = Fixture::start_sequence(vec![ok_json(&sample_json(
+        "gemini_api/generate-content-transcript.json",
+    ))]);
 
     let outcome =
         block_on(route(&fixture.url, &[KEY]).transcribe(&zoo(Some(19)))).expect("a transcript");

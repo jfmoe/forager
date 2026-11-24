@@ -7,12 +7,12 @@ use super::thread::decode_tree;
 use super::{FirebaseItem, HnApi, decode_json, fetch_support, thread_item};
 use crate::config::HnRouteRuntimeConfig;
 use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
+use crate::hn_api_samples::{discussion, search_page, story_hit, story_item, story_list};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::{failure, to_json};
 use crate::rate_limit::test_pacing::paced_limiters;
-// The stored bodies below read the sample store through this name.
-use crate::samples;
+use crate::samples::{sample, sample_json, with, without};
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, FullTextSource, HnItemType, HnRef, HnSearchOptions,
     HnSearchType, HnSort, HnStoriesList, HnStoriesOutcome, HnStoriesRequest, PlatformFetchOutcome,
@@ -20,14 +20,9 @@ use crate::types::{
     PlatformSearchRequest, ProviderError,
 };
 
-#[path = "../../../tests/support/hn_samples.rs"]
-mod stored;
-
-use stored::{discussion, search_page, stored_json, story_hit, story_item, story_list, with};
-
 /// The stored hit of a comment on the Dropbox story, `hn:8952`.
 fn comment_hit() -> Value {
-    stored_json("search.json")["hits"][1].clone()
+    sample_json("hn_api/search.json")["hits"][1].clone()
 }
 
 /// The stored tree's first comment, a top-level reply to the story, as comment `id` by
@@ -45,19 +40,11 @@ fn node(id: u64, author: &str, text: &str, children: &[Value]) -> Value {
 fn firebase_comment(id: u64, by: &str, parent: u64, text: &str, kids: &[u64]) -> Value {
     with(
         without(
-            stored_json("firebase-item.json"),
+            sample_json("hn_api/firebase-item.json"),
             &["descendants", "score", "title", "url"],
         ),
         &json!({"id": id, "by": by, "parent": parent, "text": text, "kids": kids, "type": "comment"}),
     )
-}
-
-fn without(mut record: Value, fields: &[&str]) -> Value {
-    let object = record.as_object_mut().expect("record object");
-    for field in fields {
-        object.remove(*field);
-    }
-    record
 }
 
 /// The route with both endpoints on the fixture at `url`, under the paths the real endpoints
@@ -75,10 +62,6 @@ fn route(url: &str, deadline: Duration) -> HnApi {
             deadline: Deadline::new(deadline),
         },
     )
-}
-
-fn stored_body(name: &str) -> String {
-    stored::stored(name)
 }
 
 fn paths(requests: &[String]) -> Vec<String> {
@@ -189,7 +172,7 @@ fn comment(depth: usize, author: &str, id: u64, text: &str) -> String {
 
 #[test]
 fn a_search_page_decodes_stories_and_comments_with_their_story() {
-    let page = decode_json::<SearchResponse>(&stored_body("search.json")).expect("a search page");
+    let page = decode_json::<SearchResponse>(&sample("hn_api/search.json")).expect("a search page");
 
     assert_eq!(
         page.into_listed_items().map(|items| to_json(&items)),
@@ -402,7 +385,7 @@ fn a_search_without_hits_is_an_empty_success() {
 #[test]
 fn rejected_and_rate_limited_requests_map_to_their_error_kinds() {
     let request = search_request("rust", 20, HnSearchOptions::default());
-    let error = stored_body("search-error.json");
+    let error = sample("hn_api/search-error.json");
 
     let (rejected, _) = search(&request, vec![Response::json(400, &error)]);
     let (limited, _) = search(&request, vec![Response::json(429, &error)]);
@@ -424,8 +407,8 @@ fn rejected_and_rate_limited_requests_map_to_their_error_kinds() {
 
 #[test]
 fn a_discussion_ranks_top_level_comments_by_firebase_and_replies_by_time() {
-    let tree = decode_tree(&stored_body("item-tree.json")).expect("a discussion tree");
-    let live = decode_json::<FirebaseItem>(&stored_body("firebase-item.json")).expect("an item");
+    let tree = decode_tree(&sample("hn_api/item-tree.json")).expect("a discussion tree");
+    let live = decode_json::<FirebaseItem>(&sample("hn_api/firebase-item.json")).expect("an item");
 
     let (item, markdown) = thread_item(hn(8863), HnItemType::Story, tree, Some(&live), None, None);
 
@@ -643,7 +626,7 @@ fn missing_deleted_and_unindexed_items_are_parameter_errors() {
         ContentDepth::Metadata,
         vec![
             ok_json(&search_page(&[], 0, 0)),
-            Response::json(200, &stored_body("firebase-null.json")),
+            Response::json(200, &sample("hn_api/firebase-null.json")),
         ],
     );
     let deleted = fetch(
@@ -657,7 +640,7 @@ fn missing_deleted_and_unindexed_items_are_parameter_errors() {
     let unindexed = fetch(
         8863,
         ContentDepth::Thread,
-        vec![Response::json(404, &stored_body("item-not-found.json"))],
+        vec![Response::json(404, &sample("hn_api/item-not-found.json"))],
     );
 
     assert_eq!(
@@ -816,7 +799,7 @@ fn the_front_page_lists_items_in_rank_order_and_reads_unindexed_ones_from_fireba
         HnStoriesList::Top,
         3,
         vec![
-            ok_json(&stored_json("firebase-stories.json")),
+            ok_json(&sample_json("hn_api/firebase-stories.json")),
             ok_json(&search_page(&[hit(10, "Ten"), hit(30, "Thirty")], 0, 1)),
             ok_json(&too_new),
         ],
@@ -906,7 +889,7 @@ fn an_empty_list_is_an_empty_success_and_a_failed_or_missing_list_fails() {
     let (missing, _) = stories(
         HnStoriesList::Best,
         30,
-        vec![Response::json(200, &stored_body("firebase-null.json"))],
+        vec![Response::json(200, &sample("hn_api/firebase-null.json"))],
     );
 
     assert_eq!(

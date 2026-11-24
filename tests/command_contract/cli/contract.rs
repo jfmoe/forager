@@ -1,6 +1,6 @@
 use std::process::Output;
 
-use crate::support::{forager_command, run_command};
+use crate::support::{RunEnvironment, forager_command, run_command};
 use clap::{CommandFactory, Parser};
 use forager::app::Cli;
 
@@ -229,12 +229,5 @@ fn released_binary_reports_the_cargo_package_version() {
 }
 
 fn run(arguments: &[&str]) -> Output {
-    let isolated = tempfile::tempdir().expect("isolated environment");
-    let mut command = forager_command();
-    command
-        .args(arguments)
-        .env("HOME", isolated.path())
-        .env("XDG_CONFIG_HOME", isolated.path().join("config"))
-        .env("XDG_STATE_HOME", isolated.path().join("state"));
-    run_command(&mut command, None)
+    RunEnvironment::new("").run(arguments)
 }

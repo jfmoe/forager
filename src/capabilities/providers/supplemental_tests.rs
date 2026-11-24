@@ -8,14 +8,10 @@ use crate::credentials::CredentialPool;
 use crate::fixture_server::{Fixture, Response, block_on};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::{ProviderId, build_web_search};
-use crate::samples::sample;
+use crate::samples::sample_json;
 use crate::types::{AttemptErrorKind, Deadline, ProviderError, SupplementalSearchOutcome};
 
 const KEY: &str = "first-key";
-
-fn stored(name: &str) -> Value {
-    serde_json::from_str(&sample(name)).expect("stored JSON")
-}
 
 /// Decodes `body` as a successful answer of `provider` with a limit of `limit` sources, each
 /// source as JSON, and a failure as its kind and message.
@@ -64,20 +60,20 @@ fn search(
 mod tavily {
     use serde_json::{Value, json};
 
-    use super::{KEY, decode, search, stored};
+    use super::{KEY, decode, sample_json, search};
     use crate::fixture_server::{Response, header, path, request_json};
     use crate::providers::ProviderId;
     use crate::types::AttemptErrorKind;
 
     fn stored_with_results(results: Value) -> String {
-        let mut body = stored("tavily/search.json");
+        let mut body = sample_json("tavily/search.json");
         body["results"] = results;
         body.to_string()
     }
 
     /// The stored first result with `url` as its URL, or without a URL when `url` is `None`.
     fn result_with_url(url: Option<Value>) -> Value {
-        let mut result = stored("tavily/search.json")["results"][0].clone();
+        let mut result = sample_json("tavily/search.json")["results"][0].clone();
         let fields = result.as_object_mut().expect("stored result");
         match url {
             Some(url) => fields.insert("url".to_owned(), url),
@@ -91,7 +87,7 @@ mod tavily {
         assert_eq!(
             decode(
                 ProviderId::Tavily,
-                &stored("tavily/search.json").to_string(),
+                &sample_json("tavily/search.json").to_string(),
                 5
             ),
             Ok(json!([{
@@ -135,7 +131,7 @@ mod tavily {
 
     #[test]
     fn the_limit_caps_the_decoded_sources() {
-        let result = stored("tavily/search.json")["results"][0].clone();
+        let result = sample_json("tavily/search.json")["results"][0].clone();
         let body = stored_with_results(json!([result.clone(), result.clone(), result]));
 
         let count =
@@ -197,7 +193,7 @@ mod tavily {
             ProviderId::Tavily,
             "Current information",
             20,
-            Response::json(200, &stored("tavily/search.json").to_string()),
+            Response::json(200, &sample_json("tavily/search.json").to_string()),
         );
 
         assert_eq!(
@@ -227,7 +223,7 @@ mod tavily {
 
     #[test]
     fn a_refusal_names_its_urls_without_credentials_or_secrets() {
-        let mut body = stored("tavily/error.json");
+        let mut body = sample_json("tavily/error.json");
         body["message"] = json!(
             "upstream rejected https://user:password@example.test/private?token=response-secret"
         );
@@ -254,7 +250,7 @@ mod tavily {
 mod firecrawl {
     use serde_json::json;
 
-    use super::{KEY, decode, search, stored};
+    use super::{KEY, decode, sample_json, search};
     use crate::fixture_server::{Response, header, path, request_json};
     use crate::providers::ProviderId;
     use crate::types::AttemptErrorKind;
@@ -264,7 +260,7 @@ mod firecrawl {
         assert_eq!(
             decode(
                 ProviderId::Firecrawl,
-                &stored("firecrawl/search.json").to_string(),
+                &sample_json("firecrawl/search.json").to_string(),
                 5
             ),
             Ok(json!([{
@@ -279,7 +275,7 @@ mod firecrawl {
 
     #[test]
     fn an_answer_without_web_results_is_an_empty_success() {
-        let mut body = stored("firecrawl/search.json");
+        let mut body = sample_json("firecrawl/search.json");
         body["data"]["web"] = json!([]);
 
         assert_eq!(
@@ -317,7 +313,7 @@ mod firecrawl {
             ProviderId::Firecrawl,
             "Current information",
             3,
-            Response::json(200, &stored("firecrawl/search.json").to_string()),
+            Response::json(200, &sample_json("firecrawl/search.json").to_string()),
         );
 
         assert_eq!(

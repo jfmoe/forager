@@ -8,8 +8,8 @@ use super::{
     CommentsData, Exchange, RequestMethod, ResponseBody, captured_comments, expansion_targets,
     read_comments, without_token,
 };
-use crate::providers::xiaohongshu_browser::tests::stored;
 use crate::redact::CREDENTIAL_MASK;
+use crate::samples::sample_json;
 use crate::types::{AccessToken, AttemptErrorKind, XiaohongshuCommentsRequest, XiaohongshuRef};
 
 const NOTE_ID: &str = "66f0a1b2c3d4e5f607200001";
@@ -21,7 +21,7 @@ const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
 /// The stored observation of a note's comments: a comment page, then the reply page of its
 /// second comment.
 fn stored_comments() -> Value {
-    stored("comments.json")
+    sample_json("xiaohongshu_browser/comments.json")
 }
 
 fn stored_response(kind: &str) -> Value {
@@ -423,7 +423,7 @@ fn captured_comment_exchanges_are_read_by_their_query_parameters() {
         ),
         exchange(
             "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
-            &stored("account.json"),
+            &sample_json("xiaohongshu_browser/account.json"),
         ),
         exchange(
             &format!(

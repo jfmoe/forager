@@ -7,7 +7,7 @@ use std::process::Output;
 
 use serde_json::Value;
 
-use super::run_command;
+use super::{isolated_command, run_command};
 
 // Platform routes need no credentials, and the X route shares the main search key, so live
 // smoke would run their cases unless the platform orders disable them.
@@ -24,9 +24,8 @@ pub(crate) struct SmokeEnvironment {
 impl SmokeEnvironment {
     pub(crate) fn new(config: impl FnOnce(&Path) -> String) -> Self {
         let root = tempfile::tempdir().expect("create isolated root");
-        let config_home = root.path().join("xdg-config");
-        let config_dir = config_home.join("forager");
-        let state_dir = root.path().join("xdg-state");
+        let config_dir = root.path().join("config");
+        let state_dir = root.path().join("state");
         let home_dir = root.path().join("home");
         let journal_dir = root.path().join("journal");
         fs::create_dir_all(&config_dir).expect("create config directory");
@@ -48,15 +47,8 @@ impl SmokeEnvironment {
     }
 
     pub(crate) fn run(&self, arguments: &[&str]) -> Output {
-        let mut command = super::forager_command();
-        command
-            .args(arguments)
-            .env(
-                "XDG_CONFIG_HOME",
-                self.config_dir.parent().expect("XDG config home"),
-            )
-            .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", &self.home_dir);
+        let mut command = isolated_command(&self.home_dir, &self.config_dir, &self.state_dir);
+        command.args(arguments);
         run_command(&mut command, None)
     }
 }

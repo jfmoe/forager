@@ -14,7 +14,7 @@ use crate::credentials::CredentialPool;
 use crate::fixture_server::{Fixture, block_on};
 use crate::main_search_samples::{answer_with, completed_events, failed_event, stored_answer};
 use crate::net::{AttemptFailure, MAX_RESPONSE_BYTES, build_client};
-use crate::samples::sample;
+use crate::samples::{sample, sample_json};
 use crate::types::AttemptErrorKind;
 
 const SERVICE: &str = "Test Responses";
@@ -63,12 +63,6 @@ fn complete_from(body: &str) -> Result<Value, AttemptFailure> {
     outcome.map(|(_, response)| response)
 }
 
-/// The stored Responses stream event `name`; the protocol's providers share its events.
-fn stored_event(name: &str) -> Value {
-    serde_json::from_str(&sample(&format!("xai/{name}")))
-        .unwrap_or_else(|error| panic!("stored xai/{name}: {error}"))
-}
-
 /// `event` with each field at a path of object keys set to its value.
 fn with(mut event: Value, fields: &[(&[&str], Value)]) -> Value {
     for (path, value) in fields {
@@ -89,7 +83,7 @@ fn failed(fields: &[(&[&str], Value)]) -> Value {
 /// The stored `response.incomplete` event with `reason` as its incomplete reason.
 fn incomplete(reason: &str) -> Value {
     with(
-        stored_event("response-incomplete.json"),
+        sample_json("xai/response-incomplete.json"),
         &[(&["response", "incomplete_details", "reason"], json!(reason))],
     )
 }
@@ -97,7 +91,7 @@ fn incomplete(reason: &str) -> Value {
 /// The stored `response.output_text.delta` event carrying `text`.
 fn delta(text: &str) -> Value {
     with(
-        stored_event("output-text-delta.json"),
+        sample_json("xai/output-text-delta.json"),
         &[(&["delta"], json!(text))],
     )
 }
@@ -228,7 +222,7 @@ fn a_stream_yields_its_completed_response_past_comments_controls_and_deltas() {
 
 #[test]
 fn unknown_terminals_missing_completion_and_malformed_frames_are_runtime_failures() {
-    let mut unknown_incomplete = stored_event("response-incomplete.json");
+    let mut unknown_incomplete = sample_json("xai/response-incomplete.json");
     unknown_incomplete["response"]
         .as_object_mut()
         .expect("stored response")

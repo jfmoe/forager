@@ -2,7 +2,8 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use crate::support::scholar::{config, fixture};
+use crate::support::samples::sample_json;
+use crate::support::scholar::config;
 use crate::support::{Fixture, RunEnvironment, ok_json, payload, stderr};
 
 const KEY: &str = "test-serpapi-key-a";
@@ -23,7 +24,7 @@ fn run(arguments: &[&str], body: &Value) -> (Output, String) {
 
 #[test]
 fn a_fetch_prints_the_cluster_it_names() {
-    let (output, _) = run(&[CLUSTER], &fixture("cluster.json"));
+    let (output, _) = run(&[CLUSTER], &sample_json("serpapi/cluster.json"));
     let item = payload(&output);
 
     assert_eq!(

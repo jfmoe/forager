@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use crate::support::hn::config;
-use crate::support::hn_samples::stored;
+use crate::support::samples::sample;
 use crate::support::{Fixture, Response, RunEnvironment, payload, refs};
 
 fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
@@ -12,7 +12,7 @@ fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Out
 
 #[test]
 fn a_search_prints_the_found_stories_and_comments_as_a_platform_page() {
-    let algolia = Fixture::start_sequence(vec![Response::json(200, &stored("search.json"))]);
+    let algolia = Fixture::start_sequence(vec![Response::json(200, &sample("hn_api/search.json"))]);
     let environment = RunEnvironment::new(&config(&algolia.url, "http://127.0.0.1:9"));
 
     let output = search(&environment, &["dropbox"]);

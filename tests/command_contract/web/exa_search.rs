@@ -1,8 +1,9 @@
 use std::fs;
 use std::process::Output;
 
+use crate::support::exa_samples::no_results;
 use crate::support::samples::sample;
-use crate::support::{Fixture, forager_command, run_command};
+use crate::support::{Fixture, RunEnvironment};
 use serde_json::Value;
 
 #[test]
@@ -115,16 +116,18 @@ fn an_exa_similar_sends_the_command_options_and_the_configured_key() {
 
 #[test]
 fn exa_search_and_similar_share_the_persistent_credential_cursor_between_processes() {
+    let keys = ["", " first-key ", "first-key", "second-key"];
     let first_fixture = Fixture::start_json(200, &no_results());
-    let environment = RunEnvironment::new(
-        &first_fixture.url,
-        &["", " first-key ", "first-key", "second-key"],
-    );
+    let environment = RunEnvironment::new(&config(&first_fixture.url, &keys));
 
     let first_output = environment.run(&["exa", "search", "first invocation"]);
     let first_request = first_fixture.finish();
     let second_fixture = Fixture::start_json(200, &sample("exa/similar.json"));
-    environment.set_url(&second_fixture.url);
+    fs::write(
+        environment.config_dir.join("config.toml"),
+        config(&second_fixture.url, &keys),
+    )
+    .expect("write config");
     let second_output = environment.run(&["exa", "similar", "https://example.test/source"]);
     let second_request = second_fixture.finish();
     let state_path = environment
@@ -206,63 +209,18 @@ fn exa_search_supports_markdown_and_output_tee() {
 }
 
 /// The stored search body without results.
-fn no_results() -> String {
-    let mut body: Value =
-        serde_json::from_str(&sample("exa/search.json")).expect("stored Exa JSON");
-    body["results"] = serde_json::json!([]);
-    body.to_string()
-}
-
 fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {
-    RunEnvironment::new(&fixture.url, keys).run(arguments)
+    RunEnvironment::new(&config(&fixture.url, keys)).run(arguments)
 }
 
-struct RunEnvironment {
-    root: tempfile::TempDir,
-    config_dir: std::path::PathBuf,
-    state_dir: std::path::PathBuf,
-    keys: Vec<String>,
-}
-
-impl RunEnvironment {
-    fn new(url: &str, keys: &[&str]) -> Self {
-        let root = tempfile::tempdir().expect("create isolated root");
-        let config_dir = root.path().join("config");
-        let state_dir = root.path().join("state");
-        fs::create_dir_all(&config_dir).expect("create config directory");
-        let environment = Self {
-            root,
-            config_dir,
-            state_dir,
-            keys: keys.iter().map(|key| (*key).to_owned()).collect(),
-        };
-        environment.set_url(url);
-        environment
-    }
-
-    fn set_url(&self, url: &str) {
-        let keys = self
-            .keys
-            .iter()
-            .map(|key| format!("{key:?}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        fs::write(
-            self.config_dir.join("config.toml"),
-            format!(
-                "[providers.exa]\nurl = {url:?}\nkeys = [{keys}]\ntimeout = 2\n[journal]\nenabled = false\n"
-            ),
-        )
-        .expect("write config");
-    }
-
-    fn run(&self, arguments: &[&str]) -> Output {
-        let mut command = forager_command();
-        command
-            .args(arguments)
-            .env("FORAGER_CONFIG_DIR", &self.config_dir)
-            .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", self.root.path());
-        run_command(&mut command, None)
-    }
+/// Sends Exa requests to `url` with `keys`, and keeps the journal off.
+fn config(url: &str, keys: &[&str]) -> String {
+    let keys = keys
+        .iter()
+        .map(|key| format!("{key:?}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "[providers.exa]\nurl = {url:?}\nkeys = [{keys}]\ntimeout = 2\n[journal]\nenabled = false\n"
+    )
 }

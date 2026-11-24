@@ -2,9 +2,10 @@
 //! the event the search found, and the history of the resolved canary market.
 
 use crate::support::path;
-use crate::support::polymarket_samples::{
-    event, last_trades, market, price_page, prices, resolved, search_page, stored, tokens,
+use crate::support::polymarket_api_samples::{
+    event, last_trades, market, price_page, prices, resolved, search_page, tokens,
 };
+use crate::support::samples::sample;
 use crate::support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
 use crate::support::{Fixture, Response, ok_json};
 use serde_json::{Value, json};
@@ -94,7 +95,10 @@ fn live_smoke_reads_the_canary_without_the_clob_the_found_event_with_it_and_the_
 
 #[test]
 fn the_live_quote_case_does_not_start_without_an_event_from_the_search_case() {
-    let gamma = Fixture::start_repeating(Response::json(500, &stored("gamma-error.json")));
+    let gamma = Fixture::start_repeating(Response::json(
+        500,
+        &sample("polymarket_api/gamma-error.json"),
+    ));
     let environment = environment(&gamma.url, "http://127.0.0.1:9", "http://127.0.0.1:9");
 
     let output = environment.run(&["smoke", "--live", "--timeout", "20"]);

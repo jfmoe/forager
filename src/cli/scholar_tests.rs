@@ -2,8 +2,8 @@ use clap::error::ErrorKind;
 
 use super::super::{PageInput, PlatformCommand, parse_platform};
 use super::{
-    ScholarCitedByArgs, ScholarCommand, ScholarFetchArgs, ScholarSearchArgs, cited_by_input,
-    scholar_fetch_input, scholar_search_input,
+    ScholarCitedByArgs, ScholarCommand, ScholarFetchArgs, ScholarSearchArgs,
+    scholar_cited_by_input, scholar_fetch_input, scholar_search_input,
 };
 use crate::app::AppError;
 use crate::types::{
@@ -64,7 +64,7 @@ fn cited_by_request(arguments: &[&str]) -> Result<ScholarCitedByRequest, AppErro
     let Ok(parsed) = cited_by_args(arguments) else {
         panic!("the parser accepts a scholar cited-by of {arguments:?}");
     };
-    match cited_by_input(parsed)?.request {
+    match scholar_cited_by_input(parsed)?.request {
         PageInput::Request(request) => Ok(request),
         PageInput::Cursor(_) => panic!("the arguments name no cursor"),
     }

@@ -7,6 +7,7 @@ use super::{
     ArxivApi, HtmlAvailability, content_urls, failure_message, html_probe_url, read_feed,
     search_support, select_paper,
 };
+use crate::arxiv_api_samples::{STORED_ID, feed_of, page};
 use crate::config::HttpRouteRuntimeConfig;
 use crate::fixture_server::{Fixture, Response, block_on, query};
 use crate::net::{RetryPolicy, build_client};
@@ -18,11 +19,6 @@ use crate::types::{
     FullTextSource, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
     PlatformSearchRequest,
 };
-
-#[path = "../../../tests/support/arxiv_feed.rs"]
-mod arxiv_feed;
-
-use arxiv_feed::{STORED_ID, feed_of, page};
 
 fn feed() -> String {
     sample("arxiv_api/feed.xml")
@@ -139,7 +135,7 @@ fn the_html_probe_goes_to_the_query_api_host() {
 
 #[test]
 fn a_returned_paper_with_another_version_is_a_runtime_failure() {
-    let page = read_feed(&feed_of(&feed(), "2401.01234v3")).expect("read feed");
+    let page = read_feed(&feed_of("2401.01234v3")).expect("read feed");
 
     let result = select_paper(page.items, &arxiv_ref("arxiv:2401.01234v2")).map(|_| ());
 
@@ -421,7 +417,7 @@ fn every_search_parameter_has_a_fixed_wire_encoding() {
             expected.insert((*name).to_owned(), (*value).to_owned());
         }
 
-        let (_, sent) = search_page(&request, &page(&feed(), 0, &[]));
+        let (_, sent) = search_page(&request, &page(0, &[]));
 
         assert_eq!(sent, expected, "query: {query:?}");
     }
@@ -434,8 +430,8 @@ fn a_full_page_below_the_total_continues_at_the_next_start_and_one_that_reaches_
     let mut later = request.clone();
     later.page = Some("2".to_owned());
 
-    let (below, _) = search_page(&request, &page(&feed(), 5, &ids));
-    let (reaching, sent) = search_page(&later, &page(&feed(), 4, &ids));
+    let (below, _) = search_page(&request, &page(5, &ids));
+    let (reaching, sent) = search_page(&later, &page(4, &ids));
 
     assert_eq!(
         (below.next_page, reaching.next_page, sent["start"].as_str()),
@@ -447,7 +443,7 @@ fn a_full_page_below_the_total_continues_at_the_next_start_and_one_that_reaches_
 fn a_legitimate_empty_feed_is_an_empty_page() {
     let request = search_request("no such words", ArxivSearchOptions::default(), 10);
 
-    let (outcome, _) = search_page(&request, &page(&feed(), 0, &[]));
+    let (outcome, _) = search_page(&request, &page(0, &[]));
 
     assert_eq!((outcome.items.len(), outcome.next_page), (0, None));
 }
@@ -538,7 +534,7 @@ fn a_rate_limited_query_api_ends_the_route_without_retry() {
 
 #[test]
 fn fetch_by_url_requests_the_version_the_url_names() {
-    let fixture = Fixture::start_sequence(vec![atom(200, &feed_of(&feed(), "hep-th/9901001v1"))]);
+    let fixture = Fixture::start_sequence(vec![atom(200, &feed_of("hep-th/9901001v1"))]);
     let request = fetch_request(
         "https://arxiv.org/pdf/hep-th/9901001v1.pdf",
         ContentDepth::Abstract,

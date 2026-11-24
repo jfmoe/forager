@@ -5,40 +5,31 @@ use serde_json::{Value, json};
 use super::{Exa, ExaOperation, ExaSearchRequest, ExaSimilarRequest, SearchType, decode_results};
 use crate::config::{DocsSearchProviderConfig, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
+use crate::exa_samples::no_results;
 use crate::fixture_server::{
     Fixture, Response, advance_after_request, block_on, header, path, request_json,
 };
 use crate::net::{MAX_RESPONSE_BYTES, RetryPolicy, build_client};
 use crate::providers::constructors::build_exa;
 use crate::providers::{DocsSearch, build_docs_search};
-use crate::samples::sample;
+use crate::samples::{sample, sample_json};
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ExaOutcome, ProviderError, Source};
 
 const KEY: &str = "first-key";
 const SECOND_KEY: &str = "second-key";
 const SOURCE: &str = "https://example.test/source";
 
-fn stored(name: &str) -> String {
-    sample(&format!("exa/{name}"))
-}
-
 /// The stored body `name` with `field` of its first result set to `value`.
 fn first_result_with(name: &str, field: &str, value: Value) -> String {
-    let mut body: Value = serde_json::from_str(&stored(name)).expect("stored Exa JSON");
+    let mut body = sample_json(&format!("exa/{name}"));
     body["results"][0][field] = value;
     body.to_string()
 }
 
 /// The stored search body without results.
-fn no_results() -> String {
-    let mut body: Value = serde_json::from_str(&stored("search.json")).expect("stored Exa JSON");
-    body["results"] = json!([]);
-    body.to_string()
-}
-
 /// The stored error answer with `message` as its reason.
 fn error_with(message: &str) -> String {
-    let mut body: Value = serde_json::from_str(&stored("error.json")).expect("stored error JSON");
+    let mut body = sample_json("exa/error.json");
     body["error"]["message"] = Value::String(message.to_owned());
     body.to_string()
 }
@@ -125,7 +116,7 @@ fn a_search_result_decodes_with_its_secrets_redacted() {
         ..search_request("rust async drop")
     });
 
-    let results = decode(&stored("search.json"), &operation).expect("stored search decodes");
+    let results = decode(&sample("exa/search.json"), &operation).expect("stored search decodes");
 
     assert_eq!(
         (
@@ -157,7 +148,7 @@ fn a_search_keeps_only_the_contents_it_asked_for() {
                 include_highlights,
                 ..search_request("rust async drop")
             });
-            let results = decode(&stored("search.json"), &operation).expect("stored search");
+            let results = decode(&sample("exa/search.json"), &operation).expect("stored search");
             (results[0].text.clone(), results[0].highlights.clone())
         },
     );
@@ -203,7 +194,7 @@ fn a_result_without_a_title_keeps_its_url_and_media() {
 #[test]
 fn a_similar_page_keeps_its_text_and_highlights_without_asking() {
     let results = decode(
-        &stored("similar.json"),
+        &sample("exa/similar.json"),
         &ExaOperation::Similar(similar_request()),
     )
     .expect("stored similar pages decode");
@@ -280,7 +271,7 @@ fn a_refused_success_body_is_a_runtime_failure() {
 
 #[test]
 fn a_success_body_is_read_whole_up_to_four_mibibytes_and_refused_beyond() {
-    let body = stored("search.json");
+    let body = sample("exa/search.json");
     let outcomes = [0, 1].map(|excess| {
         let padded = format!(
             "{body}{}",
@@ -306,7 +297,7 @@ fn a_success_body_is_read_whole_up_to_four_mibibytes_and_refused_beyond() {
 
 #[test]
 fn a_search_posts_every_option_with_the_key_in_its_header() {
-    let fixture = Fixture::start_json(200, &stored("search.json"));
+    let fixture = Fixture::start_json(200, &sample("exa/search.json"));
     let request = ExaSearchRequest {
         num_results: 2,
         search_type: SearchType::Neural,
@@ -362,7 +353,7 @@ fn a_search_posts_every_option_with_the_key_in_its_header() {
 fn a_search_asks_for_contents_only_when_it_wants_text_or_highlights() {
     let sent = [(None, false), (Some(500), false), (None, true)].map(
         |(text_max_characters, include_highlights)| {
-            let fixture = Fixture::start_json(200, &stored("search.json"));
+            let fixture = Fixture::start_json(200, &sample("exa/search.json"));
             let request = ExaSearchRequest {
                 text_max_characters,
                 include_highlights,
@@ -396,7 +387,7 @@ fn a_search_asks_for_contents_only_when_it_wants_text_or_highlights() {
 
 #[test]
 fn a_similar_posts_its_url_and_count_to_find_similar() {
-    let fixture = Fixture::start_json(200, &stored("similar.json"));
+    let fixture = Fixture::start_json(200, &sample("exa/similar.json"));
     let request = ExaSimilarRequest {
         num_results: 2,
         ..similar_request()
@@ -514,8 +505,8 @@ fn a_rate_limited_or_exhausted_key_rotates_to_the_next_key() {
 fn a_rate_limited_similar_rotates_and_names_its_operation() {
     let keys = [KEY, SECOND_KEY];
     let fixture = Fixture::start_sequence(vec![
-        Response::json(429, &stored("error.json")),
-        Response::json(200, &stored("similar.json")),
+        Response::json(429, &sample("exa/error.json")),
+        Response::json(200, &sample("exa/similar.json")),
     ]);
     let outcome = block_on(
         route(&fixture.url, &keys, 1, 30, Duration::from_secs(10)).similar(similar_request()),
@@ -555,7 +546,7 @@ fn a_search_rate_limited_on_every_key_fails_after_trying_each_once() {
         &keys,
         2,
         (0..keys.len())
-            .map(|_| Response::json(429, &stored("error.json")))
+            .map(|_| Response::json(429, &sample("exa/error.json")))
             .collect(),
     );
     let error = outcome.expect_err("every key is rate limited");
@@ -671,7 +662,7 @@ fn separately_built_routes_draw_search_and_similar_keys_from_one_cursor() {
     let keys = [KEY, SECOND_KEY];
     let fixture = Fixture::start_sequence(vec![
         Response::json(200, &no_results()),
-        Response::json(200, &stored("similar.json")),
+        Response::json(200, &sample("exa/similar.json")),
     ]);
 
     let attempts = block_on(async {
@@ -718,7 +709,7 @@ fn docs_route(url: &str) -> Box<dyn DocsSearch> {
 
 #[test]
 fn a_documentation_search_asks_for_highlights_of_automatic_results() {
-    let fixture = Fixture::start_json(200, &stored("search.json"));
+    let fixture = Fixture::start_json(200, &sample("exa/search.json"));
 
     block_on(docs_route(&fixture.url).search("Rust ownership", 1))
         .expect("documentation search succeeds");
@@ -740,7 +731,7 @@ fn a_documentation_search_asks_for_highlights_of_automatic_results() {
 
 #[test]
 fn a_documentation_result_becomes_a_candidate_summarized_by_its_first_highlight() {
-    let fixture = Fixture::start_json(200, &stored("search.json"));
+    let fixture = Fixture::start_json(200, &sample("exa/search.json"));
 
     let outcome = block_on(docs_route(&fixture.url).search("Rust ownership", 1))
         .expect("documentation search succeeds");

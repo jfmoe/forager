@@ -945,22 +945,17 @@ mod tests {
     mod youtube_api {
         use std::time::Duration;
 
-        use serde_json::{Value, json};
+        use serde_json::json;
 
         use super::super::{plan_cursor_videos, plan_videos, run_videos};
         use crate::config::runtime_config_from_toml;
         use crate::fixture_server::{Fixture, Response, block_on, path, query};
         use crate::net::{RetryPolicy, build_client};
-        use crate::samples::sample;
+        use crate::samples::sample_json;
         use crate::types::{
             Deadline, Platform, PlatformSearchPage, ProviderError, YoutubeCollection,
             YoutubeVideosRequest,
         };
-
-        fn stored(name: &str) -> Value {
-            serde_json::from_str(&sample(&format!("youtube_api/{name}")))
-                .expect("stored youtube_api sample")
-        }
 
         fn run(plan: super::super::VideosPlan) -> Result<PlatformSearchPage, ProviderError> {
             block_on(run_videos(
@@ -974,13 +969,13 @@ mod tests {
 
         #[test]
         fn a_videos_cursor_continues_the_channel_a_handle_resolved_to_without_another_lookup() {
-            let mut continued = stored("playlist-items.json");
+            let mut continued = sample_json("youtube_api/playlist-items.json");
             continued["nextPageToken"] = json!("EAAaBlBUOkNBRQ");
             let api = Fixture::start_sequence(
                 [
-                    stored("channels.json"),
+                    sample_json("youtube_api/channels.json"),
                     continued,
-                    stored("playlist-items.json"),
+                    sample_json("youtube_api/playlist-items.json"),
                 ]
                 .iter()
                 .map(|body| Response::json(200, &body.to_string()))
@@ -1048,32 +1043,29 @@ mod tests {
         use crate::config::{RuntimeConfig, runtime_config_from_toml};
         use crate::fixture_server::{Fixture, Response, block_on, path};
         use crate::net::{RetryPolicy, build_client};
-        use crate::samples::sample;
+        use crate::samples::sample_json;
         use crate::types::{
             AttemptErrorKind, Deadline, Platform, PlatformAskRequest, ProviderError,
             YoutubeAskRequest, YoutubeRef, YoutubeTranscribeRequest,
         };
 
-        fn stored(name: &str) -> Value {
-            serde_json::from_str(&sample(name)).expect("stored sample")
-        }
-
         /// The stored `videos.list` response holding `items`.
         fn videos(items: &[Value]) -> Response {
-            let mut page = stored("youtube_api/video.json");
+            let mut page = sample_json("youtube_api/video.json");
             page["items"] = json!(items);
             Response::json(200, &page.to_string())
         }
 
         fn zoo() -> Value {
-            stored("youtube_api/video.json")["items"][0].clone()
+            sample_json("youtube_api/video.json")["items"][0].clone()
         }
 
         /// The stored Gemini answer whose text is `text`.
         fn answer(text: &str) -> Response {
-            let mut body = stored("gemini_api/generate-content.json");
-            body["candidates"][0]["content"]["parts"][1]["text"] = json!(text);
-            Response::json(200, &body.to_string())
+            Response::json(
+                200,
+                &crate::gemini_api_samples::generated(text, "STOP").to_string(),
+            )
         }
 
         /// The default YouTube order over `youtube_api` at `api` and `gemini_api` at `gemini`.

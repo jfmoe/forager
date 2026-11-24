@@ -1,22 +1,15 @@
 //! YouTube Data API bodies derived from the stored samples in `tests/samples/youtube_api/`, shared
-//! by the command contract tests and, through the route's in-crate tests, the crate; the
-//! including module provides the sample store's reader as `samples`. A variant changes only what
-//! its test is about, so every other field stays as the sample has it.
+//! by the command contract tests and, through the crate root, the in-crate tests. A variant
+//! changes only what its test is about, so every other field stays as the sample has it.
 
 use serde_json::{Value, json};
 
-use super::samples::sample;
+use super::samples::sample_json;
 
-/// The stored body `name`, as the Data API answered it.
-pub(crate) fn stored(name: &str) -> Value {
-    serde_json::from_str(&sample(&format!("youtube_api/{name}")))
-        .unwrap_or_else(|error| panic!("stored youtube_api/{name}: {error}"))
-}
-
-/// The stored list response `name` holding `items`, with `next_page_token` when another page
-/// exists.
+/// The stored list response `name` of `tests/samples/youtube_api/` holding `items`, with
+/// `next_page_token` when another page exists.
 fn page(name: &str, items: &[Value], next_page_token: Option<&str>) -> Value {
-    let mut page = stored(name);
+    let mut page = sample_json(&format!("youtube_api/{name}"));
     page["items"] = json!(items);
     page["pageInfo"]["resultsPerPage"] = json!(items.len());
     let fields = page.as_object_mut().expect("list response");
@@ -45,7 +38,7 @@ pub(crate) fn videos_page(items: &[Value]) -> Value {
 
 /// The stored video, "Me at the zoo", with `description` as its description.
 pub(crate) fn zoo_video(description: &str) -> Value {
-    let mut video = stored("video.json")["items"][0].clone();
+    let mut video = sample_json("youtube_api/video.json")["items"][0].clone();
     video["snippet"]["description"] = json!(description);
     video["snippet"]["localized"]["description"] = json!(description);
     video
@@ -72,7 +65,7 @@ pub(crate) fn playlist_item(
     title: &str,
     description: &str,
 ) -> Value {
-    let mut item = stored("playlist-items.json")["items"][0].clone();
+    let mut item = sample_json("youtube_api/playlist-items.json")["items"][0].clone();
     item["etag"] = json!(format!("etag-{video_id}"));
     item["id"] = json!(format!("item-{position}"));
     let snippet = &mut item["snippet"];

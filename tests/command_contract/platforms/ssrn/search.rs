@@ -2,7 +2,8 @@ use std::process::Output;
 
 use serde_json::json;
 
-use crate::support::ssrn_samples::{stored, stored_json, work_list};
+use crate::support::samples::{sample, sample_json};
+use crate::support::ssrn_crossref_samples::work_list;
 use crate::support::{Fixture, Response, RunEnvironment, payload, refs, stderr};
 
 fn config(url: &str) -> String {
@@ -27,7 +28,7 @@ fn page(arguments: &[&str], response: Response) -> (Output, String) {
 fn a_search_prints_the_ssrn_papers_and_names_the_skipped_dois_on_stderr() {
     let (output, _) = page(
         &["momentum"],
-        Response::json(200, &stored("work-list.json")),
+        Response::json(200, &sample("ssrn_crossref/work-list.json")),
     );
 
     let page = payload(&output);
@@ -54,7 +55,7 @@ fn a_search_prints_the_ssrn_papers_and_names_the_skipped_dois_on_stderr() {
 
 #[test]
 fn markdown_shows_an_abstract_only_for_items_that_have_one() {
-    let records = &stored_json("work-list.json")["message"]["items"];
+    let records = &sample_json("ssrn_crossref/work-list.json")["message"]["items"];
     let without_abstract = records[2].clone();
     let (output, _) = page(
         &["momentum", "--format", "markdown"],

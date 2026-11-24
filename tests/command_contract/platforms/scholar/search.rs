@@ -2,7 +2,8 @@ use std::process::Output;
 
 use serde_json::json;
 
-use crate::support::scholar::{config, fixture};
+use crate::support::samples::sample_json;
+use crate::support::scholar::config;
 use crate::support::{Fixture, Response, RunEnvironment, ok_json, payload, refs, stderr};
 
 const KEY: &str = "test-serpapi-key-a";
@@ -26,7 +27,7 @@ fn a_search_prints_the_found_papers_by_their_cluster_refs() {
     let (output, _) = run(
         &[KEY],
         &["momentum"],
-        vec![ok_json(&fixture("search.json"))],
+        vec![ok_json(&sample_json("serpapi/search.json"))],
     );
     let page = payload(&output);
 

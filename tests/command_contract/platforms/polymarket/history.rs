@@ -2,7 +2,8 @@ use serde_json::json;
 
 use crate::support::path;
 use crate::support::polymarket::{history_config, run};
-use crate::support::polymarket_samples::{resolved, stored};
+use crate::support::polymarket_api_samples::resolved;
+use crate::support::samples::sample;
 use crate::support::{Fixture, Response, RunEnvironment, ok_json, payload, stderr};
 
 const WINNER: &str = "will-donald-trump-win-the-2024-us-presidential-election";
@@ -10,7 +11,10 @@ const WINNER: &str = "will-donald-trump-win-the-2024-us-presidential-election";
 #[test]
 fn a_history_prints_the_price_series_of_the_market() {
     let gamma = Fixture::start_sequence(vec![ok_json(&resolved(WINNER, "Donald Trump", true))]);
-    let data = Fixture::start_sequence(vec![Response::json(200, &stored("price-history.json"))]);
+    let data = Fixture::start_sequence(vec![Response::json(
+        200,
+        &sample("polymarket_api/price-history.json"),
+    )]);
     let environment = RunEnvironment::new(&history_config(&gamma.url, &data.url));
 
     let output = run(

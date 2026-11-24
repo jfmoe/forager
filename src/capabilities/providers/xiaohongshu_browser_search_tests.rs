@@ -10,7 +10,7 @@ use super::{
     filter_choices, published_date, search_data as captured_search_data, search_outcome,
     wants_another_page,
 };
-use crate::providers::xiaohongshu_browser::tests::stored;
+use crate::samples::sample_json;
 use crate::types::{
     AttemptErrorKind, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuSearchOptions,
     XiaohongshuSort,
@@ -30,7 +30,7 @@ fn at(date: (i32, u32, u32), time: (u32, u32)) -> NaiveDateTime {
 
 /// The stored observation of a search for 咖啡: one default-condition first page.
 fn stored_search() -> Value {
-    stored("search.json")
+    sample_json("xiaohongshu_browser/search.json")
 }
 
 /// The stored captured `search/notes` exchange.
@@ -789,7 +789,7 @@ fn captured_search_responses_count_the_filter_clicks_made_before_them() {
     let onebox = exchange(
         "/api/sns/web/v1/search/onebox",
         &json!({"keyword": "咖啡", "search_id": ROOT_SEARCH_ID}),
-        &stored("onebox.json"),
+        &sample_json("xiaohongshu_browser/onebox.json"),
     );
     let observed = Observed {
         page: serde_json::from_value(results_page()).expect("page facts"),

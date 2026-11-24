@@ -10,21 +10,16 @@ use crate::fixture_server::{
     Fixture, Response, block_on, ok_json, pairs, path, query, request_json,
 };
 use crate::net::{RetryPolicy, build_client};
+use crate::polymarket_api_samples::{
+    event, last_trades, market, no_match, prices, resolved, search_page, tokens,
+};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::refused;
-// The stored bodies below read the sample store through this name.
-use crate::samples;
+use crate::samples::{sample, sample_json, with, without};
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchOutcome, PlatformFetchRequest,
     PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
     PlatformSearchRequest, PolymarketRef, PolymarketSearchOptions, ProviderError,
-};
-
-#[path = "../../../tests/support/polymarket_samples.rs"]
-pub(super) mod stored;
-
-use stored::{
-    event, last_trades, market, no_match, prices, resolved, search_page, tokens, with, without,
 };
 
 /// [`market`] as a neg-risk placeholder: open in name and accepting orders, but inactive, with
@@ -34,7 +29,7 @@ fn placeholder(slug: &str, label: &str) -> Value {
         market(slug, label),
         &json!({"active": false, "bestBid": 0, "bestAsk": 1}),
     );
-    without(placeholder, "outcomePrices")
+    without(placeholder, &["outcomePrices"])
 }
 
 const EVENT: &str = "how-many-fed-rate-cuts-in-2026";
@@ -61,10 +56,6 @@ pub(super) fn route(url: &str) -> PolymarketApi {
 
 pub(super) fn reference(input: &str) -> PolymarketRef {
     PolymarketRef::parse(input).expect("valid ref")
-}
-
-fn stored_json(name: &str) -> Value {
-    serde_json::from_str(&stored::stored(name)).expect("a stored JSON body")
 }
 
 fn search_request(query: &str, limit: u16, include_closed: bool) -> PlatformSearchRequest {
@@ -408,7 +399,10 @@ fn a_page_without_pagination_is_a_runtime_failure() {
 fn a_gamma_validation_error_is_a_forager_defect_not_a_user_error() {
     let (outcome, _) = search(
         &search_request("fed rate", 10, false),
-        vec![Response::json(422, &stored::stored("gamma-error.json"))],
+        vec![Response::json(
+            422,
+            &sample("polymarket_api/gamma-error.json"),
+        )],
     );
     let error = outcome.map(|_| ()).expect_err("a validation error fails");
 
@@ -703,11 +697,11 @@ fn live_prices_are_as_of_the_second_the_clob_read_them_in_utc() {
 fn an_event_carries_its_identity_and_scale() {
     let item = fetched(
         &format!("https://polymarket.com/zh/event/{EVENT}?tid=1761200000000"),
-        &stored_json("event.json"),
+        &sample_json("polymarket_api/event.json"),
         ContentDepth::Metadata,
         Some((
-            &stored_json("prices.json"),
-            &stored_json("last-trades.json"),
+            &sample_json("polymarket_api/prices.json"),
+            &sample_json("polymarket_api/last-trades.json"),
         )),
     );
 
@@ -763,7 +757,7 @@ fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes_without_a_l
         ContentDepth::Metadata,
         vec![
             ok_json(&derivation_event()),
-            Response::json(500, &stored::stored("clob-error.json")),
+            Response::json(500, &sample("polymarket_api/clob-error.json")),
         ],
     );
     let outcome = outcome.expect("the fetch prices from Gamma");
@@ -955,8 +949,7 @@ fn outcomes_the_clob_leaves_out_have_no_price_and_failed_last_trades_are_null() 
             Response::json(
                 503,
                 &with(
-                    serde_json::from_str(&stored::stored("clob-error.json"))
-                        .expect("stored CLOB error"),
+                    sample_json("polymarket_api/clob-error.json"),
                     &json!({"error": "busy"}),
                 )
                 .to_string(),
@@ -1033,7 +1026,7 @@ fn a_missing_slug_asks_the_caller_to_search_again() {
             ContentDepth::Metadata,
             vec![Response::json(
                 404,
-                &stored::stored("gamma-error-not-found.json"),
+                &sample("polymarket_api/gamma-error-not-found.json"),
             )],
         );
         let error = outcome.map(|_| ()).expect_err("a missing slug fails");

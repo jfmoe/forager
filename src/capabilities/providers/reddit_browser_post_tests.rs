@@ -5,7 +5,7 @@ use super::super::projection_script;
 #[cfg(unix)]
 use super::POST_PROJECTION;
 use super::{PostObservation, PostProjection, PostTarget, post_outcome};
-use crate::providers::reddit_browser::tests::stored;
+use crate::samples::sample;
 use crate::types::{AttemptErrorKind, ContentDepth, FullTextSource, RedditRef};
 
 const POST_PAGE: &str = "post.json";
@@ -14,7 +14,8 @@ const MISSING_POST_PAGE: &str = "missing-post.json";
 
 /// The stored projection `name`.
 fn projection(name: &str) -> PostProjection {
-    serde_json::from_str(&stored(name)).unwrap_or_else(|error| panic!("decode {name}: {error}"))
+    serde_json::from_str(&sample(&format!("reddit_browser/{name}")))
+        .unwrap_or_else(|error| panic!("decode {name}: {error}"))
 }
 
 fn reference(id: &str) -> RedditRef {

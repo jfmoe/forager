@@ -1,12 +1,11 @@
 use chrono::NaiveDate;
-use serde_json::{Value, json};
+use serde_json::json;
 
 use super::decode_page;
 use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
-use crate::providers::polymarket_api::tests::stored::{
-    event, market, price_page, resolved, stored, tokens, with,
-};
+use crate::polymarket_api_samples::{event, market, price_page, resolved, tokens};
 use crate::providers::polymarket_api::tests::{reference, route};
+use crate::samples::{sample, sample_json, with};
 use crate::types::{
     AttemptErrorKind, PolymarketBucket, PolymarketHistoryOutcome, PolymarketHistoryRequest,
     PolymarketInterval, PolymarketWindow, ProviderError,
@@ -70,7 +69,7 @@ fn a_resolved_market_lists_its_daily_prices_and_gives_its_payout_as_the_settleme
         ),
         vec![
             ok_json(&resolved(WINNER, "Donald Trump", true)),
-            Response::json(200, &stored("price-history.json")),
+            Response::json(200, &sample("polymarket_api/price-history.json")),
         ],
     );
     let outcome = outcome.expect("history succeeds");
@@ -525,7 +524,7 @@ fn a_data_api_refusal_fails_the_history_with_the_upstream_reason() {
         ),
         vec![
             ok_json(&market(OPEN, "No cuts")),
-            Response::json(400, &stored("data-error.json")),
+            Response::json(400, &sample("polymarket_api/data-error.json")),
         ],
     );
     let error = outcome.map(|_| ()).expect_err("a refused history fails");
@@ -541,7 +540,7 @@ fn a_data_api_refusal_fails_the_history_with_the_upstream_reason() {
 
 #[test]
 fn prices_written_as_decimal_strings_are_read_as_numbers() {
-    let mut page: Value = serde_json::from_str(&stored("price-history.json")).expect("stored page");
+    let mut page = sample_json("polymarket_api/price-history.json");
     page["data"] = json!([with(
         page["data"][0].clone(),
         &json!({"timestamp": 1_792_627_200, "price": "0.9695"}),

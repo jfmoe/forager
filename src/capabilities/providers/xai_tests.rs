@@ -8,11 +8,11 @@ use serde_json::{Value, json};
 use super::Xai;
 use crate::config::{MainSearchProviderConfig, XaiRuntimeConfig};
 use crate::fixture_server::{Fixture, Response, block_on, header, path, request_json};
-use crate::main_search_samples::{answer_with, completed_events, failed_event, stored_answer};
+use crate::main_search_samples::{answer_with, completed, failed_event, stored_answer};
 use crate::net::{AttemptFailure, RetryPolicy, build_client};
 use crate::providers::build_main_search;
 use crate::providers::{MainSearchRequest, MainSearchRequestKind, RouteContext};
-use crate::samples::sample;
+use crate::samples::sample_json;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt, ProviderError, SearchOutcome};
 
 const KEY: &str = "xai-key";
@@ -52,10 +52,6 @@ fn decode(response: &Value) -> Result<(String, Vec<(String, String)>), AttemptFa
         })
 }
 
-fn completed(response: &Value) -> Response {
-    Response::sse(200, &completed_events(response))
-}
-
 /// A stream that ends with the stored `response.failed` event carrying the structured error
 /// `code`.
 fn failed(code: &str) -> Response {
@@ -66,7 +62,7 @@ fn failed(code: &str) -> Response {
 
 /// The stored error answer of a refused request, its reason replaced by `reason`.
 fn refusal(status: u16, reason: &str) -> Response {
-    let mut body: Value = serde_json::from_str(&sample("xai/error.json")).expect("stored JSON");
+    let mut body = sample_json("xai/error.json");
     body["error"] = json!(reason);
     Response::json(status, &body.to_string())
 }

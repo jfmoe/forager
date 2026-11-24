@@ -10,7 +10,7 @@ use super::{fetch, plan_fetch};
 use crate::config::runtime_config_from_toml;
 use crate::fixture_server::{Fixture, Response, block_on};
 use crate::net::{RetryPolicy, build_client};
-use crate::samples::sample;
+use crate::samples::{sample, sample_json};
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformFetchResult,
     PlatformRef, ProviderError,
@@ -32,8 +32,7 @@ fn arxiv_answers() -> Vec<Response> {
 
 /// A Firecrawl scrape answer whose Markdown is `markdown`.
 fn firecrawl(markdown: &str) -> Response {
-    let mut body: Value =
-        serde_json::from_str(&sample("firecrawl/scrape.json")).expect("stored scrape answer");
+    let mut body = sample_json("firecrawl/scrape.json");
     body["data"]["markdown"] = json!(markdown);
     Response::json(200, &body.to_string())
 }

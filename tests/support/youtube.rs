@@ -1,9 +1,9 @@
-//! YouTube fixtures: configuration for `youtube_api`, Data API records derived from the stored
-//! samples, shared by the `platform youtube` tests.
+//! YouTube configuration for `youtube_api` and Data API records derived from the stored samples,
+//! shared by the `platform youtube` tests.
 
 use serde_json::{Value, json};
 
-use super::youtube_api_samples::stored;
+use super::samples::sample_json;
 
 /// The fixture API key; tests assert it never leaves the request header.
 pub(crate) const KEY: &str = "yt-fixture-key-0123456789";
@@ -17,7 +17,7 @@ pub(crate) fn config(url: &str) -> String {
 
 /// The stored first search result as the video `video_id` titled `title` with `description`.
 pub(crate) fn search_result(video_id: &str, title: &str, description: &str) -> Value {
-    let mut result = stored("search.json")["items"][0].clone();
+    let mut result = sample_json("youtube_api/search.json")["items"][0].clone();
     result["etag"] = json!(format!("etag-{video_id}"));
     result["id"]["videoId"] = json!(video_id);
     let snippet = &mut result["snippet"];
@@ -36,7 +36,7 @@ pub(crate) fn video_stats(
     views: &str,
     comments: Option<&str>,
 ) -> Value {
-    let mut video = stored("video-details.json")["items"][1].clone();
+    let mut video = sample_json("youtube_api/video-details.json")["items"][1].clone();
     video["etag"] = json!(format!("etag-{video_id}"));
     video["id"] = json!(video_id);
     video["contentDetails"]["duration"] = json!(duration);
@@ -58,7 +58,8 @@ pub(crate) fn video_stats(
 /// the author's channel ID is `UC` and the author name padded with `_` to 22 characters.
 pub(crate) fn comment(id: &str, author: &str, text: &str, likes: u64) -> Value {
     let mut comment =
-        stored("comment-threads.json")["items"][0]["snippet"]["topLevelComment"].clone();
+        sample_json("youtube_api/comment-threads.json")["items"][0]["snippet"]["topLevelComment"]
+            .clone();
     comment["etag"] = json!(format!("etag-{id}"));
     comment["id"] = json!(id);
     let snippet = &mut comment["snippet"];
@@ -73,7 +74,7 @@ pub(crate) fn comment(id: &str, author: &str, text: &str, likes: u64) -> Value {
 
 /// The stored first thread holding `top`, its reply count, and the replies it embeds.
 pub(crate) fn comment_thread(top: &Value, total_reply_count: u64, replies: &[Value]) -> Value {
-    let mut thread = stored("comment-threads.json")["items"][0].clone();
+    let mut thread = sample_json("youtube_api/comment-threads.json")["items"][0].clone();
     thread["etag"] = json!(format!("thread-{}", top["id"].as_str().unwrap_or_default()));
     thread["id"] = top["id"].clone();
     thread["snippet"]["topLevelComment"] = top.clone();

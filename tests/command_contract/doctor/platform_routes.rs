@@ -247,15 +247,15 @@ fn youtube_web_deep_doctor_fetches_the_canary_video_metadata() {
 fn polymarket_api_deep_doctor_checks_the_clob_and_the_data_api_after_its_search() {
     let gamma = Fixture::start_json(
         200,
-        &crate::support::polymarket_samples::no_match().to_string(),
+        &crate::support::polymarket_api_samples::no_match().to_string(),
     );
     let clob = Fixture::start_json(
         200,
-        &crate::support::polymarket_samples::stored("clob-time.json"),
+        &crate::support::samples::sample("polymarket_api/clob-time.json"),
     );
     let data = Fixture::start_json(
         200,
-        &crate::support::polymarket_samples::stored("data-status.json"),
+        &crate::support::samples::sample("polymarket_api/data-status.json"),
     );
     let environment = RunEnvironment::new(&format!(
         "[providers.polymarket_api]\nurl = {:?}\nclob_url = {:?}\ndata_url = {:?}\n",

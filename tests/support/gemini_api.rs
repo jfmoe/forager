@@ -1,10 +1,11 @@
-//! Gemini API fixtures: configuration that pairs `gemini_api` with `youtube_api`, and
-//! `generateContent` and error responses derived from the stored samples.
+//! Gemini API configuration that pairs `gemini_api` with `youtube_api`, and `generateContent` and
+//! error responses derived from the stored samples.
 
 use serde_json::{Value, json};
 
 use super::Response;
-use super::gemini_api_samples as samples;
+use super::gemini_api_samples;
+use super::samples::sample_json;
 use super::youtube;
 
 /// The fixture Gemini key; tests assert it travels only in the request header.
@@ -24,7 +25,10 @@ pub(crate) fn config(api_url: &str, gemini_url: &str) -> String {
 
 /// A finished `generateContent` response whose answer is `text`, after a reasoning summary.
 pub(crate) fn answer(text: &str) -> Response {
-    Response::json(200, &samples::generated(text, "STOP").to_string())
+    Response::json(
+        200,
+        &gemini_api_samples::generated(text, "STOP").to_string(),
+    )
 }
 
 /// The stored transcription answer: a finished `generateContent` response whose answer text is
@@ -32,7 +36,7 @@ pub(crate) fn answer(text: &str) -> Response {
 pub(crate) fn transcription() -> Response {
     Response::json(
         200,
-        &samples::stored("generate-content-transcript.json").to_string(),
+        &sample_json("gemini_api/generate-content-transcript.json").to_string(),
     )
 }
 
@@ -49,5 +53,8 @@ pub(crate) fn usage() -> Value {
 
 /// A Gemini error body.
 pub(crate) fn error(status: u16, reason: &str, message: &str) -> Response {
-    Response::json(status, &samples::error(status, reason, message).to_string())
+    Response::json(
+        status,
+        &gemini_api_samples::error(status, reason, message).to_string(),
+    )
 }
