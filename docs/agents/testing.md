@@ -20,7 +20,7 @@ Start in the crate and move outward only when the rule is a fact of the outer la
 - **Request construction and HTTP semantics** (status mapping, headers, query encoding, redirects, deadlines) go through the real HTTP stack against the shared fixture server, in the crate. Build the route as the provider factory does, or run the orchestration over a configuration document.
 - **Validation before any request** stays in the crate. Argument rules (conflicts, ranges, defaults) are proven by parsing the command's definition in process, which covers the argument wiring without spawning the binary.
 - **Platform-independent rules** (an empty or unusable route set, a missing key, cursor tampering and resumption, opt-in hints, fallback and attribution) are proven once, in the module that implements them, not once per platform. The command contract layer keeps at most two representatives of each rule: one on an HTTP route and one on a browser route. A platform's own facts that a rule's test touches, such as how its route maps a page position onto its request, belong to that route's tests.
-- **A command contract test** spawns the binary and proves only what nothing cheaper can: the command's outer path or an outer checklist item. A test whose rule is not on the checklist belongs in the crate.
+- **A command contract test** spawns the binary and proves only what nothing cheaper can: the command's outer path or an outer checklist item. A command's outer path is that its arguments reach the engine through the real binary and its result reaches stdout. A test whose rule is neither belongs in the crate, or, when it is how one command renders its result or failure or maps its error to an exit code, in the binary unit tests.
 - **The command contract tests are one binary**, `tests/command_contract/`, organised by domain, and they reach the binary only through the shared test environment in `tests/support/`. A new contract test is a module of that binary, never a new file directly under `tests/`: every test binary links the library again and rebuilds after any source change, and a repository rule fixes the set of binaries.
 
 ### Waiting on real time
@@ -48,6 +48,8 @@ One filter selects a provider's or a platform's tests, with `IDS` replaced:
 cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/)'
 ```
 
+Run this command, the gate command below and every check in `AGENTS.md`, clippy included, exactly as written: no pipe, and no `tail`, `head` or `grep` cutting the output. The default profile already prints only failures and the final summary, and a pipe replaces cargo's exit code with the last command's, so a failed run can look like a pass.
+
 - **A provider:** its ID, plus each platform that it is the only route of. The `xai` provider is `xai|x`, because it is the X platform's only route; `youtube_web` is `youtube_web`, because YouTube has other routes. `gemini_api` alone also selects YouTube's ask and transcribe commands, because it is the only route that serves them.
 - **A platform:** its ID, plus each of its routes that serves nothing else. Google Scholar is `scholar|serpapi`. X is `x` alone: the `xai` route also backs main search, and listing it would select main-search tests.
 
@@ -67,8 +69,8 @@ No profile retries a failed test, so a red run always means something; a test th
 
 The sample store is `tests/samples/<provider>/`. Every upstream body a test replays comes from there, and the in-crate tests and the command contract tests read the same file, so an upstream change is fixed in one place. Tests locate samples relative to the crate root, because the runner does not fix the working directory.
 
-- A *shape* is one response structure of one upstream endpoint, and it is stored once. Derive a variant (an error, an empty result, another page) from the base sample inside the test, or store it as a named variant whose record says `variant_of`.
-- An input built to break a decoder, such as a truncated body or a page that is not XML, is not an upstream shape: write it in the test, because it records nothing the upstream did and no refresh would ever change it.
+- A *shape* is one response structure of one upstream endpoint, and it is stored once. A record with a field changed or removed, an error, an empty result and another page are variants of the shape: derive each from the stored sample inside the test, or store it as a named variant whose record says `variant_of`. Write no valid upstream record in a test, however small: a hand-made record keeps none of the sample's other fields, so it drifts from the stored shape without any test noticing. That covers a whole body, an event and each record the route reads as one of its results; a field of a stored record set to a nested value, such as a short list of objects, is still a variant, because the record around it keeps the sample's fields.
+- Only an input that is not a valid upstream response at all, such as a truncated body, a body that is not JSON, or another kind of document, is written in the test, because it records nothing the upstream did and no refresh would ever change it.
 - Each directory's `samples.toml` has one record per sample: `file`, `shape`, `origin` (`captured` or `hand-written`), the `observed` date and, for a captured sample only, `obtained`, which says how it was captured. A repository rule fails, naming the sample, when a sample has no record or a record names no sample.
 - `observed` is the date the shape was seen at the upstream. For a hand-written sample of unknown basis, it is the date the sample was written, and its origin is `hand-written`.
 
@@ -83,7 +85,7 @@ The sample store is `tests/samples/<provider>/`. Every upstream body a test repl
 
 ## The outer checklist
 
-Only the real binary can prove these facts, and each has at least one command contract test. Before moving or retiring a command contract test, make sure every item it proves keeps another test.
+Only the real binary can prove these facts, and each is proven through the binary once for the whole binary, not once per command, because the mechanism that each item names is shared by every command. What one command does within such a mechanism, such as how it renders its failure or which exit code its error maps to, is a binary unit test of that command. Before moving or retiring a command contract test, make sure every item it proves keeps another test.
 
 - Each exit code: 0, 2, 3, 4 and 5.
 - Each output format (JSON, Markdown, content) for each kind of output that offers it: search results, platform items, fetched bodies.

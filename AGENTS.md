@@ -4,6 +4,10 @@ A Rust CLI that gives AI agents search, fetch and per-platform retrieval through
 
 ## Checks
 
+Run every check command below exactly as written: no pipe, and no `tail`, `head` or `grep` cutting its output. The default profile already prints only failures and the final summary, which names every failed test, and a pipe replaces cargo's exit code with the last command's, so a failed run can look like a pass. An agent that filtered the output lost the name of a failing test.
+
+A change to code is done only after the quick and full checks pass; a change to documents alone needs the documents-only check.
+
 - Quick: `cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings`.
 - Full: `cargo nextest run --all-targets --all-features --locked` (install with `brew install cargo-nextest`).
 - Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`.
@@ -13,8 +17,6 @@ A Rust CLI that gives AI agents search, fetch and per-platform retrieval through
 - CI runs the same configuration through the `ci` profile, and every pull request runs the whole workflow: the quick and full checks on `linux`, and the permission and release artifact gate tests on `windows`.
 - A local default run runs every test the CI run does except the release artifact gate, which it counts among the skipped tests; apart from that the profiles differ only in how long a test may take. After a change to the release scripts, run `cargo nextest run --profile ci --locked --test release_artifact_gate`; under the default profile that command selects no tests.
 - `git config core.hooksPath .githooks` enables a pre-commit hook that runs `cargo fmt --check`.
-
-Read failures from the summary nextest prints at the end, which names every failed test; never filter the test output. An agent that filtered it lost the name of a failing test.
 
 A test that fails in the full suite but passes alone depends on something outside itself, such as a real host or another test's state. Find that dependency before closing the task.
 
