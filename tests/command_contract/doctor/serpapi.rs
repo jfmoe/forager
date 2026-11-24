@@ -3,7 +3,7 @@
 
 use serde_json::{Value, json};
 
-use crate::support::samples::sample_json;
+use crate::support::samples::{sample, sample_json};
 use crate::support::scholar::config;
 use crate::support::{Fixture, Response, RunEnvironment, ok_json, payload};
 use crate::support::{path, query};
@@ -53,7 +53,7 @@ fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
 #[test]
 fn an_invalid_key_fails_the_probe_while_the_other_keys_are_still_checked() {
     let fixture = Fixture::start_sequence(vec![
-        Response::json(401, r#"{"error":"Invalid API key."}"#),
+        Response::json(401, &sample("serpapi/invalid-key.json")),
         ok_json(&sample_json("serpapi/account.json")),
     ]);
     let environment = RunEnvironment::new(&config(&fixture.url, &["revoked-key", "good-key"]));
@@ -77,7 +77,10 @@ fn an_invalid_key_fails_the_probe_while_the_other_keys_are_still_checked() {
             Some(4),
             &Value::Bool(false),
             &json!("auth"),
-            &json!("providers.serpapi.keys[0]: SerpApi returned HTTP 401: Invalid API key."),
+            &json!(
+                "providers.serpapi.keys[0]: SerpApi returned HTTP 401: Invalid API key. \
+                 Your API key should be here: https://serpapi.com/manage-api-key"
+            ),
             &json!({
                 "key_index": 0,
                 "ok": false,
@@ -209,7 +212,7 @@ fn deep_doctor_without_keys_fails_before_any_request() {
 fn markdown_lists_one_line_per_key() {
     let fixture = Fixture::start_sequence(vec![
         ok_json(&sample_json("serpapi/account.json")),
-        Response::json(401, r#"{"error":"Invalid API key."}"#),
+        Response::json(401, &sample("serpapi/invalid-key.json")),
     ]);
     let environment = RunEnvironment::new(&config(&fixture.url, &["good-key", "revoked-key"]));
 

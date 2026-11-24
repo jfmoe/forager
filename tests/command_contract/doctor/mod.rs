@@ -7,7 +7,9 @@ use serde_json::Value;
 use std::time::Duration;
 
 use crate::support::doctor::{assert_deep_success, reachable_responses, shallow_config};
-use crate::support::main_search_samples::{answer_with, completed_events};
+use crate::support::exa_samples;
+use crate::support::main_search_samples::{answer_with, completed, completed_events};
+use crate::support::samples::sample_json;
 use crate::support::web_samples::{jina, stored_with, tavily_results};
 use crate::support::{Fixture, Response, RunEnvironment, request_json};
 
@@ -94,9 +96,7 @@ fn doctor_provider_rejects_values_outside_the_compiled_registry() {
 fn xai_deep_doctor_also_searches_x_while_the_x_order_lists_it() {
     let fixture = Fixture::start_sequence(vec![
         Response::sse(200, &completed_events(&answer_with("xai", "ok", &[]))),
-        crate::support::main_search_samples::completed(&crate::support::samples::sample_json(
-            "xai/x-search.json",
-        )),
+        completed(&sample_json("xai/x-search.json")),
     ]);
     let environment = RunEnvironment::new(&format!(
         "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",
@@ -166,7 +166,8 @@ fn openai_deep_doctor_executes_one_responses_sse_probe() {
 
 #[test]
 fn openai_deep_doctor_reports_a_rejected_key_without_leaking_it() {
-    let fixture = Fixture::start_json(401, r#"{"error":{"message":"bad openai-key"}}"#);
+    let rejected = stored_with("openai/error.json", &[("/error/message", "bad openai-key")]);
+    let fixture = Fixture::start_json(401, &rejected);
     let environment = RunEnvironment::new(&format!(
         "[providers.openai]\nurl = {:?}\nkeys = [\"openai-key\"]\n",
         fixture.url
@@ -193,7 +194,7 @@ fn openai_deep_doctor_reports_a_rejected_key_without_leaking_it() {
 
 #[test]
 fn exa_deep_doctor_executes_the_registry_search_probe() {
-    let fixture = Fixture::start(200, "application/json", r#"{"results":[]}"#);
+    let fixture = Fixture::start(200, "application/json", &exa_samples::no_results());
     let environment = RunEnvironment::new(&format!(
         "[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\n",
         fixture.url
@@ -290,7 +291,9 @@ fn deep_doctor_applies_one_hard_deadline_and_redacts_failed_output() {
     let delayed = Response::new(
         401,
         "application/json",
-        r#"{"message":"bad timeout-key at http://user:pass@example.test/?token=url-secret"}"#,
+        &exa_samples::error_with(
+            "bad timeout-key at http://user:pass@example.test/?token=url-secret",
+        ),
     )
     .with_delay(Duration::from_secs(2));
     let fixture = Fixture::start_sequence(vec![delayed]);
@@ -326,7 +329,9 @@ fn deep_doctor_reports_authentication_failure_without_leaking_provider_values() 
     let fixture = Fixture::start(
         401,
         "application/json",
-        r#"{"message":"bad auth-key at https://user:pass@example.test/?token=url-secret"}"#,
+        &exa_samples::error_with(
+            "bad auth-key at https://user:pass@example.test/?token=url-secret",
+        ),
     );
     let environment = RunEnvironment::new(&format!(
         "[providers.exa]\nurl = {:?}\nkeys = [\"auth-key\"]\n",
@@ -583,7 +588,10 @@ fn jina_deep_doctor_without_keys_probes_anonymously() {
 #[test]
 fn jina_deep_doctor_reports_a_failing_key_although_an_anonymous_request_succeeds() {
     let fixture = Fixture::start_sequence(vec![
-        Response::json(401, r#"{"message":"Invalid API key"}"#),
+        Response::json(
+            401,
+            &stored_with("jina/error.json", &[("/message", "Invalid API key")]),
+        ),
         jina(&"rich ".repeat(60)),
     ]);
     let environment = RunEnvironment::new(&format!(

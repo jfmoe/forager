@@ -3,13 +3,15 @@ use serde_json::Value;
 use std::time::Duration;
 
 use crate::support::doctor::{assert_deep_success, reachable_responses, shallow_config};
-use crate::support::{Fixture, RunEnvironment, ok_json, youtube_web};
-
-const EMPTY_ARXIV_FEED: &str = r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom"><opensearch:totalResults>0</opensearch:totalResults></feed>"#;
+use crate::support::{Fixture, RunEnvironment, arxiv_api_samples, ok_json, youtube_web};
 
 #[test]
 fn arxiv_api_deep_doctor_executes_the_registry_search_probe_without_credentials() {
-    let fixture = Fixture::start(200, "application/atom+xml", EMPTY_ARXIV_FEED);
+    let fixture = Fixture::start(
+        200,
+        "application/atom+xml",
+        &arxiv_api_samples::page(0, &[]),
+    );
     let environment = RunEnvironment::new(&format!(
         "[providers.arxiv_api]\nurl = \"{}/api/query\"\n",
         fixture.url

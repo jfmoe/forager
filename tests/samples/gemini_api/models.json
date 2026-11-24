@@ -1,0 +1,7 @@
+{
+  "models": [
+    {
+      "name": "models/gemini-flash-latest"
+    }
+  ]
+}

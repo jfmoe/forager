@@ -13,22 +13,33 @@ use std::time::{Duration, Instant};
 /// The runner configuration, which sets the time limit of each test.
 const RUNNER_CONFIG: &str = include_str!("../../.config/nextest.toml");
 
+/// What a test's command deadline leaves of the runner's limit: enough for the test's setup
+/// before its first wait and for killing a hung command and reporting its output, which take
+/// milliseconds. A share of the limit would instead leave most of a long limit unused while
+/// leaving too little of a short one for a slow first launch.
+const DIAGNOSIS_MARGIN: Duration = Duration::from_millis(250);
+
 /// How long a test may still wait for a command it started before failing with what the command
-/// printed: what is left of three quarters of the time limit the runner applies to the running
-/// test, counted from the test's first wait, so a command that hangs is reported with its output
-/// before the runner would terminate the test, however many commands ran before it. Outside the
-/// runner, which sets no limit, the limit is that of the exemption list's entries.
+/// printed: what is left of the time limit the runner applies to the running test less
+/// [`DIAGNOSIS_MARGIN`], counted from the test's first wait, so a command that hangs is reported
+/// with its output before the runner would terminate the test, however many commands ran before
+/// it. Outside the runner, which sets no limit, the limit is that of the exemption list's entries.
 pub(crate) fn command_deadline() -> Duration {
     const UNLIMITED: Duration = Duration::from_mins(1);
     static BUDGET_ENDS: OnceLock<Instant> = OnceLock::new();
-    let ends =
-        BUDGET_ENDS.get_or_init(|| Instant::now() + runner_limit().unwrap_or(UNLIMITED) * 3 / 4);
+    let ends = BUDGET_ENDS.get_or_init(|| {
+        Instant::now()
+            + runner_limit()
+                .unwrap_or(UNLIMITED)
+                .saturating_sub(DIAGNOSIS_MARGIN)
+    });
     ends.saturating_duration_since(Instant::now())
 }
 
 /// The time limit of the running test under its profile: that of the first override whose
 /// filter names the test or its binary, from the profile's own overrides before the default
-/// profile's, and otherwise the profile's own limit or the default profile's.
+/// profile's, and otherwise the profile's own limit or the default profile's. A repository rule
+/// keeps the runner configuration to the forms this reads.
 fn runner_limit() -> Option<Duration> {
     let profile = env::var("NEXTEST_PROFILE").ok()?;
     let binary = env::var("NEXTEST_BINARY_ID").ok()?;

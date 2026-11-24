@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use super::{Exa, ExaOperation, ExaSearchRequest, ExaSimilarRequest, SearchType, decode_results};
 use crate::config::{DocsSearchProviderConfig, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
-use crate::exa_samples::no_results;
+use crate::exa_samples::{error_with, no_results};
 use crate::fixture_server::{
     Fixture, Response, advance_after_request, block_on, header, path, request_json,
 };
@@ -27,13 +27,6 @@ fn first_result_with(name: &str, field: &str, value: Value) -> String {
 }
 
 /// The stored search body without results.
-/// The stored error answer with `message` as its reason.
-fn error_with(message: &str) -> String {
-    let mut body = sample_json("exa/error.json");
-    body["error"]["message"] = Value::String(message.to_owned());
-    body.to_string()
-}
-
 fn search_request(query: &str) -> ExaSearchRequest {
     ExaSearchRequest {
         query: query.into(),
