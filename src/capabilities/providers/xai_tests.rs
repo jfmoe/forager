@@ -11,7 +11,7 @@ use crate::fixture_server::{Fixture, Response, block_on, header, path, request_j
 use crate::main_search_samples::{answer_with, completed, failed_event, stored_answer};
 use crate::net::{AttemptFailure, RetryPolicy, build_client};
 use crate::providers::build_main_search;
-use crate::providers::{MainSearchRequest, MainSearchRequestKind, RouteContext};
+use crate::providers::{MainSearchRequest, RouteContext};
 use crate::samples::sample_json;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt, ProviderError, SearchOutcome};
 
@@ -40,7 +40,7 @@ fn decode(response: &Value) -> Result<(String, Vec<(String, String)>), AttemptFa
     );
     route
         .main_search()
-        .decode(response, MainSearchRequestKind::Search)
+        .decode(response)
         .map(|(answer, sources)| {
             (
                 answer,

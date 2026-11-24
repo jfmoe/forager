@@ -1302,35 +1302,36 @@ forager doctor --offline [--format json|markdown]
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Check one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api` without a billed request: its configuration, its prerequisites and, where the provider offers one, its free account check. Without it, run the shallow all-provider report. | Omitted |
 | `--offline` | Run the shallow report's checks that send no request. Conflicts with `--provider` and `--timeout`. | Off |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
-Use `doctor` for credentials, connectivity, provider responses, and effective configuration
-inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
-unreachable, the top-level result is false and the command uses exit code 4. The browser route
-A browser route (`xiaohongshu_browser`, `reddit_browser`) is checked only when its platform order
-lists it: doctor checks, without starting a browser, that the browser can be found and the Browser
-Profile has been logged in, and a failed check carries a `message` naming the command that fixes
-it. `--provider xiaohongshu_browser` or `--provider reddit_browser` also needs the route in the
-order and that check to pass, and runs one real search in the headless browser, which opens one
-page of the site; its check reports `transport: "browser"`. Without a key, `jina` is configured and the shallow report notes that it runs
-anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
-even when the anonymous request succeeds. `--provider xai` and `--provider openai` each send one
-Responses model probe without tools, recorded as the `responses` check; `--provider xai` adds an
-`x_search` check, one X search, while `platforms.x.order` lists `xai`. `--provider hn_api` runs one search and adds a `firebase` check,
-one request to the Firebase API. `--provider serpapi` runs no search and costs nothing: it asks
-SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
-with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,
-`this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,
-`quota_exhausted` with no searches left, `rate_limited` at the hourly limit). Any failing key fails
-the probe with exit 4, and `message` names it as `providers.serpapi.keys[N]`. It does not prove
-that Scholar searches decode; `smoke --live` does. `--provider gemini_api` calls no model:
-it lists the models once with every key, recorded as the `models` check, and its `keys` entries
-have only `key_index`, `ok`, and `error_kind` for a failing key, with the failing key named as
-`providers.gemini_api.keys[N]`. Do not use doctor as
-the recovery path for configuration that cannot be loaded.
+Use `doctor` for credentials, connectivity, and effective configuration inspection. In shallow
+mode, `ok` covers every configured provider: if any configured provider is unreachable, the
+top-level result is false and the command uses exit code 4. A browser route
+(`xiaohongshu_browser`, `reddit_browser`) is checked only when its platform order lists it: doctor
+checks, without starting a browser, that the browser can be found and the Browser Profile has been
+logged in, and a failed check carries a `message` naming the command that fixes it. Without a key,
+`jina` is configured and the shallow report notes that it runs anonymously.
+
+`--provider PROVIDER` reports `mode: "provider"` with `provider`, `configured`, `key_count`,
+`source`, `deadline_seconds`, and `checks`. It checks the provider's configuration and
+prerequisites: a route that no default order lists needs a platform order that lists it, a browser
+route needs the preflight check above to pass, and a provider that requires keys needs one. A
+missing prerequisite fails with `config` and exit 3 before sending anything, and `message` names
+the fix. It sends no billed request and opens no page, in any run: a provider without an account
+check gets no request at all, and its `checks` is empty. `--provider serpapi` costs nothing: it
+asks SerpApi's account endpoint about every configured key, recorded as the `account` check, and
+adds a `keys` array, one entry per key with `key_index`, `ok`, `searches_left`,
+`plan_searches_left`, `this_month_usage`, `this_hour_searches`, and `hourly_limit`, plus
+`error_kind` for a failing key (`auth`, `quota_exhausted` with no searches left, `rate_limited` at
+the hourly limit). Any failing key fails the check with exit 4, and `message` names it as
+`providers.serpapi.keys[N]`. `--provider gemini_api` calls no model: it lists the models once with
+every key, recorded as the `models` check, and its `keys` entries have only `key_index`, `ok`, and
+`error_kind` for a failing key, with the failing key named as `providers.gemini_api.keys[N]`.
+Neither account check proves that an operation's requests decode; `smoke --live` does. Do not use
+doctor as the recovery path for configuration that cannot be loaded.
 
 The shallow report also has a `config` block shaped like `config list`, `permission_warnings`
 when the configuration directory or file is more open than `0700` or `0600` (on Windows, when it
@@ -1340,12 +1341,10 @@ forager's state directory, `$XDG_STATE_HOME/forager` or `~/.local/state/forager`
 reports `writable`, and a `message` when forager cannot create the directory privately or write a
 file in it. Warnings never change `ok`; an unwritable state directory makes it false with exit 4.
 `ok` is true when nothing is configured. A platform route that no default order lists
-reports `configured: false` until a platform order lists it. A deep probe of a provider whose
-prerequisites are missing, or of a route no order enables, fails with `config` and exit 3 before
-sending anything; a failed probe exits 4. For a provider with a request window, both the shallow
-check and the deep probe wait for that window; when it does not open in time, the shallow report
-marks the provider unreachable and the deep probe fails with `timeout`, and neither sends a
-request.
+reports `configured: false` until a platform order lists it. For a provider with a request window,
+both the shallow check and the account check wait for that window; when it does not open in time,
+the shallow report marks the provider unreachable and the account check fails with `timeout`, and
+neither sends a request.
 
 `--offline` sends no request. Its report has `mode: "offline"` and the same `config`,
 `permission_warnings` and `state_directories`; its provider entries report configuration and key

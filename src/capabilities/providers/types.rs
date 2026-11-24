@@ -17,33 +17,7 @@ pub(crate) struct MainSearchRequest {
     pub(crate) verbose: bool,
 }
 
-const MAIN_SEARCH_INSTRUCTION: &str = "You are a web research assistant. Another AI agent reads your answer and verifies key claims against the cited sources, so optimize for accurate, verifiable facts per word.\n\nGuidelines:\n- Infer the user's true intent even when the question is vague. If the question has several plausible readings, answer the most likely one and name the others in one line.\n- Search before answering. Match search breadth to the question: a single fact needs one or two targeted searches; a comparison, a contested topic, or a multi-part question needs several independent perspectives.\n- Prioritize primary and authoritative sources: official docs, standards, filings, academic papers, reputable journalism.\n- Search in English for breadth; also search in the question's language when the topic is local to it.\n- Cite a source for every factual claim. Keep versions, dates, numbers, and names exactly as the source states them. State when sources disagree or when no source supports a claim.\n- Lead with the direct answer, then the supporting details.\n- Write compact Markdown. Use code blocks for code and LaTeX for formulas.\n- Do not explain common terms, use analogies, restate the question, add a closing summary, or offer further help.\n";
-
-#[derive(Clone, Copy)]
-pub(crate) enum MainSearchRequestKind {
-    Search,
-    ModelProbe,
-}
-
-impl MainSearchRequestKind {
-    pub(super) fn instruction(self) -> Option<&'static str> {
-        match self {
-            Self::Search => Some(MAIN_SEARCH_INSTRUCTION),
-            Self::ModelProbe => None,
-        }
-    }
-
-    pub(super) fn input(self, query: &str) -> String {
-        match self {
-            Self::Search => with_time_context(query),
-            Self::ModelProbe => query.to_owned(),
-        }
-    }
-
-    pub(super) fn uses_search_tools(self) -> bool {
-        matches!(self, Self::Search)
-    }
-}
+pub(super) const MAIN_SEARCH_INSTRUCTION: &str = "You are a web research assistant. Another AI agent reads your answer and verifies key claims against the cited sources, so optimize for accurate, verifiable facts per word.\n\nGuidelines:\n- Infer the user's true intent even when the question is vague. If the question has several plausible readings, answer the most likely one and name the others in one line.\n- Search before answering. Match search breadth to the question: a single fact needs one or two targeted searches; a comparison, a contested topic, or a multi-part question needs several independent perspectives.\n- Prioritize primary and authoritative sources: official docs, standards, filings, academic papers, reputable journalism.\n- Search in English for breadth; also search in the question's language when the topic is local to it.\n- Cite a source for every factual claim. Keep versions, dates, numbers, and names exactly as the source states them. State when sources disagree or when no source supports a claim.\n- Lead with the direct answer, then the supporting details.\n- Write compact Markdown. Use code blocks for code and LaTeX for formulas.\n- Do not explain common terms, use analogies, restate the question, add a closing summary, or offer further help.\n";
 
 /// Prefixes `query` with the local date and time, so a model can resolve words like "recent".
 pub(super) fn with_time_context(query: &str) -> String {
@@ -67,11 +41,6 @@ pub(super) fn with_time_context(query: &str) -> String {
 
 pub(crate) trait MainSearch: Send + Sync {
     fn search(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
-
-    fn probe(
         &self,
         request: MainSearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
@@ -167,13 +136,5 @@ impl MainSearch for Openai {
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
     {
         Box::pin(self.search(request))
-    }
-
-    fn probe(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
-    {
-        Box::pin(self.probe(request))
     }
 }

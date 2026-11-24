@@ -3,7 +3,7 @@ use std::{fs, thread};
 
 use serde_json::{Value, json};
 
-use crate::support::doctor::{reachable_responses, shallow_config};
+use crate::support::doctor::{SHALLOW_PROVIDERS, reachable_responses, shallow_config};
 use crate::support::{Fixture, Response, RunEnvironment};
 
 /// One send of each HTTP route that has an Access Policy, and the configuration that reaches
@@ -142,7 +142,8 @@ fn a_retry_waits_for_the_window_again() {
 #[test]
 fn shallow_doctor_waits_for_every_reserved_window() {
     let paced = ["arxiv_api", "ssrn_crossref", "hn_api", "polymarket_api"];
-    let fixture = Fixture::start_sequence(reachable_responses(5));
+    let fixture =
+        Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len() - paced.len()));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     reserve_windows(&environment, &paced);
 
@@ -162,7 +163,8 @@ fn shallow_doctor_waits_for_every_reserved_window() {
         .collect::<std::collections::BTreeSet<_>>();
 
     assert_eq!(
-        (reachable, fixture.finish_all().len()),
-        (paced.map(|route| (route.to_owned(), false)).into(), 5)
+        reachable,
+        paced.map(|route| (route.to_owned(), false)).into()
     );
+    fixture.finish_all();
 }

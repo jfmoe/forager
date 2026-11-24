@@ -49,7 +49,7 @@ const VIDEO_MIME_TYPE: &str = "video/*";
 const ASK_INSTRUCTION: &str = "Answer the question below from this video alone: from what it shows and what it says. Mark every moment you rely on as mm:ss, or h:mm:ss from the first hour on. If you cannot watch the video, say so instead of answering.";
 
 /// The route's declaration: neither Search nor Fetch of the catalog, only Ask and Transcribe,
-/// and an account probe that lists the models with every key.
+/// and an account check that lists the models with every key.
 pub(crate) const DECLARATION: RouteDeclaration<ModelRouteRuntimeConfig> = RouteDeclaration {
     build: |config, context| Box::new(GeminiApi::build(config, context)),
     adapter: RouteAdapter {

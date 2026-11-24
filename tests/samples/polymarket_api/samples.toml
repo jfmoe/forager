@@ -50,12 +50,6 @@ origin = "hand-written"
 observed = 2026-10-24
 
 [[sample]]
-file = "clob-time.json"
-shape = "CLOB `GET /time` answer: the server clock in epoch seconds"
-origin = "hand-written"
-observed = 2026-10-24
-
-[[sample]]
 file = "price-history.json"
 shape = "Data API `GET /v2/prices-history` page of a resolved market: daily points ending with the payout at `resolution_seconds` 0, and its pagination"
 origin = "hand-written"
@@ -64,11 +58,5 @@ observed = 2026-10-24
 [[sample]]
 file = "data-error.json"
 shape = "Data API error body, answered with HTTP 400 for a window or bucket it refuses"
-origin = "hand-written"
-observed = 2026-10-24
-
-[[sample]]
-file = "data-status.json"
-shape = "Data API `GET /v2/status` answer: the service status object"
 origin = "hand-written"
 observed = 2026-10-24

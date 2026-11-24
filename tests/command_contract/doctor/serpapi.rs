@@ -1,4 +1,4 @@
-//! `forager doctor --provider serpapi`: the deep probe asks SerpApi's free Account API about
+//! `forager doctor --provider serpapi`: the account check asks SerpApi's free Account API about
 //! every key in the pool instead of running a billed search.
 
 use serde_json::{Value, json};
@@ -9,7 +9,7 @@ use crate::support::{Fixture, Response, RunEnvironment, ok_json, payload};
 use crate::support::{path, query};
 
 #[test]
-fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
+fn provider_doctor_reports_the_quota_of_every_key_from_the_account_api() {
     let fixture = Fixture::start_sequence(vec![
         ok_json(&sample_json("serpapi/account.json")),
         ok_json(&sample_json("serpapi/account.json")),
@@ -51,7 +51,7 @@ fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
 }
 
 #[test]
-fn an_invalid_key_fails_the_probe_while_the_other_keys_are_still_checked() {
+fn an_invalid_key_fails_the_check_while_the_other_keys_are_still_checked() {
     let fixture = Fixture::start_sequence(vec![
         Response::json(401, &sample("serpapi/invalid-key.json")),
         ok_json(&sample_json("serpapi/account.json")),
@@ -181,7 +181,7 @@ fn neither_the_keys_nor_the_account_identity_reach_output_or_trace_logs() {
 }
 
 #[test]
-fn deep_doctor_without_keys_fails_before_any_request() {
+fn provider_doctor_without_keys_fails_before_any_request() {
     let fixture = Fixture::start_canary();
     let environment = RunEnvironment::new(&config(&fixture.url, &[]));
 

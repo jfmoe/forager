@@ -26,9 +26,6 @@ pub(crate) struct RouteContext {
     pub(crate) deadline: Deadline,
 }
 
-/// A named doctor check of one endpoint that a route combines beyond the one its probe reaches.
-pub(crate) type ExtraCheck = (&'static str, Result<(), ProviderError>);
-
 /// A platform route built from its declaration, as the platform operations of the catalog reach
 /// it.
 pub(crate) trait PlatformRoute: Send + Sync {
@@ -38,14 +35,8 @@ pub(crate) trait PlatformRoute: Send + Sync {
     /// The route as a platform fetch, or `None` when its adapter checks no fetch request.
     fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>>;
 
-    /// Checks each extra endpoint the route combines; doctor runs them after the route's probe
-    /// passed. Most routes combine none.
-    fn extra_checks(&self) -> Pin<Box<dyn Future<Output = Vec<ExtraCheck>> + Send + '_>> {
-        Box::pin(std::future::ready(Vec::new()))
-    }
-
     /// Checks the account of every configured key, or `None` for a route whose registration
-    /// declares no account probe.
+    /// declares no account check.
     fn accounts(&self) -> Option<Pin<Box<dyn Future<Output = Vec<KeyAccount>> + Send + '_>>> {
         None
     }

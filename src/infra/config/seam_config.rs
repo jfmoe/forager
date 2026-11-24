@@ -331,7 +331,7 @@ pub(crate) struct MainSearchProviders<'a> {
     pub(crate) openai: &'a OpenaiRuntimeConfig,
 }
 
-pub(crate) fn main_provider_config(
+fn main_provider_config(
     id: ProviderId,
     providers: &MainSearchProviders<'_>,
 ) -> Option<MainSearchProviderConfig> {
@@ -355,7 +355,7 @@ pub(crate) fn main_provider_config(
     }
 }
 
-pub(crate) fn docs_provider_config(
+fn docs_provider_config(
     id: ProviderId,
     exa: &ExaRuntimeConfig,
 ) -> Option<DocsSearchProviderConfig> {
@@ -379,7 +379,7 @@ pub(crate) fn docs_provider_config(
     }
 }
 
-pub(crate) fn web_provider_config(
+fn web_provider_config(
     catalog: catalog::CapabilityCatalog,
     id: ProviderId,
     tavily: &WebFetchProviderConfig,

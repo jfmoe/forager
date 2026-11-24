@@ -31,7 +31,6 @@ pub(crate) use schema::{BrowserRoute, is_leaf};
 pub(crate) use seam_config::{
     DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, MainSearchProviderConfig,
     MainSearchRuntimeConfig, OpenaiRuntimeConfig, SeamEntry, WebFetchProviderConfig,
-    WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config,
-    main_provider_config, web_provider_config,
+    WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig,
 };
 pub use view::{effective_view, effective_view_json};

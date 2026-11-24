@@ -18,9 +18,7 @@ use crate::providers::responses_api::ResponsesEndpoint;
 use crate::providers::route_declaration::{
     OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration, any_request,
 };
-use crate::providers::{
-    MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch, PlatformSearch,
-};
+use crate::providers::{MainSearch, MainSearchRequest, PlatformFetch, PlatformSearch};
 use crate::types::{
     AttemptTarget, Deadline, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
     PlatformSearchRequest, ProviderError, SearchOutcome, XAskOutcome, XAskRequest,
@@ -85,13 +83,6 @@ impl MainSearch for Xai {
     ) -> Pin<Box<dyn Future<Output = Result<SearchOutcome, ProviderError>> + Send + '_>> {
         Box::pin(self.search(request))
     }
-
-    fn probe(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<SearchOutcome, ProviderError>> + Send + '_>> {
-        Box::pin(self.probe(request))
-    }
 }
 
 impl PlatformFetch for Xai {
@@ -128,18 +119,7 @@ impl Xai {
         &self,
         request: MainSearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
-        self.main_search()
-            .run(request, MainSearchRequestKind::Search)
-            .await
-    }
-
-    pub(crate) async fn probe(
-        &self,
-        request: MainSearchRequest,
-    ) -> Result<SearchOutcome, ProviderError> {
-        self.main_search()
-            .run(request, MainSearchRequestKind::ModelProbe)
-            .await
+        self.main_search().run(request).await
     }
 
     fn main_search(&self) -> ResponsesMainSearch<'_> {

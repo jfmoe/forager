@@ -217,14 +217,6 @@ impl RuntimeConfig {
         provider_configured(id, self.provider_runtime(id).keys)
     }
 
-    /// Returns the configuration of every main-search backend, for building one of them.
-    pub(crate) fn main_search_providers(&self) -> MainSearchProviders<'_> {
-        MainSearchProviders {
-            xai: &self.xai,
-            openai: &self.openai,
-        }
-    }
-
     pub(crate) fn provider_runtime(&self, id: ProviderId) -> ProviderRuntime<'_> {
         match id {
             ProviderId::Xai => ProviderRuntime {

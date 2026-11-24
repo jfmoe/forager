@@ -5,11 +5,9 @@
 
 use chrono::{DateTime, Days, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
-use serde_json::Value;
 
 use super::gamma::{Entry, Market, Number};
 use super::{Call, Endpoint, PolymarketApi};
-use crate::catalog::PlatformOperation;
 use crate::providers::execution::ExecutionOutcome;
 use crate::providers::shared::{Refusal, Trail, utc_second};
 use crate::types::{
@@ -162,27 +160,6 @@ impl PolymarketApi {
             diagnostic: trail.diagnostic(),
             attempts: trail.attempts,
         })
-    }
-
-    /// Asks the Data API for its service status, which proves the endpoint answers.
-    pub(crate) async fn probe_data(&self) -> Result<(), ProviderError> {
-        self.send(
-            Endpoint::Data,
-            Call::Get {
-                path: "v2/status",
-                query: &[],
-            },
-            PlatformOperation::Search.as_str(),
-            |body| {
-                serde_json::from_str::<Value>(body)
-                    .ok()
-                    .filter(|status| status["data"].is_object())
-                    .map(|_| ())
-                    .ok_or_else(|| Refusal::runtime("invalid Polymarket Data API status"))
-            },
-        )
-        .await
-        .map(|_| ())
     }
 
     /// Reads the market of a history from Gamma and picks its outcome. An event stands for its

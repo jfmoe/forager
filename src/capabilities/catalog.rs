@@ -126,43 +126,13 @@ pub(crate) struct BrowserEnvironment {
     pub(crate) language: &'static str,
 }
 
+/// A free check of every configured key at the service's account endpoint, which `doctor` runs
+/// for one provider. It proves the endpoint and the keys, not any operation's request or
+/// decoding, and spends no quota.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DoctorProbe {
-    MainSearch {
-        name: &'static str,
-        transport: &'static str,
-    },
-    WebSearch {
-        name: &'static str,
-        transport: &'static str,
-    },
-    WebFetch {
-        name: &'static str,
-        transport: &'static str,
-    },
-    DocsSearch {
-        name: &'static str,
-        transport: &'static str,
-    },
-    PlatformSearch {
-        platform: Platform,
-        name: &'static str,
-        transport: &'static str,
-    },
-    /// Fetches a fixed canary item of the platform at `metadata` depth, for a route that
-    /// serves fetch only.
-    PlatformFetch {
-        platform: Platform,
-        canary: &'static str,
-        name: &'static str,
-        transport: &'static str,
-    },
-    /// Asks the service's account endpoint about every configured key; it proves the endpoint
-    /// and keys, not any operation's request or decoding.
-    ServiceAccount {
-        name: &'static str,
-        transport: &'static str,
-    },
+pub(crate) struct AccountCheck {
+    pub(crate) name: &'static str,
+    pub(crate) transport: &'static str,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -194,7 +164,7 @@ pub(crate) struct ProviderRegistration {
     /// The pacing every send to the provider must follow; a browser route paces each browser
     /// command, not each HTTP request the page sends.
     pub(crate) access_policy: Option<AccessPolicy>,
-    pub(crate) probe: DoctorProbe,
+    pub(crate) account_check: Option<AccountCheck>,
     pub(crate) smoke_cases: &'static [ProviderSmokeCase],
     /// Whether the route's platform fetch reads the full text itself, so a full-text fetch
     /// through it needs no Web Fetch provider.
@@ -557,10 +527,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::MainSearch {
-            name: "responses",
-            transport: "sse",
-        },
+        account_check: None,
         smoke_cases: XAI_SMOKE,
         native_full_text: false,
     },
@@ -569,10 +536,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::MainSearch {
-            name: "responses",
-            transport: "sse",
-        },
+        account_check: None,
         smoke_cases: OPENAI_SMOKE,
         native_full_text: false,
     },
@@ -581,10 +545,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::WebSearch {
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: TAVILY_SMOKE,
         native_full_text: false,
     },
@@ -593,10 +554,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::WebSearch {
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: FIRECRAWL_SMOKE,
         native_full_text: false,
     },
@@ -605,10 +563,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Optional,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::WebFetch {
-            name: "fetch",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: JINA_SMOKE,
         native_full_text: false,
     },
@@ -617,10 +572,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::DocsSearch {
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: EXA_SMOKE,
         native_full_text: false,
     },
@@ -629,11 +581,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(ARXIV_API_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Arxiv,
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: ARXIV_API_SMOKE,
         native_full_text: false,
     },
@@ -642,11 +590,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(SSRN_CROSSREF_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Ssrn,
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: SSRN_CROSSREF_SMOKE,
         native_full_text: false,
     },
@@ -656,10 +600,10 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::ServiceAccount {
+        account_check: Some(AccountCheck {
             name: "account",
             transport: "http",
-        },
+        }),
         smoke_cases: SERPAPI_SMOKE,
         native_full_text: false,
     },
@@ -668,11 +612,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::Browser(BrowserEnvironment { language: "zh-CN" }),
         access_policy: Some(XIAOHONGSHU_BROWSER_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Xiaohongshu,
-            name: "search",
-            transport: "browser",
-        },
+        account_check: None,
         smoke_cases: XIAOHONGSHU_BROWSER_SMOKE,
         native_full_text: true,
     },
@@ -682,11 +622,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(HN_API_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Hn,
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: HN_API_SMOKE,
         native_full_text: false,
     },
@@ -696,11 +632,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(POLYMARKET_API_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Polymarket,
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: POLYMARKET_API_SMOKE,
         native_full_text: false,
     },
@@ -710,56 +642,39 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::Browser(BrowserEnvironment { language: "en-US" }),
         access_policy: Some(REDDIT_BROWSER_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Reddit,
-            name: "search",
-            transport: "browser",
-        },
+        account_check: None,
         smoke_cases: REDDIT_BROWSER_SMOKE,
         native_full_text: false,
     },
-    // A deep doctor spends one search of the separate daily search quota.
     ProviderRegistration {
         id: ProviderId::YoutubeApi,
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: Some(YOUTUBE_API_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Youtube,
-            name: "search",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: YOUTUBE_API_SMOKE,
         native_full_text: false,
     },
-    // It serves fetch only, so doctor probes it with a fetch of the canary video. Its full
-    // text is the transcript it renders itself.
+    // Its full text is the transcript it renders itself.
     ProviderRegistration {
         id: ProviderId::YoutubeWeb,
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(YOUTUBE_WEB_ACCESS),
-        // The first YouTube upload (2005), whose metadata no longer changes.
-        probe: DoctorProbe::PlatformFetch {
-            platform: Platform::Youtube,
-            canary: "youtube:jNQXAC9IVRw",
-            name: "fetch",
-            transport: "http",
-        },
+        account_check: None,
         smoke_cases: YOUTUBE_WEB_SMOKE,
         native_full_text: true,
     },
-    // It serves Ask and Transcribe only, so doctor asks the model list about every key, which
-    // spends no model quota.
+    // Its account check lists the models with every key, which spends no model quota.
     ProviderRegistration {
         id: ProviderId::GeminiApi,
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: Some(GEMINI_API_ACCESS),
-        probe: DoctorProbe::ServiceAccount {
+        account_check: Some(AccountCheck {
             name: "models",
             transport: "http",
-        },
+        }),
         smoke_cases: GEMINI_API_SMOKE,
         native_full_text: false,
     },
@@ -830,9 +745,8 @@ fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::{
-        CATALOGS, Credentials, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, ProviderId,
-        ProviderRegistration, REGISTRY, WEB_FETCH, WEB_SEARCH, has_owner, platform, registration,
-        registrations, validate_registrations,
+        CATALOGS, Credentials, PLATFORMS, ProviderId, ProviderRegistration, REGISTRY, has_owner,
+        registration, registrations, validate_registrations,
     };
 
     #[test]
@@ -851,25 +765,19 @@ mod tests {
     }
 
     #[test]
-    fn catalogs_project_every_registration_probe_and_smoke_case_consistently() {
+    fn catalogs_project_every_registration_account_check_and_smoke_case_consistently() {
         for registration in registrations() {
             assert!(has_owner(registration), "{} owner", registration.id.name());
-            let probe_is_supported = match registration.probe {
-                DoctorProbe::MainSearch { .. } => MAIN_SEARCH.contains(registration.id),
-                DoctorProbe::WebSearch { .. } => WEB_SEARCH.contains(registration.id),
-                DoctorProbe::WebFetch { .. } => WEB_FETCH.contains(registration.id),
-                DoctorProbe::DocsSearch { .. } => DOCS_SEARCH.contains(registration.id),
-                DoctorProbe::PlatformSearch {
-                    platform: probed, ..
-                } => platform(probed).search.contains(&registration.id),
-                DoctorProbe::PlatformFetch {
-                    platform: probed, ..
-                } => platform(probed).fetch.contains(&registration.id),
-                DoctorProbe::ServiceAccount { .. } => {
-                    registration.credentials == Credentials::Required
-                }
-            };
-            assert!(probe_is_supported, "{} probe", registration.id.name());
+            // The account check asks a platform route about each of its keys.
+            assert!(
+                registration.account_check.is_none()
+                    || (registration.credentials == Credentials::Required
+                        && PLATFORMS
+                            .iter()
+                            .any(|platform| platform.contains(registration.id))),
+                "{} declares an account check but is no platform route that requires keys",
+                registration.id.name()
+            );
             assert!(
                 !registration.smoke_cases.is_empty(),
                 "{} smoke",

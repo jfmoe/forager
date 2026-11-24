@@ -8,7 +8,7 @@ use crate::fixture_server::{Fixture, Response, block_on, header, path, request_j
 use crate::main_search_samples::{completed_events, failed_event, stored_answer};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::constructors::build_openai;
-use crate::providers::{MainSearchRequest, MainSearchRequestKind, build_main_search};
+use crate::providers::{MainSearchRequest, build_main_search};
 use crate::types::{AttemptErrorKind, Deadline, ProviderError, SearchOutcome};
 
 const KEY: &str = "openai-key";
@@ -51,7 +51,7 @@ fn search(body: &str) -> (Result<SearchOutcome, ProviderError>, String) {
 fn sources(response: &Value) -> Vec<(String, String)> {
     let (_, sources) = route("http://127.0.0.1:9")
         .main_search()
-        .decode(response, MainSearchRequestKind::Search)
+        .decode(response)
         .expect("the answer decodes");
     sources
         .into_iter()

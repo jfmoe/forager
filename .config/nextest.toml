@@ -65,9 +65,9 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = "binary_id(forager::command_contract) & test(=access_windows::every_route_with_an_access_policy_waits_for_its_window_before_sending)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
-# Offline smoke and doctor tests above the limit: each runs a whole live-smoke or deep-doctor pass,
-# which makes several paced requests or applies a whole-second deadline, and the whole pass is the
-# rule it proves, so no operation without a wait can stand in for it.
+# Offline smoke tests above the limit: each runs a whole live-smoke pass, which makes several paced
+# requests or applies a whole-second deadline, and the whole pass is the rule it proves, so no
+# operation without a wait can stand in for it.
 [[profile.default.overrides]]
 filter = """
 binary_id(forager::command_contract) & (
@@ -83,8 +83,6 @@ binary_id(forager::command_contract) & (
   | test(=smoke::youtube::live_smoke_reads_the_youtube_transcript_only_while_the_order_enables_youtube_web)
   | test(=smoke::youtube::live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key)
   | test(=smoke::youtube::live_smoke_runs_the_youtube_model_cases_after_a_metadata_check_through_the_configured_order)
-  | test(=doctor::deep_doctor_applies_one_hard_deadline_and_redacts_failed_output)
-  | test(=doctor::platform_routes::youtube_web_deep_doctor_fetches_the_canary_video_metadata)
 )
 """
 slow-timeout = { period = "30s", terminate-after = 2 }

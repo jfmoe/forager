@@ -707,11 +707,11 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             format,
             ..
         } => {
-            let (report, exit_code) = crate::doctor::deep(provider, timeout)?;
+            let (report, exit_code) = crate::doctor::one_provider(provider, timeout)?;
             let stdout = match format {
                 OutputFormat::Json => serde_json::to_string(&report)
                     .map_err(|error| AppError::Runtime(error.to_string()))?,
-                OutputFormat::Markdown => render_deep_doctor_markdown(&report)?,
+                OutputFormat::Markdown => render_provider_doctor_markdown(&report)?,
             };
             Ok(CommandOutput::Text {
                 stdout,
@@ -947,8 +947,8 @@ fn doctor_markdown(value: &Value) -> Result<String, AppError> {
     Ok(output)
 }
 
-fn render_deep_doctor_markdown(
-    report: &crate::doctor::DeepDoctorReport,
+fn render_provider_doctor_markdown(
+    report: &crate::doctor::ProviderReport,
 ) -> Result<String, AppError> {
     let value =
         serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?;

@@ -7,7 +7,7 @@
 //! fact and what to add when it breaks.
 
 use crate::catalog::{
-    self, Credentials, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
+    self, Credentials, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
     ProviderRegistration, ProviderTransport,
 };
 use crate::config;
@@ -26,7 +26,6 @@ enum Rule {
     Declaration,
     BrowserEnvironment,
     ConfigLeaves,
-    DoctorProbe,
     SmokeCase,
     SampleRefs,
     AccessWindowTest,
@@ -50,8 +49,8 @@ impl Rule {
                 "give the route's declaration a support check for the operation, and add the route to the platform route runtime configuration and to its route configuration",
             ),
             Self::Declaration => (
-                "what each route's declaration says it serves of search and fetch, and whether its registration declares an account probe, is what the route built from it hands out",
-                "make the route's declared support checks and doctor probe agree with its `PlatformRoute` implementation",
+                "what each route's declaration says it serves of search and fetch, and whether its registration declares an account check, is what the route built from it hands out",
+                "make the route's declared support checks and account check agree with its `PlatformRoute` implementation",
             ),
             Self::BrowserEnvironment => (
                 "a browser route, which needs a login into its platform's Browser Profile, has login Page Logic",
@@ -60,10 +59,6 @@ impl Rule {
             Self::ConfigLeaves => (
                 "the configuration schema has the platform's order and each route's leaves: `url` and `timeout` for an HTTP route (`url` alone for a main-search backend, whose platform requests use the command's remaining time), `timeout` for a browser route, and `keys` exactly when the route reads credentials",
                 "add the leaves to the configuration schema and to the runtime projection",
-            ),
-            Self::DoctorProbe => (
-                "every route has a doctor probe for the platform: a platform search, a platform fetch of a canary ref, an account probe for a route that requires credentials, or the probe of a capability it serves",
-                "declare the probe in the route's registration",
             ),
             Self::SmokeCase => (
                 "each platform operation has a route that registers a live smoke case",
@@ -342,37 +337,10 @@ fn check_route(
             ),
         ));
     }
-    // A keyed route may instead ask its service about every key, which costs no quota; a route
-    // that serves fetch only fetches a canary item.
-    let probes_platform = match registration.probe {
-        DoctorProbe::PlatformSearch {
-            platform: probed, ..
-        } => probed == platform,
-        DoctorProbe::PlatformFetch {
-            platform: probed,
-            canary,
-            ..
-        } => probed == platform && PlatformRef::parse(platform, canary).is_ok(),
-        DoctorProbe::ServiceAccount { .. } => registration.credentials == Credentials::Required,
-        DoctorProbe::MainSearch { .. }
-        | DoctorProbe::WebSearch { .. }
-        | DoctorProbe::WebFetch { .. }
-        | DoctorProbe::DocsSearch { .. } => false,
-    };
-    let serves_capability = catalog::CATALOGS
-        .iter()
-        .any(|catalog| catalog.contains(route));
-    if !probes_platform && !serves_capability {
-        found.push(violation(
-            platform,
-            Rule::DoctorProbe,
-            &format!("route `{name}` has no doctor probe for the platform"),
-        ));
-    }
 }
 
 /// Compares what the route's declaration and registration say it serves with what the route
-/// built from it hands out: search, fetch, and the account checks of an account probe.
+/// built from it hands out: search, fetch, and the account check.
 fn check_declaration(
     platform: Platform,
     registration: &ProviderRegistration,
@@ -381,16 +349,16 @@ fn check_declaration(
 ) {
     let route = registration.id;
     let name = route.name();
-    let probes_accounts = matches!(registration.probe, DoctorProbe::ServiceAccount { .. });
+    let declares_accounts = registration.account_check.is_some();
     if let Some(checks_accounts) = (registry.checks_accounts)(route)
-        && checks_accounts != probes_accounts
+        && checks_accounts != declares_accounts
     {
         found.push(violation(
             platform,
             Rule::Declaration,
             &format!(
-                "the registration of route `{name}` {} an account probe, but the route built from it {} the accounts of its keys",
-                if probes_accounts { "declares" } else { "declares no" },
+                "the registration of route `{name}` {} an account check, but the route built from it {} the accounts of its keys",
+                if declares_accounts { "declares" } else { "declares no" },
                 if checks_accounts { "checks" } else { "does not check" },
             ),
         ));
@@ -625,7 +593,7 @@ fn a_declaration_that_disagrees_with_its_built_route_breaks_the_declaration_rule
 }
 
 #[test]
-fn an_account_probe_that_the_built_route_cannot_run_breaks_the_declaration_rule() {
+fn an_account_check_that_the_built_route_cannot_run_breaks_the_declaration_rule() {
     let registry = Registry {
         checks_accounts: &|_| Some(false),
         ..baseline()
@@ -696,52 +664,6 @@ fn a_browser_route_is_not_required_to_have_a_url_leaf() {
             .detail
             .contains("providers.xiaohongshu_browser.url")),
         "{found:?}"
-    );
-}
-
-#[test]
-fn a_route_without_a_platform_probe_breaks_the_doctor_rule() {
-    let registrations = catalog::registrations()
-        .iter()
-        .map(|registration| ProviderRegistration {
-            probe: DoctorProbe::WebFetch {
-                name: "fetch",
-                transport: "http",
-            },
-            ..*registration
-        })
-        .collect::<Vec<_>>();
-    let registry = Registry {
-        registrations: &registrations,
-        ..baseline()
-    };
-
-    assert_reports(&violations(Platform::Arxiv, &registry), Rule::DoctorProbe);
-}
-
-#[test]
-fn a_keyless_route_with_an_account_probe_breaks_the_doctor_rule() {
-    let registrations = catalog::registrations()
-        .iter()
-        .map(|registration| ProviderRegistration {
-            probe: DoctorProbe::ServiceAccount {
-                name: "account",
-                transport: "http",
-            },
-            ..*registration
-        })
-        .collect::<Vec<_>>();
-    let registry = Registry {
-        registrations: &registrations,
-        ..baseline()
-    };
-
-    assert_reports(&violations(Platform::Arxiv, &registry), Rule::DoctorProbe);
-    assert!(
-        !violations(Platform::Scholar, &registry)
-            .iter()
-            .any(|violation| violation.rule == Rule::DoctorProbe),
-        "a keyed route may probe its service account"
     );
 }
 

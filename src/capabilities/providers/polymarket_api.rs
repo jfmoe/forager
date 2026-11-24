@@ -25,8 +25,7 @@ use crate::net::{
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::route_declaration::{
-    ExtraCheck, OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
-    any_request,
+    OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration, any_request,
 };
 use crate::providers::shared::{
     Refusal, Trail, acquire_window, other_platform_message, parameter_error,
@@ -87,15 +86,6 @@ impl PlatformRoute for PolymarketApi {
 
     fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
         Some(self)
-    }
-
-    fn extra_checks(&self) -> Pin<Box<dyn Future<Output = Vec<ExtraCheck>> + Send + '_>> {
-        Box::pin(async {
-            vec![
-                ("clob", self.probe_clob().await),
-                ("data", self.probe_data().await),
-            ]
-        })
     }
 }
 
