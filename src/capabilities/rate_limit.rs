@@ -29,7 +29,13 @@ use crate::types::{AttemptErrorKind, Deadline};
 
 const STATE_FILE: &str = "rate_limit_state.json";
 const STATE_SCHEMA_VERSION: u64 = 1;
+#[cfg(not(test))]
 const LOCK_WAIT: Duration = Duration::from_millis(100);
+// The test build's state lives in a directory of the test process, whose reservations
+// `run_serialized` already orders, so only a test that holds the lock itself finds it busy and
+// need not wait for it.
+#[cfg(test)]
+const LOCK_WAIT: Duration = Duration::ZERO;
 
 /// The request pacing a route declares for its endpoint.
 #[derive(Clone, Copy, Debug)]
