@@ -96,16 +96,26 @@ fn set_mode(path: &Path, mode: u32) -> io::Result<()> {
     fs::set_permissions(path, fs::Permissions::from_mode(mode))
 }
 
+/// Whether `path` grants no access beyond the mode bits in `expected`.
+///
+/// # Errors
+///
+/// Returns an I/O error when the file's metadata cannot be read.
 #[cfg(unix)]
-pub(crate) fn has_private_permissions(path: &Path, expected: u32) -> io::Result<bool> {
+pub fn has_private_permissions(path: &Path, expected: u32) -> io::Result<bool> {
     use std::os::unix::fs::PermissionsExt;
 
     let actual = fs::metadata(path)?.permissions().mode() & 0o777;
     Ok(actual & !expected == 0)
 }
 
+/// Whether `path` grants access to its owner alone; `expected` applies only to Unix modes.
+///
+/// # Errors
+///
+/// Returns an I/O error when the path is not Unicode or its ACL cannot be read.
 #[cfg(windows)]
-pub(crate) fn has_private_permissions(path: &Path, _expected: u32) -> io::Result<bool> {
+pub fn has_private_permissions(path: &Path, _expected: u32) -> io::Result<bool> {
     use winapi::um::winnt::PSID;
     use windows_acl::acl::{ACL, AceType};
     use windows_acl::helper::sid_to_string;

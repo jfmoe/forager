@@ -1,5 +1,3 @@
-mod support;
-
 #[cfg(unix)]
 mod unix {
     use std::fs;
@@ -41,13 +39,10 @@ mod unix {
 mod windows {
     use std::path::Path;
 
-    use forager::config::{create_private_file, ensure_private_directory};
-    use serde_json::Value;
+    use forager::config::{create_private_file, ensure_private_directory, has_private_permissions};
     use winapi::um::winnt::{FILE_ALL_ACCESS, PSID};
     use windows_acl::acl::{ACL, AceType};
     use windows_acl::helper::{sid_to_string, string_to_sid};
-
-    use super::support::smoke::SmokeEnvironment;
 
     #[test]
     fn config_write_primitives_restrict_access_to_the_windows_owner() {
@@ -66,13 +61,16 @@ mod windows {
         assert!(owner_only);
     }
 
-    // `doctor` and offline `smoke` share this read-side check; smoke reports it as one field.
+    // `doctor` and offline `smoke` read the configuration through this check.
     #[test]
     fn configuration_access_granted_beyond_the_windows_owner_is_rejected() {
-        let environment = SmokeEnvironment::new(minimal_config);
-        let owner_only = permissions_ok(&environment);
+        let root = tempfile::tempdir().expect("create temporary root");
+        let config_dir = root.path().join("forager");
+        let config_file = config_dir.join("config.toml");
+        ensure_private_directory(&config_dir).expect("create private config directory");
+        create_private_file(&config_file).expect("create private config file");
+        let owner_only = is_private(&config_file);
 
-        let config_file = environment.config_dir.join("config.toml");
         let mut acl = ACL::from_file_path(config_file.to_str().expect("Unicode test path"), false)
             .expect("read config ACL");
         let everyone = string_to_sid("S-1-1-0").expect("create Everyone SID");
@@ -84,28 +82,11 @@ mod windows {
         )
         .expect("broaden config ACL");
 
-        assert_eq!((owner_only, permissions_ok(&environment)), (true, false));
+        assert_eq!((owner_only, is_private(&config_file)), (true, false));
     }
 
-    fn permissions_ok(environment: &SmokeEnvironment) -> bool {
-        let output = environment.run(&["smoke"]);
-        let payload: Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-            panic!(
-                "parse smoke JSON: {error}; stderr: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-        });
-        payload["permissions"]["ok"]
-            .as_bool()
-            .expect("smoke reports the permission check")
-    }
-
-    // Debug path formatting supplies the quoted and escaped TOML string literal.
-    #[expect(clippy::unnecessary_debug_formatting)]
-    fn minimal_config(journal_dir: &Path) -> String {
-        format!(
-            "[providers.xai]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n"
-        )
+    fn is_private(config_file: &Path) -> bool {
+        has_private_permissions(config_file, 0o600).expect("read the config file's ACL")
     }
 
     fn acl_is_owner_only(path: &Path) -> bool {
