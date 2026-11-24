@@ -56,7 +56,7 @@ pub(crate) use live_check::{
 
 pub(crate) use platform_catalog::{
     ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, REDDIT, SCHOLAR, SSRN, X,
-    XIAOHONGSHU, YOUTUBE, config_set_hint, opt_in_risk, platform, route_platform,
+    XIAOHONGSHU, YOUTUBE, config_set_hint, is_opt_in_route, opt_in_risk, platform, route_platform,
 };
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
@@ -1255,12 +1255,6 @@ fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), Strin
 /// it reaches give it (ADR-0039).
 fn validate_live_checks(registry: &[ProviderRegistration]) -> Result<(), String> {
     let lookup = |id: ProviderId| registry.iter().find(|registration| registration.id == id);
-    let opt_in = |id: ProviderId| {
-        PLATFORMS.iter().any(|platform| platform.contains(id))
-            && !PLATFORMS
-                .iter()
-                .any(|platform| platform.default_order.contains(&id))
-    };
     let mut ids = std::collections::BTreeSet::new();
     for registration in registry {
         let provider = registration.id;
@@ -1303,7 +1297,7 @@ fn validate_live_checks(registry: &[ProviderRegistration]) -> Result<(), String>
             if !reached.contains(&provider) {
                 return Err(format!("Live Check `{id}` does not reach its own provider"));
             }
-            let attended = reached.iter().any(|route| opt_in(*route));
+            let attended = reached.iter().any(|route| is_opt_in_route(*route));
             let keyed = !matches!(check.command.routes, RoutePin::AnonymousWebFetch(_))
                 && reached.iter().any(|route| {
                     lookup(*route).is_some_and(|reached| reached.credentials != Credentials::Unused)
