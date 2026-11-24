@@ -8,10 +8,12 @@ use serde_json::{Value, json};
 use super::fixture_server::Response;
 use super::samples::sample;
 
-/// The stored body at `name` with the string at `pointer` set to `value`.
-pub(crate) fn stored_with(name: &str, pointer: &str, value: &str) -> String {
+/// The stored body at `name` with the string at each pointer of `fields` set to its value.
+pub(crate) fn stored_with(name: &str, fields: &[(&str, &str)]) -> String {
     let mut body: Value = serde_json::from_str(&sample(name)).expect("stored JSON");
-    *body.pointer_mut(pointer).expect("stored field") = json!(value);
+    for (pointer, value) in fields {
+        *body.pointer_mut(pointer).expect("stored field") = json!(value);
+    }
     body.to_string()
 }
 
@@ -19,7 +21,7 @@ pub(crate) fn stored_with(name: &str, pointer: &str, value: &str) -> String {
 pub(crate) fn jina(content: &str) -> Response {
     Response::json(
         200,
-        &stored_with("jina/read.json", "/data/content", content),
+        &stored_with("jina/read.json", &[("/data/content", content)]),
     )
 }
 

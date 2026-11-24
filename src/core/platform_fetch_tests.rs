@@ -15,6 +15,7 @@ use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformFetchResult,
     PlatformRef, ProviderError,
 };
+use crate::web_samples::jina;
 
 const HTML: &str = "https://arxiv.org/html/2401.01234v2";
 const PDF: &str = "https://arxiv.org/pdf/2401.01234v2";
@@ -34,14 +35,6 @@ fn firecrawl(markdown: &str) -> Response {
     let mut body: Value =
         serde_json::from_str(&sample("firecrawl/scrape.json")).expect("stored scrape answer");
     body["data"]["markdown"] = json!(markdown);
-    Response::json(200, &body.to_string())
-}
-
-/// A Jina Reader answer whose Markdown is `content`.
-fn jina(content: &str) -> Response {
-    let mut body: Value =
-        serde_json::from_str(&sample("jina/read.json")).expect("stored Reader answer");
-    body["data"]["content"] = json!(content);
     Response::json(200, &body.to_string())
 }
 

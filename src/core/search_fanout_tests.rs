@@ -185,11 +185,11 @@ fn candidate_urls(branch: &CapabilityBranch) -> Vec<&str> {
 fn a_declared_web_fetch_adds_a_content_preview_candidate_without_changing_the_answer() {
     let tavily = Fixture::start_json(
         200,
-        &stored_with("tavily/extract.json", "/results/0/raw_content", "thin"),
+        &stored_with("tavily/extract.json", &[("/results/0/raw_content", "thin")]),
     );
     let firecrawl = Fixture::start_json(
         200,
-        &stored_with("firecrawl/scrape.json", "/data/markdown", "also thin"),
+        &stored_with("firecrawl/scrape.json", &[("/data/markdown", "also thin")]),
     );
     let jina = Fixture::start_sequence(vec![jina(&evidence())]);
     let document = web_fetch_document(
@@ -258,7 +258,7 @@ fn a_declared_web_fetch_reports_a_partial_gap_when_one_target_succeeds() {
             "/https://example.test/two",
             Response::json(
                 503,
-                &stored_with("jina/error.json", "/message", "unavailable"),
+                &stored_with("jina/error.json", &[("/message", "unavailable")]),
             ),
         ),
     ]);
@@ -322,7 +322,7 @@ fn a_declared_web_fetch_reads_known_urls_concurrently_and_keeps_their_order() {
 #[test]
 fn concurrent_rate_limited_targets_each_rotate_once() {
     let targets = ["one", "two", "three", "four"];
-    let rate_limited = stored_with("jina/error.json", "/message", "rate limited");
+    let rate_limited = stored_with("jina/error.json", &[("/message", "rate limited")]);
     let jina = Fixture::start_routed(
         targets
             .iter()
