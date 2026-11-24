@@ -11,6 +11,7 @@ A Rust CLI that gives AI agents search, fetch and per-platform retrieval through
 - Real-browser tests: the `real-browser` profile, run as `docs/agents/browser-routes.md` describes.
 - Test runs use the profiles in `.config/nextest.toml`; without `--profile`, that is `default`.
 - CI runs the same configuration through the `ci` profile, and every pull request runs the whole workflow: the quick and full checks on `linux`, and the permission and release artifact gate tests on `windows`.
+- A local default run runs every test the CI run does except the release artifact gate, which it counts among the skipped tests; apart from that the profiles differ only in how long a test may take. After a change to the release scripts, run `cargo nextest run --profile ci --locked --test release_artifact_gate`; under the default profile that command selects no tests.
 - `git config core.hooksPath .githooks` enables a pre-commit hook that runs `cargo fmt --check`.
 
 Read failures from the summary nextest prints at the end, which names every failed test; never filter the test output. An agent that filtered it lost the name of a failing test.

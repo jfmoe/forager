@@ -80,7 +80,7 @@ impl HeldFixture {
     /// Waits until the request is in flight, failing within the command deadline.
     pub(crate) fn wait_for_request(&self) {
         self.arrived
-            .recv_timeout(COMMAND_DEADLINE)
+            .recv_timeout(command_deadline())
             .expect("the held fixture's request did not arrive");
     }
 
@@ -89,6 +89,15 @@ impl HeldFixture {
         let _ = self.release.send(());
         self.fixture
     }
+}
+
+/// Whether a process with the ID `pid` still exists.
+#[cfg(unix)]
+pub(crate) fn process_exists(pid: &str) -> bool {
+    Command::new("/bin/kill")
+        .args(["-0", pid.trim()])
+        .output()
+        .is_ok_and(|output| output.status.success())
 }
 
 /// The keys of a JSON object, sorted, so a test can assert an object's complete shape.

@@ -6,6 +6,8 @@ mod doc_tests;
 mod links;
 #[path = "repository_rules/retired.rs"]
 mod retired;
+#[path = "repository_rules/runner.rs"]
+mod runner;
 #[path = "repository_rules/samples.rs"]
 mod samples;
 #[path = "repository_rules/test_binaries.rs"]
@@ -36,6 +38,34 @@ fn agents_md_stays_short() {
     assert!(
         lines <= AGENTS_LINE_LIMIT,
         "AGENTS.md has {lines} lines, limit {AGENTS_LINE_LIMIT}: it is loaded in every session, so move detail to the document that owns it"
+    );
+}
+
+#[test]
+fn the_runner_never_retries_and_every_exemption_says_why() {
+    let problems = runner::runner_problems(&read(&root().join(".config/nextest.toml")));
+
+    assert!(
+        problems.is_empty(),
+        "a retry turns a flaky test green, and an exemption without its reason cannot be weighed \
+         when the next test asks to wait; see docs/agents/testing.md: {problems:#?}"
+    );
+}
+
+#[test]
+fn runner_rule_breaks_are_reported() {
+    let config = "[profile.ci]\nretries = 2\n\n[[profile.default.overrides]]\n\
+                  filter = \"test(=web::invented)\"\n\n\
+                  # Waits on its route's pacing.\n[[profile.default.overrides]]\n\
+                  filter = \"test(=smoke::invented)\"\n";
+
+    assert_eq!(
+        runner::runner_problems(config),
+        [
+            "line 2: a profile retries failed tests",
+            "line 4: an exemption without a reason in the comment above it",
+            "line 8: a smoke or doctor exemption not marked as handled by spec 5",
+        ]
     );
 }
 

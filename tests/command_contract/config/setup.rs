@@ -6,7 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::support::{
-    COMMAND_DEADLINE, forager_command, run_command, spawn_command, wait_for_child,
+    command_deadline, forager_command, run_command, spawn_command, wait_for_child,
 };
 use fs2::FileExt;
 
@@ -99,7 +99,7 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
         .stderr(Stdio::piped());
     let mut setup = spawn_command(&mut setup_command).expect("spawn interactive setup");
     let lock_path = config_dir.path().join(".config.lock");
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + command_deadline();
     loop {
         if let Ok(lock) = OpenOptions::new()
             .create(true)
@@ -138,7 +138,7 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
         .expect("open setup stdin")
         .write_all(b"\n\nn\n\n\n\n\n\n\n\n\n\n")
         .expect("complete setup input");
-    let output = wait_for_child(setup, "interactive setup", COMMAND_DEADLINE);
+    let output = wait_for_child(setup, "interactive setup", command_deadline());
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 }
 
