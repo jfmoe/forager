@@ -1,52 +1,22 @@
-//! Shared configuration and assertions for `forager doctor` process tests.
+//! Shared configuration for `forager doctor` process tests.
 
-use serde_json::Value;
+use std::fmt::Write;
 
 use super::Response;
 
-pub(crate) fn assert_deep_success(
-    output: &std::process::Output,
-    provider: &str,
-    expected_checks: &[(&str, &str)],
-) {
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let checks = payload["checks"]
-        .as_array()
-        .expect("doctor checks array")
-        .iter()
-        .map(|check| {
-            (
-                check["name"].as_str().expect("check name"),
-                check["transport"].as_str().expect("check transport"),
-                check["ok"].as_bool().expect("check status"),
-            )
-        })
-        .collect::<Vec<_>>();
-    let expected = expected_checks
-        .iter()
-        .map(|(name, transport)| (*name, *transport, true))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["mode"],
-            &payload["ok"],
-            &payload["provider"],
-            checks,
-            payload.get("keys"),
-        ),
-        (
-            Some(0),
-            &Value::String("deep".into()),
-            &Value::Bool(true),
-            &Value::String(provider.into()),
-            expected,
-            None,
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
+/// The HTTP providers that [`shallow_config`] points at its URL, each with the key it gets when
+/// it reads one. A shallow doctor sends one reachability request to each.
+pub(crate) const SHALLOW_PROVIDERS: &[(&str, Option<&str>)] = &[
+    ("xai", Some("xai-secret")),
+    ("exa", Some("exa-secret")),
+    ("tavily", Some("tavily-secret")),
+    ("firecrawl", Some("firecrawl-secret")),
+    ("jina", Some("jina-secret")),
+    ("arxiv_api", None),
+    ("ssrn_crossref", None),
+    ("hn_api", None),
+    ("polymarket_api", None),
+];
 
 /// Shallow doctor counts any HTTP answer as reachable, so an unauthenticated 401 will do.
 pub(crate) fn reachable_responses(count: usize) -> Vec<Response> {
@@ -55,41 +25,14 @@ pub(crate) fn reachable_responses(count: usize) -> Vec<Response> {
         .collect()
 }
 
-/// Points the ten HTTP providers other than SerpApi at `url`, with a key wherever one is needed.
+/// Points each of [`SHALLOW_PROVIDERS`] at `url`, with its key.
 pub(crate) fn shallow_config(url: &str) -> String {
-    format!(
-        r#"
-[providers.xai]
-url = {url:?}
-keys = ["xai-secret"]
-
-[providers.exa]
-url = {url:?}
-keys = ["exa-secret"]
-
-[providers.tavily]
-url = {url:?}
-keys = ["tavily-secret"]
-
-[providers.firecrawl]
-url = {url:?}
-keys = ["firecrawl-secret"]
-
-[providers.jina]
-url = {url:?}
-keys = ["jina-secret"]
-
-[providers.arxiv_api]
-url = {url:?}
-
-[providers.ssrn_crossref]
-url = {url:?}
-
-[providers.hn_api]
-url = {url:?}
-
-[providers.polymarket_api]
-url = {url:?}
-"#
-    )
+    let mut config = String::new();
+    for (provider, key) in SHALLOW_PROVIDERS {
+        let _ = write!(config, "\n[providers.{provider}]\nurl = {url:?}\n");
+        if let Some(key) = key {
+            let _ = writeln!(config, "keys = [\"{key}\"]");
+        }
+    }
+    config
 }

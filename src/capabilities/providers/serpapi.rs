@@ -39,7 +39,7 @@ mod scholar;
 pub(crate) use account::KeyQuota;
 use scholar::{cited_by_support, fetch_support, search_support};
 
-/// The route's declaration: Search and Fetch of the catalog, and an account probe that reads
+/// The route's declaration: Search and Fetch of the catalog, and an account check that reads
 /// every key's quota.
 pub(crate) const DECLARATION: RouteDeclaration<KeyedHttpRouteRuntimeConfig> = RouteDeclaration {
     build: |config, context| Box::new(Serpapi::build(config, context)),

@@ -1,16 +1,17 @@
-//! Main search through a Responses endpoint, the path `xai` and `openai` share: the request of
-//! each kind, normalization, and the outcome. Each provider supplies only its endpoint, its
+//! Main search through a Responses endpoint, the path `xai` and `openai` share: the request,
+//! normalization, and the outcome. Each provider supplies only its endpoint, its
 //! model, the tools a search sends, and the tracking parameter it appends to cited URLs.
 
 use serde_json::Value;
 
 use crate::net::{AttemptFailure, RetryPolicy};
+use crate::providers::MainSearchRequest;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::responses_api::{ResponsesEndpoint, ResponsesRequest, output_text};
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, without_query_parameter,
 };
-use crate::providers::{MainSearchRequest, MainSearchRequestKind};
+use crate::providers::types::{MAIN_SEARCH_INSTRUCTION, with_time_context};
 use crate::redact::Secret;
 use crate::types::{AttemptTarget, Deadline, ProviderError, SearchOutcome, Source};
 
@@ -19,7 +20,7 @@ pub(super) struct ResponsesMainSearch<'a> {
     pub(super) endpoint: ResponsesEndpoint<'a>,
     /// The model of a request that names none.
     pub(super) model: &'a str,
-    /// The tools a search sends; a model probe sends none.
+    /// The tools a search sends.
     pub(super) tools: Vec<Value>,
     /// The exact `name=value` query parameter the provider appends to the URLs it cites.
     pub(super) tracking_parameter: Option<&'static str>,
@@ -31,7 +32,6 @@ impl ResponsesMainSearch<'_> {
     pub(super) async fn run(
         &self,
         request: MainSearchRequest,
-        request_kind: MainSearchRequestKind,
     ) -> Result<SearchOutcome, ProviderError> {
         let model = request.model.unwrap_or_else(|| self.model.to_owned());
         let query = request.query;
@@ -47,10 +47,7 @@ impl ResponsesMainSearch<'_> {
         let execution = execute_v2(self.endpoint.credentials, settings, |credential, _| {
             let model = model.clone();
             let query = query.clone();
-            async move {
-                self.send_once(&query, &model, &credential, request_kind)
-                    .await
-            }
+            async move { self.send_once(&query, &model, &credential).await }
         })
         .await?;
         let (answer, sources) = execution.value;
@@ -71,36 +68,23 @@ impl ResponsesMainSearch<'_> {
         query: &str,
         model: &str,
         credential: &Secret,
-        request_kind: MainSearchRequestKind,
     ) -> Result<(Option<u16>, (String, Vec<Source>)), AttemptFailure> {
-        let input = request_kind.input(query);
-        let tools = if request_kind.uses_search_tools() {
-            self.tools.clone()
-        } else {
-            Vec::new()
-        };
-        let body = ResponsesRequest::new(model, request_kind.instruction(), &input, tools);
+        let input = with_time_context(query);
+        let body = ResponsesRequest::new(
+            model,
+            Some(MAIN_SEARCH_INSTRUCTION),
+            &input,
+            self.tools.clone(),
+        );
         let (status, response) = self.endpoint.complete(&body, credential).await?;
-        Ok((Some(status), self.decode(&response, request_kind)?))
+        Ok((Some(status), self.decode(&response)?))
     }
 
-    /// Returns the answer and the sources of the completed `response` to a request of
-    /// `request_kind`. A search's answer is normalized; every request's sources are redacted and
-    /// deduplicated without the tracking parameter.
-    pub(super) fn decode(
-        &self,
-        response: &Value,
-        request_kind: MainSearchRequestKind,
-    ) -> Result<(String, Vec<Source>), AttemptFailure> {
+    /// Returns the normalized answer and the sources of the completed `response`, the sources
+    /// redacted and deduplicated without the tracking parameter.
+    pub(super) fn decode(&self, response: &Value) -> Result<(String, Vec<Source>), AttemptFailure> {
         let (answer, sources) = output_text(self.endpoint.service, response)?;
-        let (answer, sources) = if matches!(request_kind, MainSearchRequestKind::Search) {
-            normalize_main_search(&answer, sources, self.endpoint.credentials)?
-        } else {
-            (
-                answer,
-                redact_and_deduplicate_sources(sources, self.endpoint.credentials),
-            )
-        };
+        let (answer, sources) = normalize_main_search(&answer, sources, self.endpoint.credentials)?;
         Ok((answer, self.untracked(sources)))
     }
 

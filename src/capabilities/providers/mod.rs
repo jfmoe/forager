@@ -47,8 +47,7 @@ pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
     browser_login, build_docs_search, build_main_search, build_platform_fetch,
     build_platform_search, build_web_fetch, build_web_search, operation_support,
-    platform_fetch_support, platform_route_extra_checks, platform_search_support, route_accounts,
-    route_prerequisites,
+    platform_fetch_support, platform_search_support, route_accounts, route_prerequisites,
 };
 #[cfg(test)]
 pub(crate) use factory::{built_route_checks_accounts, declared_and_built_operations};
@@ -65,8 +64,7 @@ pub(crate) use serpapi::KeyQuota;
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use types::{
-    DocsSearch, MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch,
-    PlatformSearch, WebSearch,
+    DocsSearch, MainSearch, MainSearchRequest, PlatformFetch, PlatformSearch, WebSearch,
 };
 pub(crate) use web_fetch::{FetchRequest, WebFetch, is_pdf_url};
 pub(crate) use xai::ASK_OPERATION as X_ASK;

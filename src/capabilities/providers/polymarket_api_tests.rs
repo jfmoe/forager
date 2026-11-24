@@ -11,7 +11,7 @@ use crate::fixture_server::{
 };
 use crate::net::{RetryPolicy, build_client};
 use crate::polymarket_api_samples::{
-    event, last_trades, market, no_match, prices, resolved, search_page, tokens,
+    event, last_trades, market, prices, resolved, search_page, tokens,
 };
 use crate::providers::RouteContext;
 use crate::providers::test_projection::refused;
@@ -35,6 +35,11 @@ fn placeholder(slug: &str, label: &str) -> Value {
 const EVENT: &str = "how-many-fed-rate-cuts-in-2026";
 /// When the CLOB price read of a decoding test completed.
 const READ_AT: &str = "2026-10-24T07:35:00Z";
+
+/// The stored search page as Gamma answers a search nothing matches: without `events`.
+fn no_match() -> Value {
+    without(sample_json("polymarket_api/search.json"), &["events"])
+}
 
 /// The route against `url` for all three APIs, with one attempt per request, so a failure
 /// response is terminal at once.

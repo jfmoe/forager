@@ -69,7 +69,7 @@ fn player_body(video_id: &str) -> serde_json::Value {
     })
 }
 
-/// The route's declaration: Fetch of the catalog only, so doctor probes it with a fetch.
+/// The route's declaration: Fetch of the catalog only.
 pub(crate) const DECLARATION: RouteDeclaration<HttpRouteRuntimeConfig> = RouteDeclaration {
     build: |config, context| Box::new(YoutubeWeb::build(config, context)),
     adapter: RouteAdapter {

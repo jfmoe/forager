@@ -9,9 +9,7 @@
 use reqwest::Client;
 
 use super::constructors::credentials;
-use super::route_declaration::{
-    ExtraCheck, OperationRoute, PlatformRoute, RouteAdapter, RouteContext,
-};
+use super::route_declaration::{OperationRoute, PlatformRoute, RouteAdapter, RouteContext};
 use super::{
     DocsSearch, KeyAccount, MainSearch, PlatformFetch, PlatformSearch, ProviderId,
     SupplementalSearch, WebFetch, WebSearch, arxiv_api, browser, browser_preflight, gemini_api,
@@ -112,19 +110,7 @@ pub(crate) fn build_platform_fetch(
         .expect("planning selects a route for fetch only when its adapter checks fetch requests")
 }
 
-/// Runs the checks a platform route needs beyond its platform search probe: one per extra
-/// endpoint it combines. Each check is named; most routes have none.
-pub(crate) async fn platform_route_extra_checks(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Vec<ExtraCheck> {
-    let route = declared_route(config, route_context(client, retry_policy, deadline));
-    route.extra_checks().await
-}
-
-/// Checks the account of every key of a route that registers an account probe.
+/// Checks the account of every key of a route that declares an account check.
 pub(crate) async fn route_accounts(
     config: PlatformRouteConfig,
     client: Client,
@@ -134,7 +120,7 @@ pub(crate) async fn route_accounts(
     let id = config.route();
     let route = declared_route(config, route_context(client, retry_policy, deadline));
     let Some(accounts) = route.accounts() else {
-        unreachable!("{} registers no account probe", id.name())
+        unreachable!("{} declares no account check", id.name())
     };
     accounts.await
 }

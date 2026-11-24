@@ -63,11 +63,6 @@ pub(crate) fn search_page(events: &[Value], has_more: bool) -> Value {
     page
 }
 
-/// The stored search page as Gamma answers a search nothing matches: without `events`.
-pub(crate) fn no_match() -> Value {
-    without(sample_json("polymarket_api/search.json"), &["events"])
-}
-
 /// A CLOB prices answer in the stored answer's shape: each token's best bid and best ask.
 pub(crate) fn prices(quotes: &[(&str, &str, &str)]) -> Value {
     let stored = sample_json("polymarket_api/prices.json");

@@ -153,27 +153,6 @@ impl PolymarketApi {
             as_of,
         })
     }
-
-    /// Asks the CLOB for its clock, which proves the endpoint answers.
-    pub(crate) async fn probe_clob(&self) -> Result<(), ProviderError> {
-        self.send(
-            Endpoint::Clob,
-            Call::Get {
-                path: "time",
-                query: &[],
-            },
-            PlatformOperation::Search.as_str(),
-            |body| {
-                serde_json::from_str::<u64>(body.trim())
-                    .map(|_| ())
-                    .map_err(|error| {
-                        Refusal::runtime(format!("invalid Polymarket CLOB API time: {error}"))
-                    })
-            },
-        )
-        .await
-        .map(|_| ())
-    }
 }
 
 /// The markets whose live books the CLOB serves: the open ones of `markets`.

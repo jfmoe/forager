@@ -1,5 +1,5 @@
-//! `forager doctor --provider gemini_api`: the deep probe lists the models with every key of the
-//! pool instead of running a billed model request.
+//! `forager doctor --provider gemini_api`: the account check lists the models with every key of
+//! the pool instead of running a billed model request.
 
 use serde_json::{Value, json};
 
@@ -19,7 +19,7 @@ fn models() -> Response {
 }
 
 #[test]
-fn deep_doctor_lists_the_models_with_every_key_and_reports_each_key() {
+fn provider_doctor_lists_the_models_with_every_key_and_reports_each_key() {
     let fixture = Fixture::start_sequence(vec![
         gemini_api::error(
             403,

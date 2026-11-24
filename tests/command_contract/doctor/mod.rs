@@ -1,23 +1,31 @@
 mod gemini_api;
 mod offline;
+#[cfg(unix)]
+mod one_provider;
 mod platform_routes;
 mod serpapi;
 
 use serde_json::{Value, json};
 
 use std::fs;
-use std::time::Duration;
 
-use crate::support::doctor::{assert_deep_success, reachable_responses, shallow_config};
-use crate::support::exa_samples;
-use crate::support::main_search_samples::{answer_with, completed, completed_events};
-use crate::support::samples::sample_json;
-use crate::support::web_samples::{jina, stored_with, tavily_results};
-use crate::support::{Fixture, Response, RunEnvironment, request_json};
+use crate::support::doctor::{SHALLOW_PROVIDERS, reachable_responses, shallow_config};
+use crate::support::{Fixture, RunEnvironment, object_keys};
+
+/// The providers of a doctor report that `field` marks true.
+fn providers_where<'a>(payload: &'a Value, field: &str) -> Vec<&'a str> {
+    payload["providers"]
+        .as_array()
+        .expect("providers")
+        .iter()
+        .filter(|provider| provider[field] == Value::Bool(true))
+        .map(|provider| provider["provider"].as_str().expect("provider name"))
+        .collect()
+}
 
 #[test]
 fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len()));
     let environment = RunEnvironment::new(&shallow_config(&format!(
         "{}?token=url-secret",
         fixture.url
@@ -38,25 +46,35 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             doctor.status.code(),
             &payload["mode"],
             &payload["ok"],
-            payload["providers"].as_array().map(Vec::len),
+            payload["providers"]
+                .as_array()
+                .expect("providers")
+                .iter()
+                .map(|provider| provider["provider"].as_str().expect("provider name"))
+                .collect::<std::collections::BTreeSet<_>>(),
             &payload["config"],
+            providers_where(&payload, "reachable")
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>(),
             &payload["providers"][0]["provider"],
             &payload["providers"][0]["configured"],
             &payload["providers"][0]["key_count"],
             &payload["providers"][0]["source"],
-            &payload["providers"][0]["reachable"],
         ),
         (
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(16),
+            object_keys(&config["providers"]).into_iter().collect(),
             &config,
+            SHALLOW_PROVIDERS
+                .iter()
+                .map(|(provider, _)| *provider)
+                .collect(),
             &Value::String("xai".into()),
             &Value::Bool(true),
             &Value::from(1),
             &Value::String("file".into()),
-            &Value::Bool(true),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&doctor.stderr)
@@ -76,7 +94,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             .as_array()
             .is_some_and(|warnings| !warnings.is_empty())
     );
-    assert_eq!(fixture.finish_all().len(), 9);
+    fixture.finish_all();
 }
 
 #[test]
@@ -95,178 +113,7 @@ fn doctor_provider_rejects_values_outside_the_compiled_registry() {
 }
 
 #[test]
-fn xai_deep_doctor_also_searches_x_while_the_x_order_lists_it() {
-    let fixture = Fixture::start_sequence(vec![
-        Response::sse(200, &completed_events(&answer_with("xai", "ok", &[]))),
-        completed(&sample_json("xai/x-search.json")),
-    ]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "xai"]);
-
-    assert_deep_success(&output, "xai", &[("responses", "sse"), ("x_search", "sse")]);
-    let requests = fixture.finish_all();
-    assert_eq!(
-        request_json(&requests[1])["tools"],
-        serde_json::json!([{"type": "x_search"}])
-    );
-}
-
-#[test]
-fn xai_deep_doctor_executes_one_responses_sse_probe() {
-    let fixture = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_events(&answer_with("xai", "<think>ok</think>", &[])),
-    );
-    let environment = RunEnvironment::new(&format!(
-        "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n[platforms.x]\norder = []\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "xai"]);
-    assert_deep_success(&output, "xai", &[("responses", "sse")]);
-    let request = fixture.finish();
-    assert!(request.starts_with("POST /responses "), "{request}");
-    let request = request_json(&request);
-    assert_eq!(
-        request["input"],
-        serde_json::json!([{"role": "user", "content": "Reply with exactly: ok"}])
-    );
-    assert_eq!(request["tools"], serde_json::json!([]));
-    assert!(request.get("instructions").is_none());
-}
-
-#[test]
-fn openai_deep_doctor_executes_one_responses_sse_probe() {
-    let fixture = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_events(&answer_with("openai", "ok", &[])),
-    );
-    let environment = RunEnvironment::new(&format!(
-        "[providers.openai]\nurl = {:?}\nkeys = [\"openai-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "openai"]);
-    assert_deep_success(&output, "openai", &[("responses", "sse")]);
-    let request = fixture.finish();
-    assert!(request.starts_with("POST /responses "), "{request}");
-    let request = request_json(&request);
-    assert_eq!(
-        (&request["model"], &request["tools"]),
-        (
-            &Value::String("gpt-6.1-terra".into()),
-            &serde_json::json!([])
-        )
-    );
-}
-
-#[test]
-fn openai_deep_doctor_reports_a_rejected_key_without_leaking_it() {
-    let rejected = stored_with("openai/error.json", &[("/error/message", "bad openai-key")]);
-    let fixture = Fixture::start_json(401, &rejected);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.openai]\nurl = {:?}\nkeys = [\"openai-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "openai"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-
-    assert_eq!(
-        (output.status.code(), &payload["error_kind"]),
-        (Some(4), &Value::String("auth".into()))
-    );
-    assert!(
-        !format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .contains("openai-key"),
-        "doctor leaked the key"
-    );
-    fixture.finish();
-}
-
-#[test]
-fn exa_deep_doctor_executes_the_registry_search_probe() {
-    let fixture = Fixture::start(200, "application/json", &exa_samples::no_results());
-    let environment = RunEnvironment::new(&format!(
-        "[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "exa"]);
-    assert_deep_success(&output, "exa", &[("search", "http")]);
-    let request = fixture.finish();
-    assert!(request.starts_with("POST /search "), "{request}");
-}
-
-#[test]
-fn tavily_deep_doctor_executes_the_registry_search_probe() {
-    let fixture = Fixture::start_sequence(vec![tavily_results(
-        &serde_json::json!([{"title": "ok", "url": "https://example.test"}]),
-    )]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "tavily"]);
-    assert_deep_success(&output, "tavily", &[("search", "http")]);
-    let request = fixture.finish();
-    assert!(request.starts_with("POST /search "), "{request}");
-}
-
-#[test]
-fn firecrawl_deep_doctor_executes_the_registry_search_probe() {
-    let fixture = Fixture::start(
-        200,
-        "application/json",
-        &stored_with(
-            "firecrawl/search.json",
-            &[
-                ("/data/web/0/title", "ok"),
-                ("/data/web/0/url", "https://example.test"),
-            ],
-        ),
-    );
-    let environment = RunEnvironment::new(&format!(
-        "[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "firecrawl"]);
-    assert_deep_success(&output, "firecrawl", &[("search", "http")]);
-    let request = fixture.finish();
-    assert!(request.starts_with("POST /search "), "{request}");
-}
-
-#[test]
-fn jina_deep_doctor_executes_the_registry_fetch_probe() {
-    let fixture = Fixture::start_sequence(vec![jina(&"rich ".repeat(60))]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "jina"]);
-    assert_deep_success(&output, "jina", &[("fetch", "http")]);
-    let request = fixture.finish();
-    assert!(
-        request.starts_with("GET /https://example.com/ "),
-        "{request}"
-    );
-}
-
-#[test]
-fn deep_doctor_reports_missing_credentials_as_a_json_config_failure() {
+fn one_provider_doctor_reports_missing_credentials_as_a_json_config_failure() {
     let environment = RunEnvironment::new("");
 
     let output = environment.run(&["doctor", "--provider", "exa"]);
@@ -275,116 +122,55 @@ fn deep_doctor_reports_missing_credentials_as_a_json_config_failure() {
     assert_eq!(
         (
             output.status.code(),
+            &payload["mode"],
             &payload["ok"],
             &payload["configured"],
             &payload["error_kind"],
+            &payload["message"],
         ),
         (
             Some(3),
+            &json!("provider"),
             &Value::Bool(false),
             &Value::Bool(false),
-            &Value::String("config".into()),
+            &json!("config"),
+            &json!("providers.exa.keys has no configured credentials"),
         )
     );
-}
-
-#[test]
-fn deep_doctor_applies_one_hard_deadline_and_redacts_failed_output() {
-    let delayed = Response::new(
-        401,
-        "application/json",
-        &exa_samples::error_with(
-            "bad timeout-key at http://user:pass@example.test/?token=url-secret",
-        ),
-    )
-    .with_delay(Duration::from_secs(2));
-    let fixture = Fixture::start_sequence(vec![delayed]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.exa]\nurl = {:?}\nkeys = [\"timeout-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "exa", "--timeout", "1"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    assert_eq!(
-        (output.status.code(), &payload["ok"], &payload["error_kind"]),
-        (
-            Some(4),
-            &Value::Bool(false),
-            &Value::String("timeout".into())
-        )
-    );
-    for secret in ["timeout-key", "url-secret", "user:pass"] {
-        assert!(!combined.contains(secret), "doctor leaked {secret}");
-    }
-    fixture.finish();
-}
-
-#[test]
-fn deep_doctor_reports_authentication_failure_without_leaking_provider_values() {
-    let fixture = Fixture::start(
-        401,
-        "application/json",
-        &exa_samples::error_with(
-            "bad auth-key at https://user:pass@example.test/?token=url-secret",
-        ),
-    );
-    let environment = RunEnvironment::new(&format!(
-        "[providers.exa]\nurl = {:?}\nkeys = [\"auth-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "exa"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    assert_eq!(
-        (output.status.code(), &payload["ok"], &payload["error_kind"]),
-        (Some(4), &Value::Bool(false), &Value::String("auth".into()))
-    );
-    for secret in ["auth-key", "url-secret", "user:pass"] {
-        assert!(!combined.contains(secret), "doctor leaked {secret}");
-    }
-    fixture.finish();
 }
 
 #[test]
 fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
-    let fixture = Fixture::start_sequence(reachable_responses(18));
-    let environment = RunEnvironment::new(&shallow_config(&fixture.url));
-    let markdown_environment = RunEnvironment::new(&shallow_config(&fixture.url));
+    let environment = RunEnvironment::new(&shallow_config("http://127.0.0.1:9"));
 
-    let json_output = environment.run(&["doctor"]);
-    let markdown_output = markdown_environment.run(&["doctor", "--format", "markdown"]);
+    let json_output = environment.run(&["doctor", "--offline"]);
+    let markdown_output = environment.run(&["doctor", "--offline", "--format", "markdown"]);
     let payload: Value = serde_json::from_slice(&json_output.stdout).expect("parse doctor JSON");
     let markdown = String::from_utf8(markdown_output.stdout).expect("UTF-8 markdown");
+    let config = serde_json::to_string_pretty(&payload["config"]).expect("render config");
 
     assert_eq!(
         (json_output.status.code(), markdown_output.status.code()),
         (Some(0), Some(0))
     );
-    assert!(markdown.contains("# forager doctor"));
-    assert!(markdown.contains("exa: configured=true, key_count=1, source=file"));
-    assert!(markdown.contains("## Effective configuration"));
-    assert!(markdown.contains(r#""source": "file""#));
+    assert!(markdown.contains("# forager doctor"), "{markdown}");
+    assert!(markdown.contains("ok: true"), "{markdown}");
+    assert!(
+        markdown.contains("exa: configured=true, key_count=1, source=file"),
+        "{markdown}"
+    );
+    assert!(
+        markdown.contains(&format!(
+            "## Effective configuration\n\n```json\n{config}\n```"
+        )),
+        "{markdown}"
+    );
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(16));
-    assert_eq!(fixture.finish_all().len(), 18);
 }
 
 #[test]
 fn shallow_doctor_probes_reachability_with_get_requests() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len()));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
     let doctor = environment.run(&["doctor"]);
@@ -402,7 +188,7 @@ fn shallow_doctor_probes_reachability_with_get_requests() {
 
     assert_eq!(
         (doctor.status.code(), methods),
-        (Some(0), vec!["GET".to_owned(); 9]),
+        (Some(0), vec!["GET".to_owned(); SHALLOW_PROVIDERS.len()]),
         "stderr: {}",
         String::from_utf8_lossy(&doctor.stderr)
     );
@@ -410,7 +196,7 @@ fn shallow_doctor_probes_reachability_with_get_requests() {
 
 #[test]
 fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
-    let fixture = Fixture::start_sequence(reachable_responses(16));
+    let fixture = Fixture::start_sequence(reachable_responses(2 * (SHALLOW_PROVIDERS.len() - 1)));
     let config = shallow_config(&fixture.url).replace(
         &format!("[providers.xai]\nurl = {:?}", fixture.url),
         "[providers.xai]\nurl = \"http://127.0.0.1:9\"",
@@ -441,12 +227,12 @@ fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
         )
     );
     assert!(markdown.contains("ok: false"), "{markdown}");
-    assert_eq!(fixture.finish_all().len(), 16);
+    fixture.finish_all();
 }
 
 #[test]
 fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
-    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let fixture = Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len() - 1));
     let config = shallow_config(&fixture.url).replace(
         &format!(
             "[providers.xai]\nurl = {:?}\nkeys = [\"xai-secret\"]",
@@ -473,23 +259,18 @@ fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
             &Value::Bool(false),
         )
     );
-    assert_eq!(fixture.finish_all().len(), 8);
+    fixture.finish_all();
 }
 
 #[test]
 fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_healthy() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
-    let config = [
-        "xai-secret",
-        "exa-secret",
-        "tavily-secret",
-        "firecrawl-secret",
-        "jina-secret",
-    ]
-    .into_iter()
-    .fold(shallow_config(&fixture.url), |config, secret| {
-        config.replace(&format!("keys = [\"{secret}\"]"), "keys = []")
-    });
+    let fixture = Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len()));
+    let config = SHALLOW_PROVIDERS
+        .iter()
+        .filter_map(|(_, key)| *key)
+        .fold(shallow_config(&fixture.url), |config, secret| {
+            config.replace(&format!("keys = [\"{secret}\"]"), "keys = []")
+        });
     let environment = RunEnvironment::new(&config);
 
     let output = environment.run(&["doctor"]);
@@ -499,13 +280,7 @@ fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_he
         (
             output.status.code(),
             &payload["ok"],
-            payload["providers"]
-                .as_array()
-                .expect("providers")
-                .iter()
-                .filter(|provider| provider["configured"] == Value::Bool(true))
-                .map(|provider| provider["provider"].as_str().expect("provider name"))
-                .collect::<Vec<_>>(),
+            providers_where(&payload, "configured"),
         ),
         (
             Some(0),
@@ -519,7 +294,7 @@ fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_he
             ]
         )
     );
-    assert_eq!(fixture.finish_all().len(), 9);
+    fixture.finish_all();
 }
 
 #[test]
@@ -539,7 +314,7 @@ fn doctor_rejects_bad_configuration_before_any_probe() {
 
 #[test]
 fn shallow_doctor_reports_jina_without_keys_as_configured_and_anonymous() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len()));
     let config = shallow_config(&fixture.url).replace("keys = [\"jina-secret\"]", "keys = []");
     let environment = RunEnvironment::new(&config);
 
@@ -570,62 +345,8 @@ fn shallow_doctor_reports_jina_without_keys_as_configured_and_anonymous() {
 }
 
 #[test]
-fn jina_deep_doctor_without_keys_probes_anonymously() {
-    let fixture = Fixture::start_sequence(vec![jina(&"rich ".repeat(60))]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.jina]\nurl = {:?}\nkeys = []\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "jina"]);
-
-    assert_deep_success(&output, "jina", &[("fetch", "http")]);
-    let request = fixture.finish();
-    assert!(
-        !request.to_ascii_lowercase().contains("authorization:"),
-        "{request}"
-    );
-}
-
-#[test]
-fn jina_deep_doctor_reports_a_failing_key_although_an_anonymous_request_succeeds() {
-    let fixture = Fixture::start_sequence(vec![
-        Response::json(
-            401,
-            &stored_with("jina/error.json", &[("/message", "Invalid API key")]),
-        ),
-        jina(&"rich ".repeat(60)),
-    ]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "jina"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["ok"],
-            &payload["error_kind"],
-            &payload["message"],
-        ),
-        (
-            Some(4),
-            &Value::Bool(false),
-            &Value::String("auth".into()),
-            &Value::String("Invalid API key".into()),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish_all();
-}
-
-#[test]
 fn the_default_doctor_reports_and_requires_the_state_directories_as_offline_doctor_does() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(SHALLOW_PROVIDERS.len()));
     let root = tempfile::tempdir().expect("create journal root");
     let blocked = root.path().join("journal");
     fs::write(&blocked, "not a directory").expect("block the journal directory");
@@ -656,5 +377,5 @@ fn the_default_doctor_reports_and_requires_the_state_directories_as_offline_doct
         "{:?}",
         outputs[0]
     );
-    assert_eq!(fixture.finish_all().len(), 9);
+    fixture.finish_all();
 }

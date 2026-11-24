@@ -22,8 +22,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::route_declaration::{
-    ExtraCheck, OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
-    any_request,
+    OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration, any_request,
 };
 use crate::providers::shared::{
     Trail, acquire_window, other_platform_message, parameter_error, utc_second,
@@ -85,10 +84,6 @@ impl PlatformRoute for HnApi {
 
     fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
         Some(self)
-    }
-
-    fn extra_checks(&self) -> Pin<Box<dyn Future<Output = Vec<ExtraCheck>> + Send + '_>> {
-        Box::pin(async { vec![("firebase", self.probe_firebase().await)] })
     }
 }
 
@@ -207,18 +202,6 @@ impl HnApi {
             diagnostic: trail.diagnostic(),
             attempts: trail.attempts,
         })
-    }
-
-    /// Asks the Firebase API for its newest item ID, which proves the endpoint answers.
-    pub(crate) async fn probe_firebase(&self) -> Result<(), ProviderError> {
-        self.get::<u64>(
-            Endpoint::Firebase,
-            "maxitem.json",
-            &[],
-            PlatformOperation::Search.as_str(),
-        )
-        .await
-        .map(|_| ())
     }
 
     /// Reads the item metadata: the Algolia record, with the live counts and the deleted or

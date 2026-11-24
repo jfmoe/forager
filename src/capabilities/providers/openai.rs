@@ -7,9 +7,9 @@ use serde_json::json;
 use crate::config::OpenaiRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
+use crate::providers::MainSearchRequest;
 use crate::providers::main_search_responses::ResponsesMainSearch;
 use crate::providers::responses_api::ResponsesEndpoint;
-use crate::providers::{MainSearchRequest, MainSearchRequestKind};
 use crate::types::{Deadline, ProviderError, SearchOutcome};
 
 // The Responses web_search tool appends it to every URL it cites (2026-10-28).
@@ -44,18 +44,7 @@ impl Openai {
         &self,
         request: MainSearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
-        self.main_search()
-            .run(request, MainSearchRequestKind::Search)
-            .await
-    }
-
-    pub(crate) async fn probe(
-        &self,
-        request: MainSearchRequest,
-    ) -> Result<SearchOutcome, ProviderError> {
-        self.main_search()
-            .run(request, MainSearchRequestKind::ModelProbe)
-            .await
+        self.main_search().run(request).await
     }
 
     fn main_search(&self) -> ResponsesMainSearch<'_> {

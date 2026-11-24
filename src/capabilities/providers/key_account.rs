@@ -1,4 +1,4 @@
-//! The account check of one key, shared by the routes that register an account probe.
+//! The account check of one key, shared by the routes that declare an account check.
 //!
 //! A route checks every key of its pool on its own; the doctor reports each key's result and
 //! fails the probe on the first key that cannot serve requests now.
