@@ -12,8 +12,9 @@ use super::{
 };
 use crate::credentials::CredentialPool;
 use crate::fixture_server::{Fixture, block_on};
-use crate::main_search_samples::{answer_with, completed_events, stored_answer};
+use crate::main_search_samples::{answer_with, completed_events, failed_event, stored_answer};
 use crate::net::{AttemptFailure, MAX_RESPONSE_BYTES, build_client};
+use crate::samples::sample;
 use crate::types::AttemptErrorKind;
 
 const SERVICE: &str = "Test Responses";
@@ -62,6 +63,45 @@ fn complete_from(body: &str) -> Result<Value, AttemptFailure> {
     outcome.map(|(_, response)| response)
 }
 
+/// The stored Responses stream event `name`; the protocol's providers share its events.
+fn stored_event(name: &str) -> Value {
+    serde_json::from_str(&sample(&format!("xai/{name}")))
+        .unwrap_or_else(|error| panic!("stored xai/{name}: {error}"))
+}
+
+/// `event` with each field at a path of object keys set to its value.
+fn with(mut event: Value, fields: &[(&[&str], Value)]) -> Value {
+    for (path, value) in fields {
+        let (last, parents) = path.split_last().expect("a field path");
+        let target = parents
+            .iter()
+            .fold(&mut event, |object, key| &mut object[*key]);
+        target[*last] = value.clone();
+    }
+    event
+}
+
+/// The stored `response.failed` event with `fields` set.
+fn failed(fields: &[(&[&str], Value)]) -> Value {
+    with(failed_event("xai"), fields)
+}
+
+/// The stored `response.incomplete` event with `reason` as its incomplete reason.
+fn incomplete(reason: &str) -> Value {
+    with(
+        stored_event("response-incomplete.json"),
+        &[(&["response", "incomplete_details", "reason"], json!(reason))],
+    )
+}
+
+/// The stored `response.output_text.delta` event carrying `text`.
+fn delta(text: &str) -> Value {
+    with(
+        stored_event("output-text-delta.json"),
+        &[(&["delta"], json!(text))],
+    )
+}
+
 fn failure<T>(result: Result<T, AttemptFailure>) -> (AttemptErrorKind, String) {
     let error = result.err().expect("the stream fails");
     (error.kind, error.message)
@@ -71,48 +111,48 @@ fn failure<T>(result: Result<T, AttemptFailure>) -> (AttemptErrorKind, String) {
 fn terminal_classification_uses_only_structured_signals() {
     let cases = [
         (
-            json!({"error": {"code": "server_error"}}),
+            failed(&[(&["error", "code"], json!("server_error"))]),
             AttemptErrorKind::Network,
         ),
         (
-            json!({"response": {"error": {"code": "request_timeout"}}}),
+            failed(&[(&["response", "error", "code"], json!("request_timeout"))]),
             AttemptErrorKind::Timeout,
         ),
         (
-            json!({"error": {"code": "rate_limit_exceeded"}}),
+            failed(&[(&["error", "code"], json!("rate_limit_exceeded"))]),
             AttemptErrorKind::RateLimited,
         ),
         (
-            json!({"response": {"error": {"code": "insufficient_quota"}}}),
+            failed(&[(&["response", "error", "code"], json!("insufficient_quota"))]),
             AttemptErrorKind::QuotaExhausted,
         ),
         (
-            json!({"status": 429, "error": {"code": "insufficient_quota"}}),
+            failed(&[
+                (&["status"], json!(429)),
+                (&["error", "code"], json!("insufficient_quota")),
+            ]),
             AttemptErrorKind::QuotaExhausted,
         ),
         (
-            json!({"error": {"code": "invalid_api_key"}}),
+            failed(&[(&["error", "code"], json!("invalid_api_key"))]),
             AttemptErrorKind::Auth,
         ),
         (
-            json!({"error": {"code": "invalid_request_error"}}),
+            failed(&[(&["error", "code"], json!("invalid_request_error"))]),
             AttemptErrorKind::Parameter,
         ),
+        (incomplete("content_filter"), AttemptErrorKind::Quality),
+        (incomplete("max_output_tokens"), AttemptErrorKind::Quality),
         (
-            json!({"response": {"incomplete_details": {"reason": "content_filter"}}}),
-            AttemptErrorKind::Quality,
+            failed(&[(&["status"], json!(503))]),
+            AttemptErrorKind::Network,
         ),
         (
-            json!({"response": {"incomplete_details": {"reason": "max_output_tokens"}}}),
-            AttemptErrorKind::Quality,
-        ),
-        (json!({"status": 503}), AttemptErrorKind::Network),
-        (
-            json!({"error": {"message": "rate limit exceeded"}}),
+            failed(&[(&["error", "message"], json!("rate limit exceeded"))]),
             AttemptErrorKind::Runtime,
         ),
         (
-            json!({"response": {"status": "failed"}}),
+            failed(&[(&["response", "status"], json!("failed"))]),
             AttemptErrorKind::Runtime,
         ),
     ];
@@ -165,7 +205,7 @@ fn event_data_ignores_controls_and_rejects_malformed_payloads() {
     assert_eq!(parse_event_data("").ok(), Some(None));
     assert_eq!(parse_event_data(" [DONE] ").ok(), Some(None));
     assert_eq!(
-        parse_event_data(r#"{"type":"response.output_text.delta"}"#)
+        parse_event_data(&sample("xai/output-text-delta.json"))
             .ok()
             .flatten()
             .and_then(|payload| payload["type"].as_str().map(str::to_owned)),
@@ -177,7 +217,7 @@ fn event_data_ignores_controls_and_rejects_malformed_payloads() {
 #[test]
 fn a_stream_yields_its_completed_response_past_comments_controls_and_deltas() {
     let response = stored_answer("xai");
-    let delta = json!({"type": "response.output_text.delta", "delta": "Final"});
+    let delta = delta("Final");
     let body = format!(
         ": keepalive\n\ndata:\n\ndata: [DONE]\n\nevent: response.output_text.delta\ndata: {delta}\n\n{}",
         completed_events(&response)
@@ -188,27 +228,33 @@ fn a_stream_yields_its_completed_response_past_comments_controls_and_deltas() {
 
 #[test]
 fn unknown_terminals_missing_completion_and_malformed_frames_are_runtime_failures() {
+    let mut unknown_incomplete = stored_event("response-incomplete.json");
+    unknown_incomplete["response"]
+        .as_object_mut()
+        .expect("stored response")
+        .remove("incomplete_details");
     let cases = [
         (
-            "data: {\"type\":\"response.failed\",\"error\":{\"message\":\"upstream failed\"}}\n\n",
+            failed(&[(&["error", "message"], json!("upstream failed"))]).to_string(),
             "Test Responses ended with response.failed: upstream failed",
         ),
         (
-            "data: {\"type\":\"response.incomplete\",\"response\":{}}\n\n",
+            unknown_incomplete.to_string(),
             "Test Responses ended with response.incomplete",
         ),
         (
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+            delta("partial").to_string(),
             "Test Responses stream ended before response.completed",
         ),
         (
-            "data: {not-json}\n\n",
+            "{not-json}".to_owned(),
             "Test Responses returned invalid event JSON: ",
         ),
     ];
 
-    for (body, message) in cases {
-        let (kind, actual) = failure(completed(body));
+    for (event, message) in cases {
+        let body = format!("data: {event}\n\n");
+        let (kind, actual) = failure(completed(&body));
 
         assert_eq!(
             (kind, actual.starts_with(message)),
@@ -237,7 +283,7 @@ fn event_stream_rejects_transport_errors_and_missing_completion() {
         );
 
         let missing_completion = stream::iter([Ok::<_, AttemptFailure>(Event {
-            data: r#"{"type":"response.output_text.delta","delta":"partial"}"#.into(),
+            data: delta("partial").to_string(),
             ..Event::default()
         })]);
         assert_eq!(

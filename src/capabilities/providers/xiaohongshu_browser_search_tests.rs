@@ -52,6 +52,22 @@ fn results_page() -> Value {
     stored_search()["page"].clone()
 }
 
+/// The stored page facts of the page at `url` titled `title`.
+fn page_at(url: &str, title: &str) -> Value {
+    let mut page = results_page();
+    page["url"] = json!(url);
+    page["title"] = json!(title);
+    page
+}
+
+/// The page facts of Xiaohongshu's home feed.
+fn home_page() -> Value {
+    page_at(
+        "https://www.xiaohongshu.com/explore",
+        "小红书 - 你的生活兴趣社区",
+    )
+}
+
 /// The stored note card; `n` picks the note ID, the token and the title.
 fn note(n: u32) -> Value {
     let mut card = stored_card("note");
@@ -452,30 +468,21 @@ fn page_facts_classify_a_search_that_returned_no_results() {
     login_wall["notice"] = json!("登录后查看搜索结果");
     let mut blocked = results_page();
     blocked["blocked_status"] = json!(461);
-    let link_error = json!({
-        "url": "https://www.xiaohongshu.com/website-login/error?error_code=300031&redirectPath=",
-        "title": "访问链接异常",
-        "guest": false,
-        "error_code": "300031",
-        "notice": "访问链接异常，请重新登录或返回首页",
-        "blocked_status": null
-    });
-    let restricted = json!({
-        "url": "https://www.xiaohongshu.com/website-login/error?error_code=300031&redirectPath=",
-        "title": "安全限制",
-        "guest": false,
-        "error_code": "300031",
-        "notice": "安全限制",
-        "blocked_status": null
-    });
-    let unknown = json!({
-        "url": "https://www.xiaohongshu.com/website-login/captcha?redirectPath=",
-        "title": "验证",
-        "guest": false,
-        "error_code": null,
-        "notice": null,
-        "blocked_status": null
-    });
+    let error_page = |title: &str, notice: &str| {
+        let mut page = page_at(
+            "https://www.xiaohongshu.com/website-login/error?error_code=300031&redirectPath=",
+            title,
+        );
+        page["error_code"] = json!("300031");
+        page["notice"] = json!(notice);
+        page
+    };
+    let link_error = error_page("访问链接异常", "访问链接异常，请重新登录或返回首页");
+    let restricted = error_page("安全限制", "安全限制");
+    let unknown = page_at(
+        "https://www.xiaohongshu.com/website-login/captcha?redirectPath=",
+        "验证",
+    );
     let kinds = [
         with_page(&guest, true, false),
         with_page(&login_wall, false, false),
@@ -681,21 +688,12 @@ fn a_logged_out_session_and_risk_control_ask_for_a_browser_login() {
 
 #[test]
 fn a_read_deadline_counts_as_a_timeout_only_on_a_results_page_of_either_layout() {
-    let page = |url: &str, title: &str| {
-        let mut page = results_page();
-        page["url"] = json!(url);
-        page["title"] = json!(title);
-        page
-    };
     let pages = [
-        page(
+        page_at(
             "https://www.xiaohongshu.com/search_result_ai?keyword=%25E5%2592%2596%25E5%2595%25A1&source=web_explore_feed",
             "咖啡 - 小红书搜索",
         ),
-        page(
-            "https://www.xiaohongshu.com/explore",
-            "小红书 - 你的生活兴趣社区",
-        ),
+        home_page(),
     ];
 
     let results = pages.map(|page| {
@@ -718,11 +716,7 @@ fn a_read_deadline_counts_as_a_timeout_only_on_a_results_page_of_either_layout()
 
 #[test]
 fn a_search_that_could_not_be_entered_fails_with_its_reason_and_page() {
-    let mut data = with_page(
-        &json!({"url": "https://www.xiaohongshu.com/explore", "title": "小红书 - 你的生活兴趣社区"}),
-        false,
-        false,
-    );
+    let mut data = with_page(&home_page(), false, false);
     data["search_failure"] = json!("no_target for the search box");
 
     let result = default_search(&data, 20).map(|decoded| refs(&decoded));
@@ -842,8 +836,7 @@ fn captured_search_responses_count_the_filter_clicks_made_before_them() {
 
 #[test]
 fn a_read_deadline_before_the_search_was_submitted_is_a_timeout_or_a_load_failure() {
-    let home =
-        json!({"url": "https://www.xiaohongshu.com/explore", "title": "小红书 - 你的生活兴趣社区"});
+    let home = home_page();
     let mut error_page = home.clone();
     error_page["load_error"] = json!("ERR_CONNECTION_CLOSED");
 

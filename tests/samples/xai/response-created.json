@@ -1,0 +1,6 @@
+{
+  "type": "response.created",
+  "response": {
+    "status": "in_progress"
+  }
+}

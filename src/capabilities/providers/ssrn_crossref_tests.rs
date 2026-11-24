@@ -667,21 +667,22 @@ fn item(value: serde_json::Value) -> serde_json::Value {
     serde_json::to_value(item).expect("serialize item")
 }
 
+/// The stored record of `ssrn:2042750`, with `fields` set.
+fn record(fields: &Value) -> Value {
+    work_with(fields)["message"].clone()
+}
+
 #[test]
 fn a_full_record_maps_every_crossref_field() {
-    let mapped = item(json!({
-        "DOI": "10.2139/ssrn.2042750",
+    let mapped = item(record(&json!({
         "title": ["Risk Premia  Harvesting Through <i>Dual</i> Momentum"],
         "author": [
             {"given": "Gary", "family": "Antonacci", "sequence": "first"},
             {"name": "Example  Institute"}
         ],
         "abstract": "<jats:p>Momentum is the premier\n market anomaly.</jats:p><jats:p>Second &amp; last.</jats:p>",
-        "published": {"date-parts": [[2012, 4, 19]]},
-        "type": "posted-content",
-        "created": {"date-parts": [[2012, 4, 25]], "date-time": "2012-04-25T11:01:44Z"},
-        "resource": {"primary": {"URL": "https://www.ssrn.com/abstract=2042750"}}
-    }));
+        "published": {"date-parts": [[2012, 4, 19]]}
+    })));
 
     assert_eq!(
         mapped,
@@ -712,10 +713,7 @@ fn a_record_without_an_abstract_has_metadata_depth_and_a_null_abstract() {
 
 #[test]
 fn an_abstract_that_is_empty_after_cleaning_counts_as_missing() {
-    let mapped = item(json!({
-        "DOI": "10.2139/ssrn.1",
-        "abstract": "<jats:p> &#x20; </jats:p>"
-    }));
+    let mapped = item(record(&json!({"abstract": "<jats:p> &#x20; </jats:p>"})));
 
     assert_eq!(
         (&mapped["depth"], &mapped["abstract"]),
@@ -731,10 +729,7 @@ fn published_dates_keep_their_original_precision() {
         json!([[2012, 4, 9]]),
         json!([[null]]),
     ]
-    .map(|parts| {
-        item(json!({"DOI": "10.2139/ssrn.1", "published": {"date-parts": parts}}))["published"]
-            .clone()
-    });
+    .map(|parts| item(record(&json!({"published": {"date-parts": parts}})))["published"].clone());
 
     assert_eq!(
         dates,
@@ -749,17 +744,14 @@ fn published_dates_keep_their_original_precision() {
 
 #[test]
 fn the_crossref_created_date_never_fills_the_published_date() {
-    let mapped = item(json!({
-        "DOI": "10.2139/ssrn.1",
-        "created": {"date-time": "2012-04-25T11:01:44Z"}
-    }));
+    let mapped = item(record(&json!({"published": null})));
 
     assert_eq!(mapped["published"], json!(null));
 }
 
 #[test]
 fn a_record_without_an_ssrn_doi_yields_its_doi() {
-    let result = work(json!({"DOI": "10.1016/j.jfineco.2020.01.001"})).into_item();
+    let result = work(record(&json!({"DOI": "10.1016/j.jfineco.2020.01.001"}))).into_item();
 
     assert_eq!(
         result.map(|_| ()),
@@ -771,7 +763,7 @@ fn a_record_without_an_ssrn_doi_yields_its_doi() {
 fn a_returned_record_for_another_paper_is_rejected() {
     let requested = SsrnRef::parse("ssrn:2042750").expect("valid ref");
 
-    let result = select_paper(work(json!({"DOI": "10.2139/ssrn.1"})), &requested);
+    let result = select_paper(work(record(&json!({"DOI": "10.2139/ssrn.1"}))), &requested);
 
     assert_eq!(
         result.map(|_| ()),
@@ -783,17 +775,17 @@ fn a_returned_record_for_another_paper_is_rejected() {
 fn a_returned_doi_in_another_case_is_the_same_paper() {
     let requested = SsrnRef::parse("ssrn:2042750").expect("valid ref");
 
-    let result = select_paper(work(json!({"DOI": "10.2139/SSRN.2042750"})), &requested);
+    let result = select_paper(
+        work(record(&json!({"DOI": "10.2139/SSRN.2042750"}))),
+        &requested,
+    );
 
     assert!(result.is_ok());
 }
 
 #[test]
 fn an_unexpected_message_type_fails_to_decode() {
-    let result = decode_message::<WorkList>(
-        r#"{"status":"ok","message-type":"work","message":{"DOI":"10.2139/ssrn.1"}}"#,
-        "work-list",
-    );
+    let result = decode_message::<WorkList>(&stored::stored("work.json"), "work-list");
 
     assert_eq!(
         result.map(|_| ()).unwrap_err(),

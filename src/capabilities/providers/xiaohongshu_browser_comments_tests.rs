@@ -422,8 +422,8 @@ fn captured_comment_exchanges_are_read_by_their_query_parameters() {
             &first["body"],
         ),
         exchange(
-            "https://edith.xiaohongshu.com/api/sns/web/v1/feed",
-            &json!({"code": 0, "success": true, "data": {}}),
+            "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
+            &stored("account.json"),
         ),
         exchange(
             &format!(

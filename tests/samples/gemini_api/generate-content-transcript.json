@@ -1,0 +1,23 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {"text": "Looking at the video first.", "thought": true},
+          {"text": "{\"language\": \"en\", \"segments\": [{\"start\": 1.2, \"end\": 3.4, \"text\": \"All right, so here we are, in front of the elephants.\"}, {\"start\": 5.3, \"end\": 12.6, \"text\": \"The cool thing about these guys is that they have really long trunks.\"}, {\"start\": 16.9, \"end\": 18.9, \"text\": \"And that's pretty much all there is to say.\"}, {\"start\": 40.0, \"end\": 41.0, \"text\": \"A segment past the end.\"}]}"}
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1747,
+    "candidatesTokenCount": 494,
+    "totalTokenCount": 2736,
+    "thoughtsTokenCount": 495
+  },
+  "modelVersion": "gemini-3.8-flash-n",
+  "responseId": "fixture-response"
+}

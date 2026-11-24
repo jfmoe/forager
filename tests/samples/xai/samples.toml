@@ -47,3 +47,21 @@ file = "error.json"
 shape = "xAI Responses `POST /responses` refused before any stream: the error answer, its reason as the string `error`"
 origin = "hand-written"
 observed = 2026-08-02
+
+[[sample]]
+file = "response-created.json"
+shape = "xAI Responses `POST /responses` stream opening: the `response.created` event that precedes the output events, its response still in progress"
+origin = "hand-written"
+observed = 2026-11-24
+
+[[sample]]
+file = "output-text-delta.json"
+shape = "xAI Responses `POST /responses` stream output: a `response.output_text.delta` event carrying a piece of the output text under `delta`"
+origin = "hand-written"
+observed = 2026-11-24
+
+[[sample]]
+file = "response-incomplete.json"
+shape = "xAI Responses `POST /responses` stream ending without a complete answer: the `response.incomplete` event, its reason under `response.incomplete_details.reason`"
+origin = "hand-written"
+observed = 2026-11-24

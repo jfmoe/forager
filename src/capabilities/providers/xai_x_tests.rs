@@ -15,7 +15,7 @@ use crate::types::{
     PlatformSearchRequest, ProviderError, XAskOutcome, XAskRequest, XRef, XSearchOptions,
 };
 
-use crate::main_search_samples::completed_events;
+use crate::main_search_samples::{completed_events, failed_event};
 use crate::x_samples::stored;
 
 const KEY: &str = "test-xai-key-a";
@@ -61,11 +61,22 @@ fn search_with(posts: &Value, cited: &[&str]) -> Value {
         .last_mut()
         .expect("message");
     message["content"][0]["text"] = json!(json!({ "posts": posts }).to_string());
-    message["content"][0]["annotations"] = cited
-        .iter()
-        .map(|url| json!({"type": "url_citation", "url": url, "start_index": 0, "end_index": 0, "title": url}))
-        .collect();
+    message["content"][0]["annotations"] = cited.iter().map(|url| citation(url, url)).collect();
     response
+}
+
+/// The stored search response's first citation, naming `url` and titled `title`.
+fn citation(url: &str, title: &str) -> Value {
+    let message = stored("x-search.json")["output"]
+        .as_array()
+        .expect("output")
+        .last()
+        .expect("message")
+        .clone();
+    let mut citation = message["content"][0]["annotations"][0].clone();
+    citation["url"] = json!(url);
+    citation["title"] = json!(title);
+    citation
 }
 
 /// The stored thread response with its structured output replaced by `posts`.
@@ -75,8 +86,45 @@ fn thread_with(posts: &Value) -> Value {
     response
 }
 
+/// Post `index` of the stored response `name`'s structured output, with `url`, `author_handle`
+/// and `text` set.
+fn stored_post(name: &str, index: usize, url: &str, author_handle: &str, text: &str) -> Value {
+    let response = stored(name);
+    let message = response["output"]
+        .as_array()
+        .expect("output")
+        .last()
+        .expect("message");
+    let output: Value = serde_json::from_str(
+        message["content"][0]["text"]
+            .as_str()
+            .expect("structured output"),
+    )
+    .expect("structured output JSON");
+    let mut post = output["posts"][index].clone();
+    post["url"] = json!(url);
+    post["author_handle"] = json!(author_handle);
+    post["text"] = json!(text);
+    post
+}
+
+/// The stored search's first post as post `id` of `a`, its text the ID.
 fn post(id: &str) -> Value {
-    json!({"url": format!("https://x.com/a/status/{id}"), "author_handle": "a", "text": id})
+    stored_post(
+        "x-search.json",
+        0,
+        &format!("https://x.com/a/status/{id}"),
+        "a",
+        id,
+    )
+}
+
+/// The stored `response.failed` event with the structured `code` and the reason `message`.
+fn failed(code: &str, message: &str) -> Value {
+    let mut event = failed_event("xai");
+    event["error"]["code"] = json!(code);
+    event["error"]["message"] = json!(message);
+    event
 }
 
 fn x_ref(id: &str) -> XRef {
@@ -249,7 +297,13 @@ fn repeated_posts_appear_once_and_the_list_stops_at_the_limit() {
 #[test]
 fn a_list_whose_every_post_is_unverified_is_a_runtime_failure() {
     let response = search_with(
-        &json!([{"url": "https://x.com/someone/status/2110000000000000000", "author_handle": "someone", "text": "invented"}]),
+        &json!([stored_post(
+            "x-search.json",
+            0,
+            "https://x.com/someone/status/2110000000000000000",
+            "someone",
+            "invented"
+        )]),
         &["https://x.com/i/status/2106088717546398899"],
     );
 
@@ -393,9 +447,13 @@ fn a_root_cited_without_a_thread_fetch_is_fetched() {
 
 #[test]
 fn a_root_other_than_the_requested_post_is_a_runtime_failure() {
-    let response = thread_with(&json!([
-        {"url": "https://x.com/SpaceX/status/2110126570233094000", "author_handle": "SpaceX", "text": "other", "role": "root"}
-    ]));
+    let response = thread_with(&json!([stored_post(
+        "x-thread.json",
+        0,
+        "https://x.com/SpaceX/status/2110126570233094000",
+        "SpaceX",
+        "other"
+    )]));
 
     assert_eq!(
         attempt_failure(decode_thread(&response, x_ref(ROOT), ContentDepth::Thread)),
@@ -448,7 +506,13 @@ fn an_unfinished_thread_fetch_does_not_verify_the_root() {
 
 #[test]
 fn a_thread_without_exactly_one_root_is_a_runtime_failure() {
-    let reply = json!({"url": "https://x.com/a/status/2110127170868446477", "author_handle": "a", "text": "hi", "role": "reply"});
+    let reply = stored_post(
+        "x-thread.json",
+        1,
+        "https://x.com/a/status/2110127170868446477",
+        "a",
+        "hi",
+    );
 
     assert_eq!(
         attempt_failure(decode_thread(
@@ -508,9 +572,10 @@ fn the_answer_keeps_its_citations_and_cited_posts_become_refs() {
 #[test]
 fn a_cited_profile_keeps_its_url_without_a_ref() {
     let mut response = stored("x-ask.json");
-    response["output"][2]["content"][0]["annotations"] = json!([
-        {"type": "url_citation", "url": "https://x.com/i/user/34743251", "start_index": 0, "end_index": 10, "title": "SpaceX"}
-    ]);
+    let mut profile = response["output"][2]["content"][0]["annotations"][0].clone();
+    profile["url"] = json!("https://x.com/i/user/34743251");
+    profile["title"] = json!("SpaceX");
+    response["output"][2]["content"][0]["annotations"] = json!([profile]);
 
     let (_, sources) = decode_answer(&response, &route("http://127.0.0.1:9", &[KEY]).credentials)
         .expect("an answer");
@@ -569,9 +634,27 @@ fn a_search_sends_only_the_x_search_tool_with_its_filters_and_strict_structured_
 fn posts_the_search_did_not_read_are_dropped_with_one_diagnostic() {
     let response = search_with(
         &json!([
-            {"url": "https://x.com/example_dev1/status/2106088717546398899", "author_handle": "example_dev1", "text": "read"},
-            {"url": "https://x.com/someone/status/2110000000000000000", "author_handle": "someone", "text": "invented"},
-            {"url": "https://example.com/post", "author_handle": "someone", "text": "elsewhere"}
+            stored_post(
+                "x-search.json",
+                0,
+                "https://x.com/example_dev1/status/2106088717546398899",
+                "example_dev1",
+                "read"
+            ),
+            stored_post(
+                "x-search.json",
+                1,
+                "https://x.com/someone/status/2110000000000000000",
+                "someone",
+                "invented"
+            ),
+            stored_post(
+                "x-search.json",
+                1,
+                "https://example.com/post",
+                "someone",
+                "elsewhere"
+            )
         ]),
         &[
             "https://x.com/i/status/2106088717546398899",
@@ -772,7 +855,7 @@ fn a_rate_limited_key_rotates_to_the_next_key() {
         vec![
             terminal(
                 "response.failed",
-                &json!({"response": {"error": {"code": "rate_limit_exceeded", "message": "slow down"}}}),
+                &failed("rate_limit_exceeded", "slow down"),
             ),
             completed(&stored("x-search.json")),
         ],
@@ -817,7 +900,7 @@ fn a_rejected_request_is_a_parameter_failure() {
         &search_request("rust", 10, XSearchOptions::default()),
         vec![terminal(
             "response.failed",
-            &json!({"response": {"error": {"code": "invalid_request_error", "message": "bad tool"}}}),
+            &failed("invalid_request_error", "bad tool"),
         )],
     );
 

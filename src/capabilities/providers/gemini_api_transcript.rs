@@ -117,7 +117,7 @@ pub(super) fn render(output: &str, video: &PlatformItem) -> Result<Rendered, Str
 mod tests {
     use serde_json::json;
 
-    use super::super::tests::zoo;
+    use super::super::tests::{stored_segments, zoo};
     use super::render;
     use crate::types::TranscriptSource;
 
@@ -160,14 +160,26 @@ mod tests {
 
     #[test]
     fn output_that_is_no_complete_valid_transcript_is_refused() {
+        let mut unnamed = stored_segments(&[]);
+        unnamed
+            .as_object_mut()
+            .expect("transcript")
+            .remove("language");
+        let mut blank_language = stored_segments(&[0]);
+        blank_language["language"] = json!(" ");
+        let mut backwards = stored_segments(&[0]);
+        backwards["segments"][0]["start"] = json!(3.0);
+        backwards["segments"][0]["end"] = json!(2.0);
+        let mut blank_text = stored_segments(&[0]);
+        blank_text["segments"][0]["text"] = json!("  ");
         let refused = [
             r#"{"language": "en", "segments": [{"start": 1.0, "end": 2.0, "te"#.to_owned(),
-            json!({"segments": []}).to_string(),
-            json!({"language": " ", "segments": [{"start": 0, "end": 1, "text": "a"}]}).to_string(),
-            output(&json!([{"start": 3.0, "end": 2.0, "text": "backwards"}])),
-            output(&json!([{"start": 1.0, "end": 2.0, "text": "  "}])),
-            output(&json!([])),
-            output(&json!([{"start": 40.0, "end": 41.0, "text": "past the end"}])),
+            unnamed.to_string(),
+            blank_language.to_string(),
+            backwards.to_string(),
+            blank_text.to_string(),
+            stored_segments(&[]).to_string(),
+            stored_segments(&[3]).to_string(),
         ]
         .map(|output| render(&output, &zoo(Some(19))).is_err());
 
@@ -176,11 +188,9 @@ mod tests {
 
     #[test]
     fn an_unknown_duration_keeps_every_segment() {
-        let rendered = render(
-            &output(&json!([{"start": 300.0, "end": 301.0, "text": "Late."}])),
-            &zoo(None),
-        )
-        .expect("rendered transcript");
+        // The stored segment that ends past the zoo video's real length.
+        let rendered =
+            render(&stored_segments(&[3]).to_string(), &zoo(None)).expect("rendered transcript");
 
         assert_eq!((rendered.info.cues, rendered.diagnostic), (1, None));
     }
