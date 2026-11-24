@@ -4,6 +4,7 @@
 use serde_json::{Value, json};
 
 use crate::support::gemini_api;
+use crate::support::samples::sample;
 use crate::support::{Fixture, Response, RunEnvironment, payload};
 use crate::support::{header, path};
 
@@ -14,10 +15,7 @@ fn config(url: &str, keys: &[&str]) -> String {
 }
 
 fn models() -> Response {
-    Response::json(
-        200,
-        &json!({"models": [{"name": "models/gemini-flash-latest"}]}).to_string(),
-    )
+    Response::json(200, &sample("gemini_api/models.json"))
 }
 
 #[test]

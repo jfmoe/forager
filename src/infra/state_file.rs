@@ -255,11 +255,48 @@ fn file_stem(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
     use std::path::Path;
     use std::sync::mpsc;
+    use std::thread;
     use std::time::Duration;
 
-    use super::serialized_blocking;
+    use super::{StateLock, serialized_blocking};
+
+    #[test]
+    fn a_lock_released_within_the_wait_is_acquired() {
+        let directory = tempfile::tempdir().expect("create lock directory");
+        let path = directory.path().join("pool.lock");
+        let held = StateLock::acquire(&path, Duration::ZERO).expect("first holder");
+        let (waiting_tx, waiting_rx) = mpsc::channel();
+        let holder = thread::spawn(move || {
+            waiting_rx.recv().expect("the waiter starts");
+            // Releasing a moment after the waiter starts makes its first attempt find the lock
+            // held, so the result comes from a retry.
+            thread::sleep(Duration::from_millis(20));
+            drop(held);
+        });
+
+        waiting_tx.send(()).expect("signal the holder");
+        let acquired = StateLock::acquire(&path, Duration::from_secs(10));
+        holder.join().expect("join the holder");
+
+        assert!(acquired.is_ok(), "{:?}", acquired.err());
+    }
+
+    #[test]
+    fn a_lock_held_past_the_wait_fails_as_would_block() {
+        let directory = tempfile::tempdir().expect("create lock directory");
+        let path = directory.path().join("pool.lock");
+        let _held = StateLock::acquire(&path, Duration::ZERO).expect("first holder");
+
+        let error = StateLock::acquire(&path, Duration::from_millis(20))
+            .err()
+            .expect("the held lock is not acquired");
+
+        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+        assert_eq!(error.to_string(), "pool lock timed out");
+    }
 
     #[test]
     fn cancelling_a_waiter_keeps_blocking_state_work_serialized() {

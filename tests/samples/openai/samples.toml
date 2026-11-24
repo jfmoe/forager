@@ -13,3 +13,9 @@ file = "response-failed.json"
 shape = "OpenAI Responses `POST /responses` stream ending in failure: the `response.failed` event, its structured code under `error.code` and its reason under `error.message`"
 origin = "hand-written"
 observed = 2026-10-28
+
+[[sample]]
+file = "error.json"
+shape = "an OpenAI API error body: the reason under `error.message`, its type and its code, here the 401 of a rejected key"
+origin = "hand-written"
+observed = 2026-11-24

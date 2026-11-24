@@ -112,6 +112,61 @@ fn runner_rule_breaks_are_reported() {
 }
 
 #[test]
+fn every_runner_limit_is_one_the_command_deadline_reads() {
+    let problems = runner::unread_limits(&read(&root().join(".config/nextest.toml")));
+
+    assert!(
+        problems.is_empty(),
+        "tests/support/process.rs keeps a spawned command's deadline under the runner's limit for \
+         the running test, and it reads only these forms; a limit written otherwise leaves the test \
+         with another deadline, so the runner terminates it before its diagnosis: {problems:#?}"
+    );
+}
+
+#[test]
+fn runner_limits_the_command_deadline_cannot_read_are_reported() {
+    let config = r#"
+[profile.default]
+slow-timeout = { period = "1500ms", terminate-after = 2 }
+
+[[profile.default.overrides]]
+filter = "binary_id(forager::invented)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+[[profile.default.overrides]]
+filter = """
+binary_id(forager::invented) & (
+  test(=invented::first)
+  | test(=invented::second)
+)
+"""
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+[[profile.default.overrides]]
+filter = "binary_id(forager::invented) & test(/invented/)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+[[profile.default.overrides]]
+filter = "not test(=invented::first)"
+slow-timeout = "30s"
+
+[[profile.default.overrides]]
+filter = "test(=invented::first)"
+"#;
+
+    assert_eq!(
+        runner::unread_limits(config),
+        [
+            "profile.default: slow-timeout { period = \"1500ms\", terminate-after = 2 } is not whole seconds",
+            "profile.default override 3: filter `binary_id(forager::invented) & test(/invented/)` is not exact test names or one binary",
+            "profile.default override 4: filter `not test(=invented::first)` is not exact test names or one binary",
+            "profile.default override 4: slow-timeout \"30s\" is not whole seconds",
+            "profile.default override 5: sets no slow-timeout",
+        ]
+    );
+}
+
+#[test]
 fn docs_holds_only_the_architecture_document_adrs_and_procedures() {
     let docs = root().join("docs");
     let misplaced = misplaced_docs(
