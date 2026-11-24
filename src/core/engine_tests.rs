@@ -28,14 +28,17 @@ const ARTICLE: &str = "https://example.test/article";
 fn firecrawl(markdown: &str) -> Response {
     Response::json(
         200,
-        &stored_with("firecrawl/scrape.json", "/data/markdown", markdown),
+        &stored_with("firecrawl/scrape.json", &[("/data/markdown", markdown)]),
     )
 }
 
 fn tavily(raw_content: &str) -> Response {
     Response::json(
         200,
-        &stored_with("tavily/extract.json", "/results/0/raw_content", raw_content),
+        &stored_with(
+            "tavily/extract.json",
+            &[("/results/0/raw_content", raw_content)],
+        ),
     )
 }
 

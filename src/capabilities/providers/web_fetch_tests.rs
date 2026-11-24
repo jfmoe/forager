@@ -1,27 +1,16 @@
 use std::time::Duration;
 
-use serde_json::{Value, json};
-
 use super::{FetchRequest, ProviderFetchOutcome, Service, WebFetch};
 use crate::config::WebFetchProviderConfig;
 use crate::fixture_server::{Fixture, Response, block_on, header};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::{ProviderId, build_web_fetch};
-use crate::samples::sample;
 use crate::types::{AttemptErrorKind, Deadline, ProviderError};
+use crate::web_samples::stored_with;
 
 const ARTICLE: &str = "https://example.test/article";
 const KEY: &str = "first-key";
 const SECOND_KEY: &str = "second-key";
-
-/// The stored body at `name` with the string at each pointer of `fields` set to its value.
-fn stored_with(name: &str, fields: &[(&str, &str)]) -> String {
-    let mut body: Value = serde_json::from_str(&sample(name)).expect("stored JSON");
-    for (pointer, value) in fields {
-        *body.pointer_mut(pointer).expect("stored field") = json!(value);
-    }
-    body.to_string()
-}
 
 fn config(url: &str, keys: &[&str], timeout_seconds: u64) -> WebFetchProviderConfig {
     WebFetchProviderConfig {
