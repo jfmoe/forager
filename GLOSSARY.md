@@ -358,7 +358,6 @@ an error, an empty result or another page of the same endpoint is a variant of t
 _Avoid_: response type, endpoint
 
 **Command Contract Test**:
-A test that spawns the real forager binary and proves only what nothing cheaper can: a command's
-outer path, or an exit code, output format, output file, environment override, journal or isolation
-fact. A rule that a test in the crate can observe is not a command contract.
+A test that spawns the real forager binary to prove what only the binary seen from outside can
+show. A rule that a test in the crate or a binary unit test can observe is not a command contract.
 _Avoid_: end-to-end test, integration test, offline end-to-end test

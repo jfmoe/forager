@@ -58,8 +58,9 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = "binary_id(forager::command_contract) & test(=browser::a_browser_that_never_answers_is_killed_with_its_process_group_at_the_working_deadline)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
-# Offline smoke and doctor tests above the limit, which wait on pacing or whole-second deadlines;
-# handled by spec 5 (#318), which removes smoke and replaces doctor's probes.
+# Offline smoke and doctor tests above the limit: each runs a whole live-smoke or deep-doctor pass,
+# which makes several paced requests or applies a whole-second deadline, and the whole pass is the
+# rule it proves, so no operation without a wait can stand in for it.
 [[profile.default.overrides]]
 filter = """
 binary_id(forager::command_contract) & (

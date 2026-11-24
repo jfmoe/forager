@@ -30,6 +30,7 @@ enum Rule {
     SmokeCase,
     SampleRefs,
     AccessWindowTest,
+    ContractLayout,
 }
 
 impl Rule {
@@ -75,6 +76,10 @@ impl Rule {
             Self::AccessWindowTest => (
                 "every HTTP route with an Access Policy has a send in the access-window test",
                 "add a send of the route to `SENDS` in `tests/command_contract/access_windows.rs`",
+            ),
+            Self::ContractLayout => (
+                "the command contract tests of a platform with more than one route are grouped by route: every test is in a module `platforms::<platform>::<route>` of the command contract tests, named by one of its routes' provider IDs",
+                "move the platform's command modules into a module per route, named by the route's provider ID",
             ),
         }
     }
@@ -142,6 +147,9 @@ struct Registry<'a> {
     has_login: &'a dyn Fn(Platform) -> bool,
     sample_refs: &'a dyn Fn(Platform) -> &'static [&'static str],
     has_window_test: &'a dyn Fn(ProviderId) -> bool,
+    /// The command contract modules that hold the platform's tests, as paths such as
+    /// `platforms::youtube::youtube_web`.
+    contract_modules: &'a dyn Fn(Platform) -> Vec<String>,
 }
 
 fn violation(platform: Platform, rule: Rule, detail: &str) -> Violation {
@@ -182,8 +190,25 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<Violation> {
             &format!("the configuration schema lacks `{order_key}`"),
         ));
     }
-    for route in catalog.all_routes() {
-        check_route(platform, route, registry, &mut found);
+    let routes = catalog.all_routes();
+    for route in &routes {
+        check_route(platform, *route, registry, &mut found);
+    }
+    if routes.len() > 1 {
+        for module in (registry.contract_modules)(platform) {
+            let by_route = |route: &ProviderId| {
+                module == format!("platforms::{}::{}", platform.as_str(), route.name())
+            };
+            if !routes.iter().any(by_route) {
+                found.push(violation(
+                    platform,
+                    Rule::ContractLayout,
+                    &format!(
+                        "its contract tests in `{module}` are not in a module named after one of its routes"
+                    ),
+                ));
+            }
+        }
     }
     for operation in PlatformOperation::ALL {
         check_operation(
@@ -486,6 +511,33 @@ fn has_window_test(route: ProviderId) -> bool {
     .contains(&format!("\"{}\"", route.name()))
 }
 
+/// The platform's own module when its file holds tests, then each module under it.
+fn contract_modules(platform: Platform) -> Vec<String> {
+    let platforms =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/command_contract/platforms");
+    let name = platform.as_str();
+    let module = format!("platforms::{name}");
+    let holds_tests = |path: std::path::PathBuf| {
+        std::fs::read_to_string(path).is_ok_and(|text| text.contains("#[test]"))
+    };
+    let mut modules = Vec::new();
+    if holds_tests(platforms.join(format!("{name}.rs")))
+        || holds_tests(platforms.join(name).join("mod.rs"))
+    {
+        modules.push(module.clone());
+    }
+    if let Ok(entries) = std::fs::read_dir(platforms.join(name)) {
+        for entry in entries {
+            let path = entry.expect("read a contract module entry").path();
+            let stem = path.file_stem().expect("a contract module name");
+            if stem != "mod" {
+                modules.push(format!("{module}::{}", stem.to_string_lossy()));
+            }
+        }
+    }
+    modules
+}
+
 fn baseline() -> Registry<'static> {
     Registry {
         platforms: PLATFORMS,
@@ -503,6 +555,7 @@ fn baseline() -> Registry<'static> {
         has_login: &|platform| providers::browser_login(platform).is_some(),
         sample_refs: &sample_refs,
         has_window_test: &has_window_test,
+        contract_modules: &contract_modules,
     }
 }
 
@@ -789,6 +842,7 @@ fn samples_whose_first_ref_no_fetch_route_accepts_break_the_sample_rule() {
                 "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
             ]
         },
+        contract_modules: &|_| Vec::new(),
         ..baseline()
     };
 
@@ -820,5 +874,37 @@ fn a_paced_http_route_without_a_window_test_breaks_the_window_rule() {
             .iter()
             .any(|violation| violation.rule == Rule::AccessWindowTest),
         "a browser route needs no window test"
+    );
+}
+
+#[test]
+fn a_multi_route_platform_with_tests_outside_its_route_modules_breaks_the_layout_rule() {
+    let registry = Registry {
+        contract_modules: &|platform| {
+            ["", "::youtube_api", "::search"]
+                .map(|module| format!("platforms::{}{module}", platform.as_str()))
+                .to_vec()
+        },
+        ..baseline()
+    };
+
+    let layout = |platform| {
+        violations(platform, &registry)
+            .into_iter()
+            .filter(|violation| violation.rule == Rule::ContractLayout)
+            .map(|violation| violation.detail)
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        (layout(Platform::Youtube), layout(Platform::Arxiv)),
+        (
+            vec![
+                "its contract tests in `platforms::youtube` are not in a module named after one of its routes".to_owned(),
+                "its contract tests in `platforms::youtube::search` are not in a module named after one of its routes".to_owned(),
+            ],
+            Vec::new()
+        ),
+        "a platform with one route keeps a module per command"
     );
 }
