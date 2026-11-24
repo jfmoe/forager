@@ -19,9 +19,10 @@ default-filter = "not (binary_id(forager::release_artifact_gate) & test(/^/))"
 slow-timeout = { period = "1s", terminate-after = 2 }
 
 # The exemption list: tests allowed to wait on production pacing or on a whole-second deadline,
-# because no operation without a wait proves their rule. Each entry keeps a generous limit, and
-# the shared test environment gives the tests it names a command deadline under that limit;
-# docs/agents/testing.md says when a test may join.
+# because no operation without a wait proves their rule, and the access window test whose rule
+# needs one launch per paced route. Each entry keeps a generous limit, and the shared test
+# environment gives the tests it names a command deadline under that limit; docs/agents/testing.md
+# says when a test may join.
 
 # Writing fetched content to a directory needs an arXiv full text, which is the metadata request
 # and the HTML probe, two paced requests.
@@ -56,6 +57,12 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 # the whole-second `--timeout` leaves at whole seconds after the cleanup reserve.
 [[profile.default.overrides]]
 filter = "binary_id(forager::command_contract) & test(=browser::a_browser_that_never_answers_is_killed_with_its_process_group_at_the_working_deadline)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# The access window test starts the binary once for each route with an Access Policy, because its
+# rule is that every such route waits for its window, so its launches grow with the routes.
+[[profile.default.overrides]]
+filter = "binary_id(forager::command_contract) & test(=access_windows::every_route_with_an_access_policy_waits_for_its_window_before_sending)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 # Offline smoke and doctor tests above the limit: each runs a whole live-smoke or deep-doctor pass,
