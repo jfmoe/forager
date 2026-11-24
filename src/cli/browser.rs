@@ -30,7 +30,7 @@ pub(super) enum BrowserCommand {
     },
 }
 
-fn parse_platform(value: &str) -> Result<Platform, String> {
+pub(super) fn parse_platform(value: &str) -> Result<Platform, String> {
     Platform::ALL
         .into_iter()
         .find(|platform| platform.as_str() == value)

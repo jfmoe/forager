@@ -140,7 +140,7 @@ pub(super) enum Command {
         #[arg(long, requires = "live", value_delimiter = ',', num_args = 1.., value_parser = parse_tier)]
         tier: Vec<LiveTier>,
         /// Run only the Live Checks of this platform's operations.
-        #[arg(long, requires = "live", value_parser = parse_platform)]
+        #[arg(long, requires = "live", value_parser = super::browser::parse_platform)]
         platform: Option<Platform>,
         /// List the Live Checks and whether the selection runs them, without running any.
         #[arg(long, requires = "live")]
@@ -308,18 +308,6 @@ fn parse_tier(value: &str) -> Result<LiveTier, String> {
             LiveTier::ALL.map(LiveTier::as_str).join(", ")
         )
     })
-}
-
-fn parse_platform(value: &str) -> Result<Platform, String> {
-    Platform::ALL
-        .into_iter()
-        .find(|platform| platform.as_str() == value)
-        .ok_or_else(|| {
-            format!(
-                "invalid platform `{value}`; expected one of: {}",
-                Platform::ALL.map(Platform::as_str).join(", ")
-            )
-        })
 }
 
 fn parse_provider(value: &str) -> Result<ProviderId, String> {

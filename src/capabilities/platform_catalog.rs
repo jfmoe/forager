@@ -242,6 +242,15 @@ impl PlatformCatalog {
 
 /// Says what enabling a route that users must enable themselves risks, or `None` for any other
 /// provider.
+/// Returns whether the route serves a platform but no default order lists it, so only the
+/// user's order enables it (ADR-0020).
+pub(crate) fn is_opt_in_route(id: ProviderId) -> bool {
+    PLATFORMS.iter().any(|platform| platform.contains(id))
+        && !PLATFORMS
+            .iter()
+            .any(|platform| platform.default_order.contains(&id))
+}
+
 pub(crate) fn opt_in_risk(route: ProviderId) -> Option<&'static str> {
     opt_in(route).map(|opt_in| opt_in.risk)
 }

@@ -414,7 +414,7 @@ enum LocalCheck {
 /// part only when an order enables it.
 fn local_check(registration: &ProviderRegistration, runtime: &RuntimeConfig) -> LocalCheck {
     let id = registration.id;
-    if is_opt_in_route(id) && !route_enabled(id, runtime) {
+    if catalog::is_opt_in_route(id) && !route_enabled(id, runtime) {
         return LocalCheck::NotEnabled;
     }
     match registration.transport {
@@ -512,24 +512,13 @@ fn anonymous_note(anonymous: bool) -> Option<String> {
 /// that users must enable (one driving a browser, or one reading undocumented endpoints) runs
 /// only when a platform order enables it; every provider also needs its prerequisites.
 fn unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
-    if is_opt_in_route(provider) && !route_enabled(provider, runtime) {
+    if catalog::is_opt_in_route(provider) && !route_enabled(provider, runtime) {
         return Some(format!(
             "no platform order lists `{}`; add it to the order to enable it",
             provider.name()
         ));
     }
     providers::route_prerequisites(provider, runtime).err()
-}
-
-/// Returns whether the route serves a platform but no default order lists it, so only the
-/// user's order enables it.
-fn is_opt_in_route(id: ProviderId) -> bool {
-    catalog::PLATFORMS
-        .iter()
-        .any(|platform| platform.contains(id))
-        && !catalog::PLATFORMS
-            .iter()
-            .any(|platform| platform.default_order.contains(&id))
 }
 
 /// Returns whether any platform order lists the route.
