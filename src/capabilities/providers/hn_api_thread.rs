@@ -217,9 +217,10 @@ fn count(node: &ThreadNode) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Write as _;
+    use serde_json::{Value, json};
 
     use super::{MAX_JSON_NESTING, decode_tree, json_nesting};
+    use crate::samples::sample;
 
     #[test]
     fn nesting_ignores_brackets_inside_strings() {
@@ -239,14 +240,20 @@ mod tests {
     #[test]
     fn a_tree_deeper_than_the_default_serde_limit_decodes() {
         let levels = 100;
-        let mut body = String::new();
-        for id in 1..=levels {
-            let _ = write!(
-                body,
-                r#"{{"id":{id},"type":"comment","author":"a","created_at_i":1,"text":"t","children":["#
-            );
-        }
-        body.push_str(&"]}".repeat(levels));
+        let stored: Value =
+            serde_json::from_str(&sample("hn_api/item-tree.json")).expect("stored item tree");
+        // The stored tree's first comment, nested under itself as each level's only reply.
+        let comment = |id: usize, children: Vec<Value>| {
+            let mut node = stored["children"][0].clone();
+            node["id"] = json!(id);
+            node["children"] = Value::Array(children);
+            node
+        };
+        let deepest = comment(levels, Vec::new());
+        let body = (1..levels)
+            .rev()
+            .fold(deepest, |child, id| comment(id, vec![child]))
+            .to_string();
 
         let tree = decode_tree(&body).expect("decode deep tree");
 

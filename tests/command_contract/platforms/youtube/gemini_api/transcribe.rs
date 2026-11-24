@@ -16,20 +16,10 @@ fn transcribe(environment: &RunEnvironment, arguments: &[&str]) -> std::process:
     environment.run(&command)
 }
 
-/// The JSON transcript a model writes as its answer text.
-fn transcript(segments: &serde_json::Value) -> String {
-    json!({"language": "en", "segments": segments}).to_string()
-}
-
 #[test]
 fn a_model_transcript_is_written_beside_the_metadata_with_its_model_and_usage() {
     let api = Fixture::start_sequence(vec![ok_json(&videos_page(&[zoo_video(CHAPTERED)]))]);
-    let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
-        {"start": 1.2, "end": 3.4, "text": "All right, so here we are, in front of the elephants."},
-        {"start": 5.3, "end": 12.6, "text": "The cool thing about these guys is that they have really long trunks."},
-        {"start": 16.9, "end": 18.9, "text": "And that's pretty much all there is to say."},
-        {"start": 40.0, "end": 41.0, "text": "A segment past the end."}
-    ])))]);
+    let gemini = Fixture::start_sequence(vec![gemini_api::transcription()]);
     let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
     let content_dir = tempfile::tempdir().expect("content directory");
     let content_path = content_dir
@@ -146,9 +136,7 @@ fn files_under(directory: &Path) -> Vec<PathBuf> {
 #[test]
 fn without_a_content_directory_the_transcript_is_written_under_the_system_temporary_directory() {
     let api = Fixture::start_sequence(vec![ok_json(&videos_page(&[zoo_video(CHAPTERED)]))]);
-    let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
-        {"start": 1.2, "end": 3.4, "text": "All right, so here we are."}
-    ])))]);
+    let gemini = Fixture::start_sequence(vec![gemini_api::transcription()]);
     let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
     let temp = tempfile::tempdir().expect("temporary directory");
 
@@ -176,9 +164,7 @@ fn without_a_content_directory_the_transcript_is_written_under_the_system_tempor
 #[test]
 fn the_content_format_prints_the_transcript_and_writes_no_file() {
     let api = Fixture::start_sequence(vec![ok_json(&videos_page(&[zoo_video(CHAPTERED)]))]);
-    let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
-        {"start": 1.2, "end": 3.4, "text": "All right, so here we are."}
-    ])))]);
+    let gemini = Fixture::start_sequence(vec![gemini_api::transcription()]);
     let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
     let temp = tempfile::tempdir().expect("temporary directory");
 

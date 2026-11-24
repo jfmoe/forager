@@ -27,6 +27,15 @@ pub(crate) fn answer(text: &str) -> Response {
     Response::json(200, &samples::generated(text, "STOP").to_string())
 }
 
+/// The stored transcription answer: a finished `generateContent` response whose answer text is
+/// the model's transcript of the stored video.
+pub(crate) fn transcription() -> Response {
+    Response::json(
+        200,
+        &samples::stored("generate-content-transcript.json").to_string(),
+    )
+}
+
 /// The usage the stored `generateContent` answer reports, as forager prints it.
 pub(crate) fn usage() -> Value {
     json!({

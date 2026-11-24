@@ -143,9 +143,10 @@ fn verdict(quota: AccountQuota) -> Result<(), (AttemptErrorKind, String)> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde_json::Value;
 
     use super::{AccountQuota, account_url, decode, verdict};
+    use crate::samples::sample;
     use crate::types::AttemptErrorKind;
 
     const HEALTHY: AccountQuota = AccountQuota {
@@ -191,16 +192,14 @@ mod tests {
 
     #[test]
     fn a_report_without_every_quota_field_is_a_runtime_failure() {
-        let failure = decode(
-            &json!({
-                "total_searches_left": 219,
-                "plan_searches_left": 219,
-                "this_month_usage": 31,
-                "account_rate_limit_per_hour": 250
-            })
-            .to_string(),
-        )
-        .unwrap_err();
+        let mut report: Value =
+            serde_json::from_str(&sample("serpapi/account.json")).expect("stored account report");
+        report
+            .as_object_mut()
+            .expect("account report")
+            .remove("this_hour_searches");
+
+        let failure = decode(&report.to_string()).unwrap_err();
 
         assert_eq!(
             (

@@ -89,9 +89,13 @@ mod tests {
                 "https://www.reddit.com/",
                 &home().replace(r#"user-logged-in="true""#, r#"user-logged-in="false""#),
             ),
+            // The mark moved from the app to an element inside it.
             document(
                 "https://www.reddit.com/",
-                r#"<shreddit-app pagetype="home"></shreddit-app><p user-logged-in="true"></p>"#,
+                &home().replace(
+                    r#" user-logged-in="true" theme="light">"#,
+                    r#" theme="light"><p user-logged-in="true"></p>"#,
+                ),
             ),
             document("https://www.reddit.com/login/", &home()),
         ];

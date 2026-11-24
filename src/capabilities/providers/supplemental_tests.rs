@@ -75,6 +75,17 @@ mod tavily {
         body.to_string()
     }
 
+    /// The stored first result with `url` as its URL, or without a URL when `url` is `None`.
+    fn result_with_url(url: Option<Value>) -> Value {
+        let mut result = stored("tavily/search.json")["results"][0].clone();
+        let fields = result.as_object_mut().expect("stored result");
+        match url {
+            Some(url) => fields.insert("url".to_owned(), url),
+            None => fields.remove("url"),
+        };
+        result
+    }
+
     #[test]
     fn a_search_answer_decodes_each_result_with_its_content_as_text() {
         assert_eq!(
@@ -93,24 +104,15 @@ mod tavily {
 
     #[test]
     fn results_without_an_http_url_are_skipped_and_kept_urls_are_trimmed_and_redacted() {
-        let base = stored("tavily/search.json")["results"][0].clone();
-        let with_url = |url: Value| {
-            let mut result = base.clone();
-            result["url"] = url;
-            result
-        };
-        let mut missing = base.clone();
-        missing
-            .as_object_mut()
-            .expect("stored result")
-            .remove("url");
         let body = stored_with_results(json!([
-            missing,
-            with_url(Value::Null),
-            with_url(json!("   ")),
-            with_url(json!("ftp://example.test/result")),
-            with_url(json!("https://example.test/source?token=canary-secret")),
-            with_url(json!("  https://example.test/extra  ")),
+            result_with_url(None),
+            result_with_url(Some(Value::Null)),
+            result_with_url(Some(json!("   "))),
+            result_with_url(Some(json!("ftp://example.test/result"))),
+            result_with_url(Some(json!(
+                "https://example.test/source?token=canary-secret"
+            ))),
+            result_with_url(Some(json!("  https://example.test/extra  "))),
         ]));
 
         let urls = decode(ProviderId::Tavily, &body, 20).map(|sources| {
@@ -152,7 +154,11 @@ mod tavily {
 
     #[test]
     fn an_answer_whose_results_all_lack_an_http_url_is_an_evidence_failure() {
-        let body = stored_with_results(json!([{"url": null}, {"title": "missing"}, {"url": "  "}]));
+        let body = stored_with_results(json!([
+            result_with_url(Some(Value::Null)),
+            result_with_url(None),
+            result_with_url(Some(json!("  ")))
+        ]));
 
         assert_eq!(
             decode(ProviderId::Tavily, &body, 5),

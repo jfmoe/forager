@@ -32,6 +32,14 @@ fn note_data(note: &Value) -> Value {
     data
 }
 
+/// The stored observation without the note, on the page at `url` titled `title`.
+fn page_without_the_note(url: &str, title: &str) -> Value {
+    let mut data = note_data(&Value::Null);
+    data["page"]["url"] = json!(url);
+    data["page"]["title"] = json!(title);
+    data
+}
+
 fn requested() -> XiaohongshuRef {
     XiaohongshuRef::from_note_id(NOTE_ID).expect("note ID")
 }
@@ -173,18 +181,12 @@ fn a_page_that_shows_another_note_is_a_runtime_failure() {
 
 #[test]
 fn an_unavailable_note_names_the_likely_causes() {
-    let unavailable = json!({
-        "page": {
-            "url": "https://www.xiaohongshu.com/404?source=note&error_code=300031&error_msg=%E5%BD%93%E5%89%8D%E7%AC%94%E8%AE%B0%E6%9A%82%E6%97%B6%E6%97%A0%E6%B3%95%E6%B5%8F%E8%A7%88",
-            "title": "小红书 - 你的生活兴趣社区",
-            "guest": false,
-            "error_code": "300031",
-            "notice": "当前笔记暂时无法浏览",
-            "blocked_status": null
-        },
-        "note": null,
-        "timed_out": false
-    });
+    let mut unavailable = page_without_the_note(
+        "https://www.xiaohongshu.com/404?source=note&error_code=300031&error_msg=%E5%BD%93%E5%89%8D%E7%AC%94%E8%AE%B0%E6%9A%82%E6%97%B6%E6%97%A0%E6%B3%95%E6%B5%8F%E8%A7%88",
+        "小红书 - 你的生活兴趣社区",
+    );
+    unavailable["page"]["error_code"] = json!("300031");
+    unavailable["page"]["notice"] = json!("当前笔记暂时无法浏览");
 
     assert_eq!(
         failure(&unavailable),
@@ -199,18 +201,11 @@ fn an_unavailable_note_names_the_likely_causes() {
 fn a_page_without_the_note_is_a_timeout_only_while_it_stays_on_the_note_page() {
     let mut waiting = note_data(&Value::Null);
     waiting["timed_out"] = json!(true);
-    let elsewhere = json!({
-        "page": {
-            "url": "https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore",
-            "title": "验证",
-            "guest": false,
-            "error_code": null,
-            "notice": null,
-            "blocked_status": null
-        },
-        "note": null,
-        "timed_out": true
-    });
+    let mut elsewhere = page_without_the_note(
+        "https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore",
+        "验证",
+    );
+    elsewhere["timed_out"] = json!(true);
 
     assert_eq!(
         [waiting, elsewhere].map(|data| failure(&data)),

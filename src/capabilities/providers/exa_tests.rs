@@ -236,7 +236,7 @@ fn a_body_without_results_or_naming_a_non_http_result_is_refused() {
     let operation = ExaOperation::Search(search_request("missing results"));
     let refused = [
         "{}".to_owned(),
-        r#"{"error":"upstream failed"}"#.to_owned(),
+        error_with("upstream failed"),
         first_result_with("search.json", "url", json!("ftp://example.test/result")),
     ]
     .map(|body| decode(&body, &operation).err());

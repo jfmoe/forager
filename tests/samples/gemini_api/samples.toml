@@ -12,3 +12,10 @@ file = "error.json"
 shape = "a Gemini API error body: the code, the message and the status reason, here the 403 of a key without permission"
 origin = "hand-written"
 observed = 2026-10-17
+
+[[sample]]
+file = "generate-content-transcript.json"
+shape = "`POST models/{model}:generateContent` with the transcript schema: the finished candidate whose answer text is the transcript JSON, a language and timed segments, the last of them past the end of the zoo video"
+variant_of = "generate-content.json"
+origin = "hand-written"
+observed = 2026-11-24

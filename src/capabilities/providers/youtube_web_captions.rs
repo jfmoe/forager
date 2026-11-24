@@ -536,9 +536,16 @@ mod tests {
             let end = xml.rfind("</text>").expect("the stored cues end") + "</text>".len();
             format!("{}{}", &xml[..start], &xml[end..])
         };
+        let self_closed = {
+            let xml = srv1();
+            let root = xml
+                .find("<transcript>")
+                .expect("the stored track has its root");
+            format!("{}<transcript/>", &xml[..root])
+        };
         let results = [
             srv1_cues(""),
-            srv1_cues("<transcript/>"),
+            srv1_cues(&self_closed),
             srv1_cues(&without_cues),
             srv1_cues(&blank),
         ];

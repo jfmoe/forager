@@ -244,7 +244,11 @@ fn fewer_results_than_the_limit_with_a_next_page_left_say_the_list_is_incomplete
 #[test]
 fn results_that_name_no_post_are_skipped_and_counted() {
     let mut page = projection(SEARCH_PAGE);
-    page.results[1].tracking = Some(r#"{"post":{"id":"t5_2s7lj"}}"#.into());
+    // The second result's post ID names its subreddit instead.
+    page.results[1].tracking = page.results[1]
+        .tracking
+        .take()
+        .map(|tracking| tracking.replace("\"id\":\"t3_1d5e6f7\"", "\"id\":\"t5_2s7lj\""));
     page.results[2].tracking = None;
 
     let decoded = outcome(&observed(page), 10).expect("a results page");

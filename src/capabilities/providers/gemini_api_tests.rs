@@ -83,9 +83,23 @@ fn failed(status: u16, reason: &str, message: &str) -> Response {
     Response::json(status, &error(status, reason, message).to_string())
 }
 
-/// The JSON transcript a model writes as its answer text.
-fn transcript(segments: &Value) -> String {
-    json!({"language": "en", "segments": segments}).to_string()
+/// The stored transcription answer's transcript, as the model wrote it in its answer text.
+pub(super) fn stored_transcript() -> Value {
+    let answer = stored("generate-content-transcript.json");
+    let text = answer["candidates"][0]["content"]["parts"][1]["text"]
+        .as_str()
+        .expect("answer text");
+    serde_json::from_str(text).expect("stored transcript")
+}
+
+/// The stored transcript with only the segments at `indexes`, in that order.
+pub(super) fn stored_segments(indexes: &[usize]) -> Value {
+    let mut transcript = stored_transcript();
+    transcript["segments"] = indexes
+        .iter()
+        .map(|index| transcript["segments"][*index].clone())
+        .collect();
+    transcript
 }
 
 fn response(body: &Value) -> GenerateResponse {
@@ -377,15 +391,8 @@ fn the_key_never_reaches_a_failure_or_its_attempts() {
 
 #[test]
 fn a_transcription_asks_for_the_transcript_schema_and_renders_the_model_transcript() {
-    let fixture = Fixture::start_sequence(vec![ok_json(&generated(
-        &transcript(&json!([
-            {"start": 1.2, "end": 3.4, "text": "All right, so here we are, in front of the elephants."},
-            {"start": 5.3, "end": 12.6, "text": "The cool thing about these guys is that they have really long trunks."},
-            {"start": 16.9, "end": 18.9, "text": "And that's pretty much all there is to say."},
-            {"start": 40.0, "end": 41.0, "text": "A segment past the end."}
-        ])),
-        "STOP",
-    ))]);
+    let fixture =
+        Fixture::start_sequence(vec![ok_json(&stored("generate-content-transcript.json"))]);
 
     let outcome =
         block_on(route(&fixture.url, &[KEY]).transcribe(&zoo(Some(19)))).expect("a transcript");

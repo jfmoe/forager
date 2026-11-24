@@ -275,15 +275,7 @@ fn stream_details_decide_the_live_status_before_the_broadcast_flag() {
 
 #[test]
 fn error_reasons_override_the_status_only_where_the_status_misleads() {
-    let body = |reason: &str, info: Option<&str>| {
-        let details = info.map_or_else(
-            || "[]".to_owned(),
-            |info| format!(r#"[{{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "{info}"}}]"#),
-        );
-        format!(
-            r#"{{"error": {{"code": 400, "message": "m", "errors": [{{"reason": "{reason}"}}], "details": {details}}}}}"#
-        )
-    };
+    let body = |reason: &str, info: Option<&str>| api_error(400, reason, info, "m").to_string();
     let kinds = [
         reason_kind(&body("badRequest", Some("API_KEY_INVALID"))),
         reason_kind(&body("quotaExceeded", None)),
@@ -308,10 +300,15 @@ fn error_reasons_override_the_status_only_where_the_status_misleads() {
 
 #[test]
 fn failure_messages_carry_the_api_message_as_plain_text() {
-    let body = r#"{"error": {"code": 400, "message": "The <code><a href=\"/youtube/v3/docs/search/list#q\">q</a></code> parameter &amp; <b>order</b> conflict.", "errors": [{"reason": "invalidSearchFilter"}]}}"#;
+    let body = api_error(
+        400,
+        "invalidSearchFilter",
+        None,
+        r#"The <code><a href="/youtube/v3/docs/search/list#q">q</a></code> parameter &amp; <b>order</b> conflict."#,
+    );
 
     assert_eq!(
-        failure_message(body, 400),
+        failure_message(&body.to_string(), 400),
         "YouTube Data API returned HTTP 400 (invalidSearchFilter): The q parameter & order conflict."
     );
 }

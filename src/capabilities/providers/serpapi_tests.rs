@@ -55,6 +55,13 @@ fn last_page(results: &[Value]) -> Value {
     page
 }
 
+/// The stored error body, saying `message`.
+fn error_body(message: &str) -> String {
+    let mut body = stored("invalid-key.json");
+    body["error"] = json!(message);
+    body.to_string()
+}
+
 fn result(index: usize) -> Value {
     stored("search.json")["organic_results"][index].clone()
 }
@@ -184,19 +191,29 @@ fn an_error_status_is_a_network_failure_with_serpapi_message() {
 
 #[test]
 fn any_other_status_or_results_shape_is_a_runtime_failure() {
+    let search_page = |change: &dyn Fn(&mut serde_json::Map<String, Value>)| {
+        let mut page = stored("search.json");
+        change(page.as_object_mut().expect("search page"));
+        page
+    };
+    let mut fully_empty = stored("fully-empty.json");
+    fully_empty["organic_results"] = json!([]);
     let results = [
-        json!({
-            "search_metadata": {"status": "Success"},
-            "search_information": {"organic_results_state": "Results for exact spelling"}
+        search_page(&|page| {
+            page.remove("organic_results");
         }),
-        json!({"search_metadata": {"status": "Success"}, "organic_results": []}),
-        json!({
-            "search_metadata": {"status": "Success"},
-            "search_information": {"organic_results_state": "Fully empty"},
-            "organic_results": []
+        search_page(&|page| {
+            page.remove("search_information");
+            page.insert("organic_results".into(), json!([]));
         }),
-        json!({"search_metadata": {}, "organic_results": [{"title": "x"}]}),
-        json!({"search_metadata": {"status": "Processing"}, "organic_results": [{"title": "x"}]}),
+        fully_empty,
+        search_page(&|page| {
+            page["search_metadata"]
+                .as_object_mut()
+                .expect("metadata")
+                .remove("status");
+        }),
+        search_page(&|page| page["search_metadata"]["status"] = json!("Processing")),
     ]
     .map(|body| results_or_failure(&body));
 
@@ -217,11 +234,10 @@ fn any_other_status_or_results_shape_is_a_runtime_failure() {
 
 #[test]
 fn a_body_that_is_no_serpapi_envelope_is_a_runtime_failure() {
-    let failure = results_or_failure(&json!({
-        "search_metadata": {"status": "Success"},
-        "organic_results": {"position": 1}
-    }))
-    .unwrap_err();
+    let mut page = stored("search.json");
+    page["organic_results"] = json!({"position": 1});
+
+    let failure = results_or_failure(&page).unwrap_err();
 
     assert_eq!(
         (
@@ -501,7 +517,7 @@ fn an_exhausted_key_rotates_to_the_next_key_in_the_same_request() {
         1,
         &request,
         vec![
-            Response::json(429, r#"{"error": "Your account has run out of searches."}"#),
+            Response::json(429, &error_body("Your account has run out of searches.")),
             ok_json(&stored("search.json")),
         ],
     );
@@ -556,8 +572,10 @@ fn an_invalid_key_is_sent_once_without_rotation_or_retry() {
 #[test]
 fn the_key_never_reaches_a_failure_or_its_attempts() {
     const CANARY: &str = "serpapi-canary-7f3c9e1d";
-    let echo = format!("{{\"error\":\"Invalid API key {CANARY}, see ?api_key={CANARY}\"}}");
-    let exhausted = format!("{{\"error\":\"Your account has run out of searches for {CANARY}.\"}}");
+    let echo = error_body(&format!("Invalid API key {CANARY}, see ?api_key={CANARY}"));
+    let exhausted = error_body(&format!(
+        "Your account has run out of searches for {CANARY}."
+    ));
     let mut reported = stored("status-error.json");
     reported["error"] = json!(format!("Upstream failed for api_key={CANARY}"));
     for (case, response) in [

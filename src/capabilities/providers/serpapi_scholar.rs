@@ -792,8 +792,21 @@ mod tests {
         serde_json::from_value(value).expect("decode result")
     }
 
+    /// The stored search page's result `index`.
+    fn stored_result(index: usize) -> Value {
+        stored("search.json")["organic_results"][index].clone()
+    }
+
+    /// The stored search page's Citation entry, which has no link and no resources.
+    const CITATION: usize = 5;
+    /// The stored search page's result whose author list holds an empty name.
+    const EMPTY_AUTHOR: usize = 7;
+
+    /// The stored first result with a byline of `summary` alone, without its author array.
     fn with_summary(summary: &str) -> OrganicResult {
-        organic(json!({"publication_info": {"summary": summary}}))
+        let mut result = stored_result(0);
+        result["publication_info"] = json!({"summary": summary});
+        organic(result)
     }
 
     #[test]
@@ -821,13 +834,9 @@ mod tests {
 
     #[test]
     fn explicit_ids_that_disagree_identify_no_cluster() {
-        let result = organic(json!({
-            "result_id": "fL6eJ05HsPwJ",
-            "inline_links": {
-                "versions": {"cluster_id": "18208131694456651388"},
-                "cited_by": {"cites_id": "1"}
-            }
-        }));
+        let mut result = stored_result(0);
+        result["inline_links"]["cited_by"]["cites_id"] = json!("1");
+        let result = organic(result);
 
         assert_eq!(
             result.reference().map(ScholarRef::cluster_id),
@@ -837,19 +846,7 @@ mod tests {
 
     #[test]
     fn a_citation_entry_maps_to_a_metadata_item_identified_by_its_cites_id() {
-        let item = organic(json!({
-            "title": "Time Series Momentum",
-            "result_id": "CFXLZdAFrk4J",
-            "type": "Citation",
-            "snippet": "",
-            "publication_info": {
-                "summary": "B Hurst, YH Ooi, LH Pedersen - Journal of Financial Economics, 2014",
-                "authors": [{"name": "B Hurst"}, {"name": "YH Ooi"}, {"name": "LH Pedersen"}]
-            },
-            "inline_links": {"cited_by": {"total": 2, "cites_id": "5669475373525193992"}}
-        }))
-        .into_item()
-        .expect("item");
+        let item = organic(stored_result(CITATION)).into_item().expect("item");
 
         assert_eq!(
             serde_json::to_value(item).expect("serialize item"),
@@ -873,12 +870,7 @@ mod tests {
 
     #[test]
     fn listed_authors_drop_empty_names() {
-        let result = organic(json!({
-            "publication_info": {
-                "summary": "…, J Quin, S Guillerme, A Moskowitz… - Journal of vascular …, 2010 - jvascsurg.org",
-                "authors": [{"name": ""}, {"name": "J Quin"}, {"name": "S Guillerme"}, {"name": "A Moskowitz"}]
-            }
-        }));
+        let result = organic(stored_result(EMPTY_AUTHOR));
 
         assert_eq!(result.authors(), ["J Quin", "S Guillerme", "A Moskowitz"]);
     }
@@ -922,16 +914,27 @@ mod tests {
 
     #[test]
     fn resources_keep_only_distinct_http_links_in_order() {
+        // The stored first result's resources: one without a link, then the article.
+        let mut listed = stored_result(0)["resources"].clone();
+        let listed_mut = listed.as_array_mut().expect("resources");
+        let article = listed_mut[1].clone();
+        let mut copy = article.clone();
+        copy["title"] = json!("copy");
+        let mut script = article.clone();
+        script["title"] = json!("mirror");
+        script["file_format"] = json!("PDF");
+        script["link"] = json!("javascript:void(0)");
+        let mut unlinked = article.clone();
+        unlinked["title"] = json!("");
+        unlinked["file_format"] = json!("PDF");
+        unlinked.as_object_mut().expect("resource").remove("link");
+        let mut untyped = article;
+        untyped["title"] = json!("");
+        untyped["file_format"] = Value::Null;
+        untyped["link"] = json!("https://example.org/tsm.pdf");
+        listed_mut.extend([unlinked, script, copy, untyped]);
         let resources = resources(Some(
-            serde_json::from_value(json!([
-                {"title": "", "file_format": "HTML", "link": null},
-                {"title": "", "file_format": "PDF"},
-                {"title": "sciencedirect.com", "file_format": "HTML", "link": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613"},
-                {"title": "mirror", "file_format": "PDF", "link": "javascript:void(0)"},
-                {"title": "copy", "file_format": "HTML", "link": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613"},
-                {"title": "", "file_format": null, "link": "https://example.org/tsm.pdf"}
-            ]))
-            .expect("decode resources"),
+            serde_json::from_value(listed).expect("decode resources"),
         ));
 
         assert_eq!(
