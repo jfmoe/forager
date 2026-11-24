@@ -10,8 +10,9 @@ mod seam_config;
 mod validate;
 mod view;
 
-pub(crate) use crate::secure_fs::has_private_permissions;
-pub use crate::secure_fs::{create_private_file, ensure_private_directory};
+pub use crate::secure_fs::{
+    create_private_file, ensure_private_directory, has_private_permissions,
+};
 
 pub use edit::{SetupDocument, create_setup_template, set_file_value, unset_file_value};
 pub use location::{ConfigError, ConfigLocation, EditError};
