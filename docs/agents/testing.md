@@ -10,8 +10,9 @@ Each rule is proven once, at the cheapest layer that can observe it breaking. Pl
 | Binary unit tests | Does the binary present a result correctly? | Rendering of command outputs and the mapping from errors to exit codes |
 | Command contract tests | Does the real binary keep its outer contract? | Each command's outer path and the items of the [outer checklist](#the-outer-checklist) |
 | Rule tests | Do the repository's documents and layout follow their rules? | The repository rules and the product skill contract |
-| Release and permission tests | Does what CI and a release rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, and private file permissions on each operating system; each is a binary CI names |
+| Release and permission tests | Does what CI and a release rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, and private file permissions on each operating system |
 | Real-browser tests | Do the browser transport and Page Logic work in the Managed Browser? | Off by default; [`browser-routes.md`](browser-routes.md) runs them |
+| Live smoke | Do real sites and keys still answer as forager expects? | A few canary cases against real sites, run before a release by [`release.md`](release.md); never offline |
 
 Start in the crate and move outward only when the rule is a fact of the outer layer.
 
@@ -99,10 +100,13 @@ Every command keeps at least one command contract test, and every platform keeps
 ## What each layer does not prove
 
 - **No offline layer** proves that an upstream still behaves as its sample shows. A sample is frozen at its `observed` date.
-- **In-crate tests** do not prove exit codes, rendering, output files, environment overrides or the journal; the binary's outer path owns those.
+- **In-crate tests** do not prove rendering or the mapping from errors to exit codes, which the binary unit tests own, or output files, environment overrides and the journal, which the command contract tests own.
 - **Binary unit tests** do not prove argument parsing or anything that needs a process.
 - **Command contract tests** do not prove decoding detail, because they replay a few samples, and do not prove a browser platform's successful path.
+- **Rule tests** prove nothing about what forager does, only that the documents and layout follow their rules.
+- **Release and permission tests** do not prove that a published release works; the release procedure checks that.
 - **Real-browser tests** run against local pages, so they prove Page Logic's scripts, not a real site.
+- **Live smoke** covers a few canary cases, not each rule, and depends on real sites and keys.
 
 ## Retiring or rewriting a test
 
