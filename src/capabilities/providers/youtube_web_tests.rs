@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -9,10 +8,10 @@ use super::{
     read_watch_page, render_transcript,
 };
 use crate::config::HttpRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, header, query};
+use crate::fixture_server::{Fixture, Response, block_on, header, pairs, query, request_json};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
-use crate::providers::shared::Refusal;
+use crate::providers::test_projection::refused;
 use crate::samples::sample;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, ContentDepth, Deadline, FullTextSource,
@@ -150,10 +149,6 @@ fn zoo() -> YoutubeRef {
     YoutubeRef::video(ZOO).expect("video ref")
 }
 
-fn refused<T>(result: Result<T, Refusal>) -> Result<T, (AttemptErrorKind, String)> {
-    result.map_err(|refusal| (refusal.kind, refusal.message))
-}
-
 /// What the watch page `page` and the player answer `player` give a fetch of the stored video
 /// at `depth`, read under the stored tracks' origin.
 fn read(
@@ -230,18 +225,6 @@ fn method_and_path(request: &str) -> String {
     let method = line.next().expect("request method");
     let target = line.next().expect("request target");
     format!("{method} {}", target.split('?').next().unwrap_or_default())
-}
-
-fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs
-        .iter()
-        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-        .collect()
-}
-
-fn request_json(request: &str) -> Value {
-    let (_, body) = request.split_once("\r\n\r\n").expect("request body");
-    serde_json::from_str(body).expect("request JSON")
 }
 
 #[test]

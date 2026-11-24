@@ -10,6 +10,7 @@ use super::{
 use crate::config::runtime_config_from_toml;
 use crate::engine::CapabilityExecution;
 use crate::fixture_server::{Fixture, Response, Route, block_on, request_json};
+use crate::main_search_samples::completed_events;
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::MainSearchRequest;
 use crate::samples::sample;
@@ -18,7 +19,7 @@ use crate::types::{
     Source,
 };
 use crate::web_samples::{jina, stored_with, tavily_results};
-use crate::x_samples::{completed_events, stored};
+use crate::x_samples::stored;
 
 /// Runs a declared documentation search over the configuration `document` and returns its
 /// branch.

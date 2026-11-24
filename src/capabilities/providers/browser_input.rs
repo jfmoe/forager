@@ -672,6 +672,7 @@ mod tests {
     use super::super::capture::Capture;
     use super::super::{CaptureLevel, Deadlines, Page};
     use super::{InputError, InputFailure, Missed, Point, Recheck, Rect};
+    use crate::fixture_server::block_on_paused;
     use crate::providers::cdp::Cdp;
     use crate::types::Deadline;
 
@@ -726,22 +727,11 @@ mod tests {
         (page, received)
     }
 
-    // Paused time advances only while every task waits on a timer, so each step lands at an
-    // exact instant.
-    fn run<T>(test: impl Future<Output = T>) -> T {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .start_paused(true)
-            .build()
-            .expect("build test runtime")
-            .block_on(test)
-    }
-
     #[test]
     fn a_pointer_move_that_the_read_deadline_interrupts_sends_no_later_step() {
         let read = Duration::from_millis(30);
 
-        let (moved, started, received) = run(async {
+        let (moved, started, received) = block_on_paused(async {
             let started = Instant::now();
             let (mut page, received) = page(read);
             let moved = page.move_pointer(Point { x: 400.0, y: 300.0 }).await;

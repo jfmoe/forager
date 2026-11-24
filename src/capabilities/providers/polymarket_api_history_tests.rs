@@ -2,11 +2,11 @@ use chrono::NaiveDate;
 use serde_json::{Value, json};
 
 use super::decode_page;
-use crate::fixture_server::{Fixture, Response, block_on, path, query};
+use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, query};
 use crate::providers::polymarket_api::tests::stored::{
     event, market, price_page, resolved, stored, tokens, with,
 };
-use crate::providers::polymarket_api::tests::{json, pairs, reference, route};
+use crate::providers::polymarket_api::tests::{reference, route};
 use crate::types::{
     AttemptErrorKind, PolymarketBucket, PolymarketHistoryOutcome, PolymarketHistoryRequest,
     PolymarketInterval, PolymarketWindow, ProviderError,
@@ -69,7 +69,7 @@ fn a_resolved_market_lists_its_daily_prices_and_gives_its_payout_as_the_settleme
             None,
         ),
         vec![
-            json(&resolved(WINNER, "Donald Trump", true)),
+            ok_json(&resolved(WINNER, "Donald Trump", true)),
             Response::json(200, &stored("price-history.json")),
         ],
     );
@@ -124,8 +124,8 @@ fn both_requests_are_attempts_of_the_polymarket_history_operation() {
             None,
         ),
         vec![
-            json(&resolved(WINNER, "Donald Trump", true)),
-            json(&price_page(&[], None)),
+            ok_json(&resolved(WINNER, "Donald Trump", true)),
+            ok_json(&price_page(&[], None)),
         ],
     );
     let targets = outcome
@@ -173,7 +173,10 @@ fn each_interval_asks_the_data_api_for_itself_in_its_default_bucket() {
                 interval(window),
                 None,
             ),
-            vec![json(&market(OPEN, "No cuts")), json(&price_page(&[], None))],
+            vec![
+                ok_json(&market(OPEN, "No cuts")),
+                ok_json(&price_page(&[], None)),
+            ],
         );
         outcome.expect("history succeeds");
         query(&requests[1])
@@ -207,8 +210,8 @@ fn an_open_market_keeps_its_latest_tick_in_a_month_of_daily_prices_and_has_no_se
             None,
         ),
         vec![
-            json(&market(OPEN, "No cuts")),
-            json(&price_page(
+            ok_json(&market(OPEN, "No cuts")),
+            ok_json(&price_page(
                 &[
                     (1_792_627_200, 0.9695, 86_400),
                     (1_792_713_600, 0.9645, 86_400),
@@ -257,8 +260,8 @@ fn an_event_with_one_market_stands_for_that_market() {
             None,
         ),
         vec![
-            json(&event(slug, &[market(slug, "Hike")])),
-            json(&price_page(&[], None)),
+            ok_json(&event(slug, &[market(slug, "Hike")])),
+            ok_json(&price_page(&[], None)),
         ],
     );
 
@@ -292,8 +295,8 @@ fn the_outcome_is_matched_by_name_in_any_letter_case() {
             None,
         ),
         vec![
-            json(&market(OPEN, "No cuts")),
-            json(&price_page(&[(1_792_627_200, 0.0305, 86_400)], None)),
+            ok_json(&market(OPEN, "No cuts")),
+            ok_json(&price_page(&[(1_792_627_200, 0.0305, 86_400)], None)),
         ],
     );
 
@@ -323,7 +326,7 @@ fn an_event_with_several_markets_names_the_first_ten_and_reads_no_history() {
             interval(PolymarketInterval::Month),
             None,
         ),
-        vec![json(&event("how-many-fed-rate-cuts-in-2026", &markets))],
+        vec![ok_json(&event("how-many-fed-rate-cuts-in-2026", &markets))],
     );
     let error = outcome
         .map(|_| ())
@@ -349,7 +352,7 @@ fn an_unknown_outcome_lists_the_outcomes_of_the_market() {
             interval(PolymarketInterval::Month),
             None,
         ),
-        vec![json(&market(OPEN, "No cuts"))],
+        vec![ok_json(&market(OPEN, "No cuts"))],
     );
     let error = outcome.map(|_| ()).expect_err("an unknown outcome fails");
 
@@ -373,8 +376,8 @@ fn an_explicit_range_asks_for_whole_utc_days_in_hourly_buckets() {
     let (outcome, requests) = history(
         &request(&format!("polymarket:market/{OPEN}"), None, window, None),
         vec![
-            json(&market(OPEN, "No cuts")),
-            json(&price_page(&[(1_791_504_000, 0.9555, 3_600)], None)),
+            ok_json(&market(OPEN, "No cuts")),
+            ok_json(&price_page(&[(1_791_504_000, 0.9555, 3_600)], None)),
         ],
     );
 
@@ -409,12 +412,12 @@ fn a_continued_series_resends_its_query_with_the_cursor_and_settles_on_the_last_
             None,
         ),
         vec![
-            json(&resolved(WINNER, "Donald Trump", true)),
-            json(&price_page(
+            ok_json(&resolved(WINNER, "Donald Trump", true)),
+            ok_json(&price_page(
                 &[(1_730_764_800, 0.5855, 86_400)],
                 Some("page-2"),
             )),
-            json(&price_page(
+            ok_json(&price_page(
                 &[(1_730_851_200, 0.58, 86_400), (1_730_937_600, 1.0, 0)],
                 None,
             )),
@@ -456,9 +459,9 @@ fn a_continued_series_resends_its_query_with_the_cursor_and_settles_on_the_last_
 
 #[test]
 fn a_series_longer_than_five_pages_is_cut_with_a_diagnostic() {
-    let mut answers = vec![json(&market(OPEN, "No cuts"))];
+    let mut answers = vec![ok_json(&market(OPEN, "No cuts"))];
     answers.extend((0..5).map(|page| {
-        json(&price_page(
+        ok_json(&price_page(
             &[(1_792_627_200 + page * 300, 0.9695, 300)],
             Some(&format!("page-{}", page + 2)),
         ))
@@ -495,8 +498,8 @@ fn a_bucket_past_its_retention_is_an_empty_series_not_a_failure() {
             Some(PolymarketBucket::OneHour),
         ),
         vec![
-            json(&resolved(WINNER, "Donald Trump", true)),
-            json(&price_page(&[], None)),
+            ok_json(&resolved(WINNER, "Donald Trump", true)),
+            ok_json(&price_page(&[], None)),
         ],
     );
     let outcome = outcome.expect("history succeeds");
@@ -521,7 +524,7 @@ fn a_data_api_refusal_fails_the_history_with_the_upstream_reason() {
             None,
         ),
         vec![
-            json(&market(OPEN, "No cuts")),
+            ok_json(&market(OPEN, "No cuts")),
             Response::json(400, &stored("data-error.json")),
         ],
     );

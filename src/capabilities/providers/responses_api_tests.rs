@@ -12,10 +12,9 @@ use super::{
 };
 use crate::credentials::CredentialPool;
 use crate::fixture_server::{Fixture, block_on};
-use crate::main_search_samples::{answer_with, stored_answer};
+use crate::main_search_samples::{answer_with, completed_events, stored_answer};
 use crate::net::{AttemptFailure, MAX_RESPONSE_BYTES, build_client};
 use crate::types::AttemptErrorKind;
-use crate::x_samples::completed_events;
 
 const SERVICE: &str = "Test Responses";
 const KEY: &str = "responses-key";

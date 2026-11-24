@@ -5,12 +5,11 @@ use serde_json::{Value, json};
 use super::Openai;
 use crate::config::{MainSearchProviderConfig, OpenaiRuntimeConfig};
 use crate::fixture_server::{Fixture, Response, block_on, header, path, request_json};
-use crate::main_search_samples::{failed_event, stored_answer};
+use crate::main_search_samples::{completed_events, failed_event, stored_answer};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::constructors::build_openai;
 use crate::providers::{MainSearchRequest, MainSearchRequestKind, build_main_search};
 use crate::types::{AttemptErrorKind, Deadline, ProviderError, SearchOutcome};
-use crate::x_samples::completed_events;
 
 const KEY: &str = "openai-key";
 

@@ -25,14 +25,6 @@ pub(crate) fn with(mut record: Value, fields: &Value) -> Value {
     record
 }
 
-fn without(mut record: Value, fields: &[&str]) -> Value {
-    let object = record.as_object_mut().expect("record object");
-    for field in fields {
-        object.remove(*field);
-    }
-    record
-}
-
 /// The stored search page holding `hits` as page `page` of `pages`.
 pub(crate) fn search_page(hits: &[Value], page: u64, pages: u64) -> Value {
     with(
@@ -46,42 +38,15 @@ pub(crate) fn story_hit() -> Value {
     stored_json("search.json")["hits"][0].clone()
 }
 
-/// The stored hit of a comment on the Dropbox story, `hn:8952`.
-pub(crate) fn comment_hit() -> Value {
-    stored_json("search.json")["hits"][1].clone()
-}
-
 /// The stored Algolia tree of the Dropbox story: three top-level comments in ID order, the
 /// first with replies listed out of order.
 pub(crate) fn discussion() -> Value {
     stored_json("item-tree.json")
 }
 
-/// The stored tree's first comment, a top-level reply to the story, as comment `id` by
-/// `author` saying `text`, posted `id` seconds after the story, with `children`.
-pub(crate) fn node(id: u64, author: &str, text: &str, children: &[Value]) -> Value {
-    let tree = discussion();
-    let posted = tree["created_at_i"].as_u64().expect("story time") + id;
-    with(
-        tree["children"][0].clone(),
-        &json!({"id": id, "author": author, "text": text, "created_at_i": posted, "children": children}),
-    )
-}
-
 /// The stored Firebase item of the Dropbox story, with `kids` as its ranked replies.
 pub(crate) fn story_item(kids: &[u64]) -> Value {
     with(stored_json("firebase-item.json"), &json!({"kids": kids}))
-}
-
-/// The stored Firebase item as comment `id` by `by` on `parent` saying `text`, with `kids`.
-pub(crate) fn firebase_comment(id: u64, by: &str, parent: u64, text: &str, kids: &[u64]) -> Value {
-    with(
-        without(
-            stored_json("firebase-item.json"),
-            &["descendants", "score", "title", "url"],
-        ),
-        &json!({"id": id, "by": by, "parent": parent, "text": text, "kids": kids, "type": "comment"}),
-    )
 }
 
 /// The stored story list with `ids` in list order.

@@ -47,7 +47,7 @@ fn search_request(arguments: &[&str]) -> Result<PlatformSearchRequest, AppError>
     let Ok(parsed) = search_args(arguments) else {
         panic!("the parser accepts an x search of {arguments:?}");
     };
-    x_search_input(parsed).map(|(request, _, _)| request)
+    x_search_input(parsed).map(|input| input.request)
 }
 
 /// The question a command asks, or the argument error its checks raise.
@@ -55,7 +55,7 @@ fn ask_request(arguments: &[&str]) -> Result<XAskRequest, AppError> {
     let Ok(parsed) = ask_args(arguments) else {
         panic!("the parser accepts an x ask of {arguments:?}");
     };
-    x_ask_input(parsed).map(|(request, _, _)| request)
+    x_ask_input(parsed).map(|input| input.request)
 }
 
 fn argument_error<T: std::fmt::Debug>(result: Result<T, AppError>) -> String {
@@ -179,7 +179,7 @@ fn a_post_url_or_ref_is_fetched_at_thread_depth_unless_another_depth_is_given() 
     ] {
         let parsed = fetch_args(arguments).expect("the parser accepts the arguments");
 
-        let (request, _, _) = x_fetch_input(parsed).expect("a request");
+        let request = x_fetch_input(parsed).expect("a request").request;
 
         assert_eq!(
             (request.reference.to_string(), request.depth),

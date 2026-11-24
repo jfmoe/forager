@@ -8,13 +8,15 @@ use crate::config::XaiRuntimeConfig;
 use crate::fixture_server::{Fixture, Response, block_on, path};
 use crate::net::{AttemptFailure, RetryPolicy, build_client};
 use crate::providers::RouteContext;
+use crate::providers::test_projection::{failure, to_json};
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, PlatformFetchOutcome,
     PlatformFetchRequest, PlatformItem, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
     PlatformSearchRequest, ProviderError, XAskOutcome, XAskRequest, XRef, XSearchOptions,
 };
 
-use crate::x_samples::{completed_events, stored};
+use crate::main_search_samples::completed_events;
+use crate::x_samples::stored;
 
 const KEY: &str = "test-xai-key-a";
 const SECOND_KEY: &str = "test-xai-key-b";
@@ -141,10 +143,6 @@ fn handles(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
 }
 
-fn to_json<T: serde::Serialize>(value: &T) -> Value {
-    serde_json::to_value(value).expect("serialize")
-}
-
 fn refs(items: &[PlatformItem]) -> Vec<String> {
     items
         .iter()
@@ -165,13 +163,6 @@ fn attempt_failure<T>(result: Result<T, AttemptFailure>) -> (AttemptErrorKind, S
     match result {
         Ok(_) => panic!("expected a failure"),
         Err(failure) => (failure.kind, failure.message),
-    }
-}
-
-fn failure<T>(result: Result<T, ProviderError>) -> (AttemptErrorKind, String) {
-    match result {
-        Ok(_) => panic!("expected a failure"),
-        Err(error) => (error.kind, error.message),
     }
 }
 

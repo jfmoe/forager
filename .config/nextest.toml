@@ -20,30 +20,30 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 # Writing fetched content to a directory needs an arXiv full text, which is the metadata request
 # and the HTML probe, two paced requests.
 [[profile.default.overrides]]
-filter = "binary_id(forager::arxiv_fetch) & test(=full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version)"
+filter = "binary_id(forager::command_contract) & test(=platforms::arxiv::fetch::full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 # Any successful read through `youtube_web` needs the watch page and the player, two paced
 # requests, and YouTube's other routes do not reach it.
 [[profile.default.overrides]]
-filter = "binary_id(forager::youtube_web_fetch) & test(=an_abstract_fetch_prints_the_video_read_from_its_page_and_player)"
+filter = "binary_id(forager::command_contract) & test(=platforms::youtube::youtube_web::fetch::an_abstract_fetch_prints_the_video_read_from_its_page_and_player)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 # A history reads the market from Gamma before its prices from the Data API, two paced requests.
 [[profile.default.overrides]]
-filter = "binary_id(forager::polymarket_history) & test(=a_history_prints_the_price_series_of_the_market)"
+filter = "binary_id(forager::command_contract) & test(=platforms::polymarket::history::a_history_prints_the_price_series_of_the_market)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 # The second platform whose fetch writes a content directory through the binary; any Hacker News
 # discussion read is the Algolia tree and the Firebase ranking, two requests on one paced window.
 [[profile.default.overrides]]
-filter = "binary_id(forager::hn_fetch) & test(=a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order)"
+filter = "binary_id(forager::command_contract) & test(=platforms::hn::fetch::a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 # A browser route's timeout through the CLI: `timeout` takes whole seconds, and the smallest that
 # still launches the browser leaves a working deadline of whole seconds after the cleanup reserve.
 [[profile.default.overrides]]
-filter = "(binary_id(forager::xiaohongshu_search) | binary_id(forager::reddit_browser_search)) & test(=a_browser_that_never_answers_is_one_timed_out_attempt)"
+filter = "binary_id(forager::command_contract) & (test(=platforms::xiaohongshu::search::a_browser_that_never_answers_is_one_timed_out_attempt) | test(=platforms::reddit::search::a_browser_that_never_answers_is_one_timed_out_attempt))"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 [profile.ci]

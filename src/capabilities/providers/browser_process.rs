@@ -369,15 +369,13 @@ mod tests {
         use std::sync::{Arc, Mutex};
 
         use super::{MAX_ERROR_BODY_BYTES, keep_tail, last_line};
+        use crate::fixture_server::block_on;
 
         let mut output = "starting up\n".repeat(MAX_ERROR_BODY_BYTES / 4);
         output.push_str("fatal: the profile is in use\n\n");
         let kept = Arc::new(Mutex::new(Vec::new()));
 
-        tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("build test runtime")
-            .block_on(keep_tail(output.as_bytes(), Arc::clone(&kept)));
+        block_on(keep_tail(output.as_bytes(), Arc::clone(&kept)));
 
         let kept = kept.lock().expect("kept stderr");
         assert_eq!(

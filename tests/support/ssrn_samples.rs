@@ -41,17 +41,3 @@ pub(crate) fn work_list(total: u64, items: &[Value]) -> Value {
     );
     body
 }
-
-/// The stored work list's first record, an SSRN paper with an abstract, as `ssrn:<id>` titled
-/// `Paper <id>` with the abstract `Abstract of <id>.`.
-pub(crate) fn listed_work(id: &str) -> Value {
-    with(
-        stored_json("work-list.json")["message"]["items"][0].clone(),
-        &json!({
-            "DOI": format!("10.2139/ssrn.{id}"),
-            "title": [format!("Paper {id}")],
-            "abstract": format!("<jats:p>Abstract of {id}.</jats:p>"),
-            "resource": {"primary": {"URL": format!("https://www.ssrn.com/abstract={id}")}}
-        }),
-    )
-}

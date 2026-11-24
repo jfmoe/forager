@@ -1,0 +1,80 @@
+use std::process::Output;
+
+use serde_json::json;
+
+use crate::support::ssrn_samples::{stored, work_with};
+use crate::support::{Fixture, Response, RunEnvironment, path, payload};
+
+const DOI_PATH: &str = "/works/10.2139/ssrn.2042750";
+
+fn config(url: &str) -> String {
+    format!("[providers.ssrn_crossref]\nurl = \"{url}\"\n")
+}
+
+fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
+    let mut command = vec!["platform", "ssrn", "fetch"];
+    command.extend_from_slice(arguments);
+    environment.run(&command)
+}
+
+/// Runs one fetch against a fixture that answers with `responses`, and returns the output and
+/// the received requests.
+fn run(arguments: &[&str], responses: Vec<Response>) -> (Output, Vec<String>) {
+    let fixture = Fixture::start_sequence(responses);
+    let environment = RunEnvironment::new(&config(&fixture.url));
+    let output = fetch(&environment, arguments);
+    (output, fixture.finish_all())
+}
+
+#[test]
+fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
+    let (output, requests) = run(
+        &["ssrn:2042750"],
+        vec![Response::json(200, &stored("work.json"))],
+    );
+
+    assert_eq!(
+        (
+            output.status.code(),
+            requests
+                .iter()
+                .map(|request| path(request))
+                .collect::<Vec<_>>(),
+            payload(&output)
+        ),
+        (
+            Some(0),
+            vec![DOI_PATH.to_owned()],
+            json!({
+                "platform": "ssrn",
+                "provider": "ssrn_crossref",
+                "ref": "ssrn:2042750",
+                "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+                "depth": "abstract",
+                "title": "Risk Premia Harvesting Through Dual Momentum",
+                "authors": ["Gary Antonacci"],
+                "published": "2012-04",
+                "abstract": "Momentum is the premier market anomaly.",
+                "doi": "10.2139/ssrn.2042750",
+                "crossref_type": "posted-content",
+                "crossref_created": "2012-04-25T11:01:44Z"
+            })
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn markdown_shows_the_abstract_section_only_when_there_is_an_abstract() {
+    let without_abstract = work_with(&json!({"abstract": null})).to_string();
+    let sections = [stored("work.json"), without_abstract].map(|body| {
+        let (output, _) = run(
+            &["ssrn:2042750", "--format", "markdown"],
+            vec![Response::json(200, &body)],
+        );
+        String::from_utf8_lossy(&output.stdout).contains("## Abstract")
+    });
+
+    assert_eq!(sections, [true, false]);
+}

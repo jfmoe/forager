@@ -10,6 +10,7 @@ use tower_layer::Layer;
 use tower_service::Service;
 
 use super::{BoxError, refused_target};
+use crate::fixture_server::block_on;
 use crate::net::build_client;
 
 /// Pins how the guard reads what reqwest's connector actually receives, so a reqwest upgrade
@@ -48,11 +49,7 @@ fn connector_requests(urls: &[&str]) -> Vec<String> {
         .connector_layer(Recording(Arc::clone(&recorded)))
         .build()
         .expect("build recording client");
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("build test runtime");
-    runtime.block_on(async {
+    block_on(async {
         for url in urls {
             let _ = client.get(*url).send().await;
         }
@@ -114,13 +111,9 @@ where
 
 #[test]
 fn the_shared_client_refuses_non_loopback_hosts_before_connecting() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("build test runtime");
     let client = build_client(true).expect("build client");
 
-    let refusals = runtime.block_on(async {
+    let refusals = block_on(async {
         let mut refusals = Vec::new();
         for (url, host) in [
             ("http://forager-guard.example/path", "forager-guard.example"),

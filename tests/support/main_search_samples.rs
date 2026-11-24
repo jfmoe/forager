@@ -1,8 +1,8 @@
 //! Main-search Responses answers and failures derived from the stored samples
-//! `tests/samples/<provider>/search.json` and `response-failed.json`, shared by the command
-//! contract tests and the in-crate tests; the including module provides the sample store's reader
-//! as `samples`. A variant changes only the answer's text and citations, so every other field
-//! stays as the sample has it.
+//! `tests/samples/<provider>/search.json` and `response-failed.json`, and the event stream that
+//! carries any completed Responses answer, shared by the command contract tests and the in-crate
+//! tests; the including module provides the sample store's reader as `samples`. A variant changes
+//! only the answer's text and citations, so every other field stays as the sample has it.
 
 use serde_json::{Value, json};
 
@@ -33,4 +33,14 @@ pub(crate) fn answer_with(provider: &str, text: &str, citations: &[(&str, &str)]
 pub(crate) fn failed_event(provider: &str) -> Value {
     serde_json::from_str(&sample(&format!("{provider}/response-failed.json")))
         .unwrap_or_else(|error| panic!("stored {provider}/response-failed.json: {error}"))
+}
+
+/// The event stream a Responses endpoint sends for `response`: a creation event, then
+/// `response.completed`.
+pub(crate) fn completed_events(response: &Value) -> String {
+    let created = json!({"type": "response.created", "response": {"status": "in_progress"}});
+    let completed = json!({"type": "response.completed", "response": response});
+    format!(
+        "event: response.created\ndata: {created}\n\nevent: response.completed\ndata: {completed}\n\n"
+    )
 }

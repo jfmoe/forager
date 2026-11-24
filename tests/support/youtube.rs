@@ -1,13 +1,9 @@
-//! YouTube fixtures: configuration for `youtube_api`, Data API bodies derived from the stored
-//! samples, and request and output readers shared by the `platform youtube` tests.
-
-use std::collections::BTreeMap;
-use std::process::Output;
+//! YouTube fixtures: configuration for `youtube_api`, Data API records derived from the stored
+//! samples, shared by the `platform youtube` tests.
 
 use serde_json::{Value, json};
 
-use super::Response;
-use super::youtube_api_samples::{self as samples, stored};
+use super::youtube_api_samples::stored;
 
 /// The fixture API key; tests assert it never leaves the request header.
 pub(crate) const KEY: &str = "yt-fixture-key-0123456789";
@@ -17,14 +13,6 @@ pub(crate) fn config(url: &str) -> String {
     format!(
         "[providers.youtube_api]\nurl = \"{url}/youtube/v3\"\nkeys = [\"{KEY}\"]\n\n[retry]\nmax_attempts = 1\n"
     )
-}
-
-pub(crate) fn json(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
-pub(crate) fn search_page(items: &[Value], next_page_token: Option<&str>) -> Response {
-    json(&samples::search_page(items, next_page_token))
 }
 
 /// The stored first search result as the video `video_id` titled `title` with `description`.
@@ -38,10 +26,6 @@ pub(crate) fn search_result(video_id: &str, title: &str, description: &str) -> V
     snippet["thumbnails"]["default"]["url"] =
         json!(format!("https://i.ytimg.com/vi/{video_id}/default.jpg"));
     result
-}
-
-pub(crate) fn videos_page(items: &[Value]) -> Response {
-    json(&samples::videos_page(items))
 }
 
 /// The stored details of a commented video as those of `video_id`, lasting `duration`, with
@@ -68,36 +52,6 @@ pub(crate) fn video_stats(
         }
     }
     video
-}
-
-pub(crate) fn zoo_video(description: &str) -> Value {
-    samples::zoo_video(description)
-}
-
-pub(crate) fn payload(output: &Output) -> Value {
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-        panic!(
-            "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    })
-}
-
-pub(crate) fn stderr(output: &Output) -> String {
-    String::from_utf8_lossy(&output.stderr).into_owned()
-}
-
-/// Builds the pairs of a recorded query for comparison.
-pub(crate) fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-    pairs
-        .iter()
-        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-        .collect()
-}
-
-pub(crate) fn comment_threads_page(items: &[Value], next_page_token: Option<&str>) -> Response {
-    json(&samples::comment_threads_page(items, next_page_token))
 }
 
 /// The stored first top-level comment as comment `id` by `author` saying `text`, with `likes`;
@@ -135,17 +89,3 @@ pub(crate) fn comment_thread(top: &Value, total_reply_count: u64, replies: &[Val
 
 /// The "Essence of linear algebra" playlist, which holds videos of its own channel.
 pub(crate) const LINEAR_ALGEBRA: &str = "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
-
-pub(crate) fn playlist_items_page(items: &[Value], next_page_token: Option<&str>) -> Response {
-    json(&samples::playlist_items_page(items, next_page_token))
-}
-
-pub(crate) fn playlist_item(
-    playlist: &str,
-    position: u64,
-    video_id: &str,
-    title: &str,
-    description: &str,
-) -> Value {
-    samples::playlist_item(playlist, position, video_id, title, description)
-}

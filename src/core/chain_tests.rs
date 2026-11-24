@@ -6,6 +6,7 @@ use super::{
     BudgetPolicy, ChainOutcome, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity,
     StepRejection, StepSuccess, StepVerdict, TerminalPolicy, chain_wide_error, run_chain,
 };
+use crate::fixture_server::block_on;
 use crate::types::ProviderError;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
@@ -53,10 +54,7 @@ fn drive(
     deadline_seconds: u64,
     script: &RefCell<Script>,
 ) -> Result<ChainOutcome<&'static str>, ProviderError> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .expect("test runtime");
-    runtime.block_on(run_chain(
+    block_on(run_chain(
         steps,
         settings,
         Deadline::new(Duration::from_secs(deadline_seconds)),

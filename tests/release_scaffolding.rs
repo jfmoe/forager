@@ -1,10 +1,11 @@
-mod support;
+#[path = "support/process.rs"]
+mod process;
 
 use std::collections::BTreeMap;
 use std::fs;
 
+use process::{command_behind_closed_proxy, run_command};
 use serde_json::{Map, Value};
-use support::{command_behind_closed_proxy, forager_command, run_command};
 
 const WORKFLOW_DIRECTORY: &str = ".github/workflows";
 
@@ -117,23 +118,6 @@ fn windows_runs_the_permission_and_release_artifact_tests_through_the_ci_profile
             "{target} is not among the ci-profile selections {selections:?}"
         );
     }
-}
-
-#[test]
-fn released_binary_reports_the_cargo_package_version() {
-    let mut command = forager_command();
-    command.arg("--version");
-    let output = run_command(&mut command, None);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            String::from_utf8_lossy(&output.stdout).trim().to_owned(),
-        ),
-        (Some(0), format!("forager {}", env!("CARGO_PKG_VERSION"))),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 // The artifact gate verifies the targets in its own file, a second list beside the one dist

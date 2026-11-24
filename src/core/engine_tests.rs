@@ -11,8 +11,10 @@ use super::{
 };
 use crate::chain::{ChainStep, StepSuccess, StepVerdict, run_chain};
 use crate::config::runtime_config_from_toml;
-use crate::fixture_server::{Fixture, Response, advance_after_request, block_on, request_json};
-use crate::main_search_samples::{answer_with, stored_answer};
+use crate::fixture_server::{
+    Fixture, Response, advance_after_request, block_on, block_on_paused, request_json,
+};
+use crate::main_search_samples::{answer_with, completed_events, stored_answer};
 use crate::net::{CONTENT_TRUNCATED_DIAGNOSTIC, MAX_RESPONSE_BYTES, RetryPolicy, build_client};
 use crate::providers::{FetchRequest, MainSearchRequest, ProviderId};
 use crate::samples::sample;
@@ -21,7 +23,6 @@ use crate::types::{
     SearchOutcome, SupplementalSearchOutcome,
 };
 use crate::web_samples::{jina, stored_with, tavily_results};
-use crate::x_samples::completed_events;
 
 const ARTICLE: &str = "https://example.test/article";
 
@@ -106,13 +107,7 @@ fn single_line_content_is_thin_for_html_but_not_pdf() {
 
 #[test]
 fn web_fetch_preserves_fallback_budget_after_an_attempt_timeout() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .start_paused(true)
-        .build()
-        .expect("test runtime");
-
-    runtime.block_on(async {
+    block_on_paused(async {
         let budgets = Rc::new(RefCell::new(Vec::new()));
         let outcome = run_chain(
             vec![

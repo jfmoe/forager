@@ -26,7 +26,7 @@ pub(crate) fn with(mut record: Value, fields: &Value) -> Value {
     record
 }
 
-fn without(mut record: Value, field: &str) -> Value {
+pub(crate) fn without(mut record: Value, field: &str) -> Value {
     record.as_object_mut().expect("record object").remove(field);
     record
 }
@@ -67,16 +67,6 @@ pub(crate) fn resolved(slug: &str, label: &str, won: bool) -> Value {
             "bestAsk": 0.998
         }),
     )
-}
-
-/// [`market`] as a neg-risk placeholder: open in name and accepting orders, but inactive, with
-/// no cached prices and no order book on the CLOB.
-pub(crate) fn placeholder(slug: &str, label: &str) -> Value {
-    let placeholder = with(
-        market(slug, label),
-        &json!({"active": false, "bestBid": 0, "bestAsk": 1}),
-    );
-    without(placeholder, "outcomePrices")
 }
 
 /// The stored neg-risk event renamed `slug`, holding `markets`.

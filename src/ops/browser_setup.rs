@@ -630,6 +630,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{Archive, Download, Installed, SetupFailure, Unpack, install_package};
+    use crate::fixture_server::block_on;
     use crate::providers::managed_browser::{Package, VERSION};
     use crate::types::{AttemptErrorKind, Deadline};
 
@@ -684,14 +685,6 @@ mod tests {
             fs::write(executable, "").expect("write executable");
             Ok(())
         }
-    }
-
-    fn block_on<T>(future: impl Future<Output = T>) -> T {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build test runtime")
-            .block_on(future)
     }
 
     fn run(

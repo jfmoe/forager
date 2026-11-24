@@ -5,7 +5,9 @@ use std::time::Duration;
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, fetch, parse_date, preflight_error, search};
+use super::{
+    PageInput, PlatformCommonArgs, PlatformInput, fetch, parse_date, preflight_error, search,
+};
 use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
 use crate::platform_operation;
@@ -176,21 +178,18 @@ pub(in crate::app) fn run(command: PolymarketCommand) -> Result<CommandOutput, A
 }
 
 fn polymarket_search(arguments: PolymarketSearchArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = polymarket_search_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = polymarket_search_input(arguments)?;
     search(Platform::Polymarket, input, format, &common)
 }
 
 /// The page a Polymarket search asks for, checked before any configuration is read.
 fn polymarket_search_input(
     arguments: PolymarketSearchArgs,
-) -> Result<
-    (
-        PageInput<PlatformSearchRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<PlatformSearchRequest>, OutputFormat>, AppError> {
     let PolymarketSearchArgs {
         query,
         include_closed,
@@ -211,25 +210,26 @@ fn polymarket_search_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 fn polymarket_fetch(arguments: PolymarketFetchArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = polymarket_fetch_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = polymarket_fetch_input(arguments)?;
     fetch(Platform::Polymarket, request, format, None, &common)
 }
 
 /// The fetch a Polymarket fetch asks for, checked before any configuration is read.
 fn polymarket_fetch_input(
     arguments: PolymarketFetchArgs,
-) -> Result<
-    (
-        PlatformFetchRequest,
-        ContentOutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PlatformFetchRequest, ContentOutputFormat>, AppError> {
     let PolymarketFetchArgs {
         reference,
         depth,
@@ -239,11 +239,19 @@ fn polymarket_fetch_input(
     let reference = PlatformRef::parse(Platform::Polymarket, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput, AppError> {
-    let (request, format, common) = polymarket_history_input(arguments)?;
+    let PlatformInput {
+        request,
+        format,
+        common,
+    } = polymarket_history_input(arguments)?;
     let dependencies = NetworkDependencies::load()?;
     let plan = platform_operation::plan_history(
         dependencies.platform(Platform::Polymarket)?,
@@ -274,7 +282,7 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
 /// The history a Polymarket history asks for, checked before any configuration is read.
 fn polymarket_history_input(
     arguments: PolymarketHistoryArgs,
-) -> Result<(PolymarketHistoryRequest, OutputFormat, PlatformCommonArgs), AppError> {
+) -> Result<PlatformInput<PolymarketHistoryRequest, OutputFormat>, AppError> {
     let PolymarketHistoryArgs {
         market,
         outcome,
@@ -293,7 +301,11 @@ fn polymarket_history_input(
     };
     let request = PolymarketHistoryRequest::new(market, outcome, window, bucket.map(Into::into))
         .map_err(AppError::Argument)?;
-    Ok((request, format, common))
+    Ok(PlatformInput {
+        request,
+        format,
+        common,
+    })
 }
 
 /// The Polymarket commands' argument rules, proven by parsing their definition in process.

@@ -1,26 +1,23 @@
 //! The local HTTP server behind every fixture, shared by the command contract tests and, through
-//! the crate root, the in-crate tests. Extend it when a test needs new server behavior instead of
-//! writing another server.
+//! the crate's fixture server module, the in-crate tests. It holds only what both use; a mode only
+//! one of them needs lives with that one, built on [`Fixture::serve`]. Extend it when a test needs
+//! new server behavior instead of writing another server.
 
 use std::collections::BTreeMap;
-use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
+pub(super) const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
-const SYNCHRONIZATION_DEADLINE: Duration = Duration::from_secs(2);
 
 pub(crate) struct Fixture {
     pub(crate) url: String,
     handle: thread::JoinHandle<Vec<String>>,
-    stop: Option<mpsc::Sender<()>>,
+    stop: mpsc::Sender<()>,
     expected_requests: Option<usize>,
-    arrived: Option<Arc<AtomicBool>>,
 }
 
 impl Fixture {
@@ -33,78 +30,21 @@ impl Fixture {
     }
 
     pub(crate) fn start_repeating(response: Response) -> Self {
-        let listener = fixture_listener("repeating fixture");
-        let address = listener.local_addr().expect("repeating fixture address");
-        let (stop, stopped) = mpsc::channel();
-        let handle = thread::spawn(move || {
-            let mut requests = Vec::new();
-            accept_until_stopped(&listener, &stopped, "repeating fixture", |stream| {
-                requests.push(respond(stream, &response));
-            });
-            requests
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-            stop: Some(stop),
-            expected_requests: None,
-            arrived: None,
-        }
+        Self::serve(
+            fixture_listener("repeating fixture"),
+            None,
+            move |listener, stopped| {
+                let mut requests = Vec::new();
+                accept_until_stopped(&listener, &stopped, "repeating fixture", |stream| {
+                    requests.push(respond(stream, &response));
+                });
+                requests
+            },
+        )
     }
 
     pub(crate) fn start_sequence(responses: Vec<Response>) -> Self {
         Self::start_sequence_with_deadline(responses, ACCEPT_DEADLINE)
-    }
-
-    pub(crate) fn start_synchronized_sequence(responses: Vec<Response>) -> Self {
-        Self::start_synchronized_sequences(vec![responses])
-            .pop()
-            .expect("synchronized fixture")
-    }
-
-    pub(crate) fn start_synchronized_sequences(
-        response_sequences: Vec<Vec<Response>>,
-    ) -> Vec<Self> {
-        let total_requests = response_sequences.iter().map(Vec::len).sum();
-        let synchronization = Arc::new(ConnectionBarrier::new(total_requests));
-        response_sequences
-            .into_iter()
-            .map(|responses| {
-                let listener = fixture_listener("synchronized fixture");
-                let address = listener.local_addr().expect("synchronized fixture address");
-                let expected_requests = responses.len();
-                let synchronization = Arc::clone(&synchronization);
-                let (stop, stopped) = mpsc::channel();
-                let handle = thread::spawn(move || {
-                    let workers = responses
-                        .into_iter()
-                        .enumerate()
-                        .map(|(received, response)| {
-                            let stream = accept_request(
-                                &listener,
-                                ACCEPT_DEADLINE,
-                                expected_requests,
-                                received,
-                            );
-                            let synchronization = Arc::clone(&synchronization);
-                            thread::spawn(move || {
-                                synchronization.arrive_and_wait();
-                                respond(stream, &response)
-                            })
-                        })
-                        .collect::<Vec<_>>();
-                    let requests = join_workers(workers);
-                    observe_extra_requests(&listener, &stopped, requests)
-                });
-                Self {
-                    url: format!("http://{address}"),
-                    handle,
-                    stop: Some(stop),
-                    expected_requests: Some(expected_requests),
-                    arrived: None,
-                }
-            })
-            .collect()
     }
 
     pub(crate) fn start_sequence_with_deadline(
@@ -136,29 +76,24 @@ impl Fixture {
         responses: Vec<Response>,
         accept_deadline: Duration,
     ) -> Self {
-        let address = listener.local_addr().expect("fixture address");
         let expected_requests = responses.len();
-        let (stop, stopped) = mpsc::channel();
-        let handle = thread::spawn(move || {
-            let mut requests = Vec::with_capacity(expected_requests);
-            for response in responses {
-                let stream = accept_request(
-                    &listener,
-                    accept_deadline,
-                    expected_requests,
-                    requests.len(),
-                );
-                requests.push(respond(stream, &response));
-            }
-            observe_extra_requests(&listener, &stopped, requests)
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-            stop: Some(stop),
-            expected_requests: Some(expected_requests),
-            arrived: None,
-        }
+        Self::serve(
+            listener,
+            Some(expected_requests),
+            move |listener, stopped| {
+                let mut requests = Vec::with_capacity(expected_requests);
+                for response in responses {
+                    let stream = accept_request(
+                        &listener,
+                        accept_deadline,
+                        expected_requests,
+                        requests.len(),
+                    );
+                    requests.push(respond(stream, &response));
+                }
+                observe_extra_requests(&listener, &stopped, requests)
+            },
+        )
     }
 
     /// Answers each request by its method and path, ignoring the query, so concurrent requests
@@ -166,100 +101,80 @@ impl Fixture {
     /// and path answer in the order given. [`Self::finish_all`] returns the requests in route
     /// order, and fails when a route was never requested or a request matched no route.
     pub(crate) fn start_routed(routes: Vec<Route>) -> Self {
-        let listener = fixture_listener("routed fixture");
-        let address = listener.local_addr().expect("routed fixture address");
-        let (stop, stopped) = mpsc::channel();
         let table = Arc::new(Mutex::new(RouteTable::new(routes)));
-        let handle = thread::spawn(move || {
-            let mut workers = Vec::new();
-            accept_until_stopped(&listener, &stopped, "routed fixture", |stream| {
-                let table = Arc::clone(&table);
-                workers.push(thread::spawn(move || answer_routed(stream, &table)));
-            });
-            for worker in workers {
-                worker
-                    .join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-            }
-            Arc::into_inner(table)
-                .expect("routed fixture workers finished")
-                .into_inner()
-                .expect("routed fixture routes")
-                .finish()
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-            stop: Some(stop),
-            expected_requests: None,
-            arrived: None,
-        }
-    }
-
-    /// Accepts one request and never answers it, holding the connection open until the fixture
-    /// is finished, for a test that runs past a deadline with [`advance_after_request`].
-    pub(crate) fn start_unanswered() -> Self {
-        let listener = fixture_listener("unanswered fixture");
-        let address = listener.local_addr().expect("unanswered fixture address");
-        let (stop, stopped) = mpsc::channel::<()>();
-        let arrived = Arc::new(AtomicBool::new(false));
-        let server_arrived = Arc::clone(&arrived);
-        let handle = thread::spawn(move || {
-            let mut stream = accept_request(&listener, ACCEPT_DEADLINE, 1, 0);
-            let request = read_request(&mut stream);
-            server_arrived.store(true, Ordering::Release);
-            let _ = stopped.recv();
-            vec![request]
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-            stop: Some(stop),
-            expected_requests: Some(1),
-            arrived: Some(arrived),
-        }
+        Self::serve(
+            fixture_listener("routed fixture"),
+            None,
+            move |listener, stopped| {
+                let mut workers = Vec::new();
+                accept_until_stopped(&listener, &stopped, "routed fixture", |stream| {
+                    let table = Arc::clone(&table);
+                    workers.push(thread::spawn(move || answer_routed(stream, &table)));
+                });
+                for worker in workers {
+                    worker
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+                }
+                Arc::into_inner(table)
+                    .expect("routed fixture workers finished")
+                    .into_inner()
+                    .expect("routed fixture routes")
+                    .finish()
+            },
+        )
     }
 
     pub(crate) fn start_canary() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture canary");
-        listener
-            .set_nonblocking(true)
-            .expect("set fixture canary nonblocking");
-        let address = listener.local_addr().expect("fixture canary address");
-        let (stop, stopped) = mpsc::channel();
-        let handle = thread::spawn(move || {
-            let mut requests = Vec::new();
-            loop {
-                match stopped.try_recv() {
-                    Ok(()) | Err(mpsc::TryRecvError::Disconnected) => break,
-                    Err(mpsc::TryRecvError::Empty) => {}
-                }
-                match listener.accept() {
-                    Ok((mut stream, _)) => {
-                        stream
-                            .set_read_timeout(Some(ACCEPT_DEADLINE))
-                            .expect("set canary stream read timeout");
-                        let request = read_request(&mut stream);
-                        let _ = stream.write_all(
+        Self::serve(
+            fixture_listener("fixture canary"),
+            None,
+            |listener, stopped| {
+                let mut requests = Vec::new();
+                loop {
+                    match stopped.try_recv() {
+                        Ok(()) | Err(mpsc::TryRecvError::Disconnected) => break,
+                        Err(mpsc::TryRecvError::Empty) => {}
+                    }
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            stream
+                                .set_read_timeout(Some(ACCEPT_DEADLINE))
+                                .expect("set canary stream read timeout");
+                            let request = read_request(&mut stream);
+                            let _ = stream.write_all(
                             b"HTTP/1.1 500 Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
                         );
-                        requests.push(request);
-                        break;
+                            requests.push(request);
+                            break;
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(ACCEPT_POLL_INTERVAL);
+                        }
+                        Err(error) => panic!("accept fixture canary request: {error}"),
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(ACCEPT_POLL_INTERVAL);
-                    }
-                    Err(error) => panic!("accept fixture canary request: {error}"),
                 }
-            }
-            requests
-        });
+                requests
+            },
+        )
+    }
+
+    /// Serves `listener` on a thread of its own with `server`, which receives the stop signal
+    /// and returns the requests it recorded. Finishing the fixture asserts `expected_requests`
+    /// when it is given.
+    pub(super) fn serve(
+        listener: TcpListener,
+        expected_requests: Option<usize>,
+        server: impl FnOnce(TcpListener, mpsc::Receiver<()>) -> Vec<String> + Send + 'static,
+    ) -> Self {
+        let address = listener.local_addr().expect("fixture address");
+        let (stop, stopped) = mpsc::channel();
+        let handle = thread::spawn(move || server(listener, stopped));
         Self {
             url: format!("http://{address}"),
             handle,
-            stop: Some(stop),
-            expected_requests: None,
-            arrived: None,
+            stop,
+            expected_requests,
         }
     }
 
@@ -270,10 +185,8 @@ impl Fixture {
             .expect("fixture request")
     }
 
-    pub(crate) fn finish_all(mut self) -> Vec<String> {
-        if let Some(stop) = self.stop.take() {
-            let _ = stop.send(());
-        }
+    pub(crate) fn finish_all(self) -> Vec<String> {
+        let _ = self.stop.send(());
         let requests = self.handle.join().unwrap_or_else(|panic| {
             std::panic::resume_unwind(panic);
         });
@@ -394,44 +307,7 @@ fn answer_routed(mut stream: TcpStream, table: &Mutex<RouteTable>) {
     write_response(stream, &response);
 }
 
-struct ConnectionBarrier {
-    expected: usize,
-    arrived: Mutex<usize>,
-    all_arrived: Condvar,
-}
-
-impl ConnectionBarrier {
-    fn new(expected: usize) -> Self {
-        Self {
-            expected,
-            arrived: Mutex::new(0),
-            all_arrived: Condvar::new(),
-        }
-    }
-
-    fn arrive_and_wait(&self) {
-        let mut arrived = self.arrived.lock().expect("lock fixture barrier");
-        *arrived += 1;
-        if *arrived == self.expected {
-            self.all_arrived.notify_all();
-            return;
-        }
-        let (arrived, timeout) = self
-            .all_arrived
-            .wait_timeout_while(arrived, SYNCHRONIZATION_DEADLINE, |arrived| {
-                *arrived < self.expected
-            })
-            .expect("wait on fixture barrier");
-        assert!(
-            !timeout.timed_out(),
-            "fixture timed out waiting for concurrent requests: expected {}, received {}",
-            self.expected,
-            *arrived
-        );
-    }
-}
-
-fn fixture_listener(label: &str) -> TcpListener {
+pub(super) fn fixture_listener(label: &str) -> TcpListener {
     let listener =
         TcpListener::bind("127.0.0.1:0").unwrap_or_else(|error| panic!("bind {label}: {error}"));
     listener
@@ -440,18 +316,7 @@ fn fixture_listener(label: &str) -> TcpListener {
     listener
 }
 
-fn join_workers(workers: Vec<thread::JoinHandle<String>>) -> Vec<String> {
-    workers
-        .into_iter()
-        .map(|worker| {
-            worker
-                .join()
-                .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-        })
-        .collect()
-}
-
-fn observe_extra_requests(
+pub(super) fn observe_extra_requests(
     listener: &TcpListener,
     stopped: &mpsc::Receiver<()>,
     mut requests: Vec<String>,
@@ -496,13 +361,13 @@ fn accept_until_stopped(
     }
 }
 
-fn respond(mut stream: TcpStream, response: &Response) -> String {
+pub(super) fn respond(mut stream: TcpStream, response: &Response) -> String {
     let request = read_request(&mut stream);
     write_response(stream, response);
     request
 }
 
-fn read_request(stream: &mut TcpStream) -> String {
+pub(super) fn read_request(stream: &mut TcpStream) -> String {
     let mut request = Vec::new();
     let mut buffer = [0_u8; 4096];
     loop {
@@ -538,7 +403,7 @@ fn write_response(mut stream: TcpStream, response: &Response) {
     let _ = stream.write_all(response.body.as_bytes());
 }
 
-fn accept_request(
+pub(super) fn accept_request(
     listener: &TcpListener,
     deadline: Duration,
     expected_requests: usize,
@@ -573,8 +438,8 @@ pub(crate) struct Response {
     status: u16,
     content_type: String,
     body: String,
-    delay: Duration,
-    declared_content_length: Option<usize>,
+    pub(super) delay: Duration,
+    pub(super) declared_content_length: Option<usize>,
 }
 
 impl Response {
@@ -595,16 +460,11 @@ impl Response {
     pub(crate) fn sse(status: u16, body: &str) -> Self {
         Self::new(status, "text/event-stream", body)
     }
+}
 
-    pub(crate) fn with_delay(mut self, delay: Duration) -> Self {
-        self.delay = delay;
-        self
-    }
-
-    pub(crate) fn with_declared_content_length(mut self, length: usize) -> Self {
-        self.declared_content_length = Some(length);
-        self
-    }
+/// A 200 answer with the JSON `body`.
+pub(crate) fn ok_json(body: &serde_json::Value) -> Response {
+    Response::json(200, &body.to_string())
 }
 
 fn request_complete(request: &[u8]) -> bool {
@@ -662,45 +522,10 @@ pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// Runs `operation` on the paused clock until `fixture`, started with
-/// [`Fixture::start_unanswered`], holds its request, then advances the clock by `elapsed` and
-/// returns the outcome. Waiting for the request first keeps the clock from passing a deadline
-/// while the request is still in flight, so the outcome does not depend on scheduling.
-pub(crate) fn advance_after_request<T>(
-    fixture: &Fixture,
-    elapsed: Duration,
-    operation: impl Future<Output = T>,
-) -> T {
-    let arrived = fixture
-        .arrived
-        .as_ref()
-        .expect("only an unanswered fixture reports its request");
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .start_paused(true)
-        .build()
-        .expect("paused test runtime")
-        .block_on(async {
-            let mut operation = std::pin::pin!(operation);
-            while !arrived.load(Ordering::Acquire) {
-                let polled = futures_util::poll!(operation.as_mut());
-                assert!(
-                    polled.is_pending(),
-                    "the operation ended before the fixture received its request"
-                );
-                tokio::task::yield_now().await;
-            }
-            tokio::time::advance(elapsed).await;
-            operation.await
-        })
-}
-
-/// Runs `future` to completion on a current-thread runtime, for an in-crate test that drives a
-/// route against the fixture server.
-pub(crate) fn block_on<T>(future: impl Future<Output = T>) -> T {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("test runtime")
-        .block_on(future)
+/// The query parameters `pairs` in the form [`query`] returns, for comparison.
+pub(crate) fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+    pairs
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect()
 }

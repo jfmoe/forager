@@ -53,7 +53,7 @@ fn search_request(arguments: &[&str]) -> Result<PlatformSearchRequest, AppError>
     let Ok(parsed) = search_args(arguments) else {
         panic!("the parser accepts a scholar search of {arguments:?}");
     };
-    match scholar_search_input(parsed)?.0 {
+    match scholar_search_input(parsed)?.request {
         PageInput::Request(request) => Ok(request),
         PageInput::Cursor(_) => panic!("the arguments name no cursor"),
     }
@@ -64,7 +64,7 @@ fn cited_by_request(arguments: &[&str]) -> Result<ScholarCitedByRequest, AppErro
     let Ok(parsed) = cited_by_args(arguments) else {
         panic!("the parser accepts a scholar cited-by of {arguments:?}");
     };
-    match cited_by_input(parsed)?.0 {
+    match cited_by_input(parsed)?.request {
         PageInput::Request(request) => Ok(request),
         PageInput::Cursor(_) => panic!("the arguments name no cursor"),
     }
@@ -260,7 +260,7 @@ fn a_cluster_ref_or_url_fetches_the_cluster_it_names_at_the_depth_asked() {
     ] {
         let parsed = fetch_args(arguments).expect("the parser accepts the arguments");
 
-        let (request, _, _) = scholar_fetch_input(parsed).expect("a request");
+        let request = scholar_fetch_input(parsed).expect("a request").request;
 
         assert_eq!(
             (request.reference.to_string(), request.depth),

@@ -3,7 +3,7 @@
 use chrono::NaiveDate;
 use clap::{Args, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, parse_date, search};
+use super::{PageInput, PlatformCommonArgs, PlatformInput, parse_date, search};
 use crate::app::args::OutputFormat;
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{Platform, PlatformSearchOptions, PlatformSearchRequest, SsrnSearchOptions};
@@ -73,21 +73,18 @@ pub(in crate::app) struct SsrnSearchArgs {
 }
 
 pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, AppError> {
-    let (input, format, common) = ssrn_search_input(arguments)?;
+    let PlatformInput {
+        request: input,
+        format,
+        common,
+    } = ssrn_search_input(arguments)?;
     search(Platform::Ssrn, input, format, &common)
 }
 
 /// Builds the page a search asks for and checks its criteria before any request.
 fn ssrn_search_input(
     arguments: SsrnSearchArgs,
-) -> Result<
-    (
-        PageInput<PlatformSearchRequest>,
-        OutputFormat,
-        PlatformCommonArgs,
-    ),
-    AppError,
-> {
+) -> Result<PlatformInput<PageInput<PlatformSearchRequest>, OutputFormat>, AppError> {
     let SsrnSearchArgs {
         query,
         scope,
@@ -144,7 +141,11 @@ fn ssrn_search_input(
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    Ok((input, format, common))
+    Ok(PlatformInput {
+        request: input,
+        format,
+        common,
+    })
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]

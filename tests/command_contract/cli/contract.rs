@@ -1,0 +1,240 @@
+use std::process::Output;
+
+use crate::support::{forager_command, run_command};
+use clap::{CommandFactory, Parser};
+use forager::app::Cli;
+
+#[test]
+fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
+    let command = Cli::command();
+    let commands = command
+        .get_subcommands()
+        .map(|subcommand| {
+            (
+                subcommand.get_name(),
+                subcommand.get_visible_aliases().collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        commands,
+        [
+            ("search", vec!["s"]),
+            ("fetch", vec!["f"]),
+            ("map", vec![]),
+            ("exa", vec![]),
+            ("platform", vec![]),
+            ("browser", vec![]),
+            ("config", vec![]),
+            ("setup", vec![]),
+            ("doctor", vec![]),
+            ("smoke", vec![]),
+        ]
+    );
+    let config = command
+        .get_subcommands()
+        .find(|subcommand| subcommand.get_name() == "config")
+        .expect("config command");
+    assert_eq!(
+        config
+            .get_subcommands()
+            .map(|subcommand| {
+                (
+                    subcommand.get_name(),
+                    subcommand.get_visible_aliases().collect::<Vec<_>>(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [
+            ("path", vec![]),
+            ("list", vec!["ls"]),
+            ("set", vec![]),
+            ("unset", vec![]),
+        ]
+    );
+    let browser = command
+        .get_subcommands()
+        .find(|subcommand| subcommand.get_name() == "browser")
+        .expect("browser command");
+    assert_eq!(
+        browser
+            .get_subcommands()
+            .map(clap::Command::get_name)
+            .collect::<Vec<_>>(),
+        ["install", "login"]
+    );
+    assert!(Cli::try_parse_from(["forager", "setu", "--non-interactive"]).is_err());
+}
+
+#[test]
+fn platform_commands_nest_operations_under_each_platform() {
+    let command = Cli::command();
+    let platforms = command
+        .find_subcommand("platform")
+        .expect("platform command")
+        .get_subcommands()
+        .map(|platform| {
+            (
+                platform.get_name(),
+                platform
+                    .get_subcommands()
+                    .map(clap::Command::get_name)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        platforms,
+        [
+            ("arxiv", vec!["search", "fetch"]),
+            ("ssrn", vec!["search", "fetch"]),
+            ("scholar", vec!["search", "fetch", "cited-by"]),
+            ("xiaohongshu", vec!["search", "fetch", "comments"]),
+            ("x", vec!["search", "fetch", "ask"]),
+            ("hn", vec!["search", "fetch", "stories"]),
+            (
+                "youtube",
+                vec!["search", "fetch", "comments", "videos", "ask", "transcribe"]
+            ),
+            ("polymarket", vec!["search", "fetch", "history"]),
+            ("reddit", vec!["search", "fetch"])
+        ]
+    );
+}
+
+#[test]
+fn arxiv_search_help_lists_every_option_and_value() {
+    let output = run(&["platform", "arxiv", "search", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "[QUERY]",
+        "--category <CATEGORY>",
+        "--author <AUTHOR>",
+        "--title <TITLE>",
+        "--submitted-from <YYYY-MM-DD>",
+        "--submitted-to <YYYY-MM-DD>",
+        "[possible values: relevance, submitted, updated]",
+        "--limit <LIMIT>",
+        "--cursor <CURSOR>",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn arxiv_fetch_help_lists_every_option_and_value() {
+    let output = run(&["platform", "arxiv", "fetch", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "<REFERENCE>",
+        "--depth <DEPTH>",
+        "[default: full_text]",
+        "[possible values: full_text, abstract]",
+        "--content-dir <DIR>",
+        "[possible values: json, markdown, content]",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn ssrn_search_help_lists_every_option() {
+    let output = run(&["platform", "ssrn", "search", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "[QUERY]",
+        "--limit <LIMIT>",
+        "--cursor <CURSOR>",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn ssrn_fetch_help_defaults_to_metadata_depth() {
+    let output = run(&["platform", "ssrn", "fetch", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "<REFERENCE>",
+        "--depth <DEPTH>",
+        "[default: metadata]",
+        "[possible values: metadata, abstract]",
+        "[possible values: json, markdown, content]",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn an_undefined_command_or_option_is_a_usage_error_naming_it() {
+    for (arguments, named) in [
+        (&["no-such-command", "query"][..], "no-such-command"),
+        (
+            &["search", "query", "--no-such-option", "x"][..],
+            "--no-such-option",
+        ),
+    ] {
+        let output = run(arguments);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            (output.status.code(), stderr.contains(named)),
+            (Some(2), true),
+            "{arguments:?} stderr: {stderr}"
+        );
+    }
+}
+
+#[test]
+fn released_binary_reports_the_cargo_package_version() {
+    let mut command = forager_command();
+    command.arg("--version");
+    let output = run_command(&mut command, None);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        ),
+        (Some(0), format!("forager {}", env!("CARGO_PKG_VERSION"))),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn run(arguments: &[&str]) -> Output {
+    let isolated = tempfile::tempdir().expect("isolated environment");
+    let mut command = forager_command();
+    command
+        .args(arguments)
+        .env("HOME", isolated.path())
+        .env("XDG_CONFIG_HOME", isolated.path().join("config"))
+        .env("XDG_STATE_HOME", isolated.path().join("state"));
+    run_command(&mut command, None)
+}
