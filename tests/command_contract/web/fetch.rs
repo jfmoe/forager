@@ -2,22 +2,20 @@ use std::fs;
 
 use serde_json::Value;
 
-use crate::support::samples::sample;
+use crate::support::samples::sample_json;
 use crate::support::web_samples::jina;
 use crate::support::{Fixture, Response, RunEnvironment};
 
 /// The stored Tavily extract answer whose page content is `raw_content`.
 fn tavily_extract(raw_content: &str) -> String {
-    let mut answer: Value =
-        serde_json::from_str(&sample("tavily/extract.json")).expect("stored extract answer");
+    let mut answer = sample_json("tavily/extract.json");
     answer["results"][0]["raw_content"] = serde_json::json!(raw_content);
     answer.to_string()
 }
 
 /// The stored Jina Reader error with `message` as its reason.
 fn jina_refusal(message: &str) -> String {
-    let mut answer: Value =
-        serde_json::from_str(&sample("jina/error.json")).expect("stored Reader error");
+    let mut answer = sample_json("jina/error.json");
     answer["message"] = serde_json::json!(message);
     answer["readableMessage"] = serde_json::json!(message);
     answer.to_string()

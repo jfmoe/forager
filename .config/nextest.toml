@@ -10,7 +10,8 @@ failure-output = "immediate"
 success-output = "never"
 fail-fast = false
 # The release artifact gate packages a release and runs only in the CI profile; the summary counts
-# its tests among the skipped ones.
+# its tests among the skipped ones. A filter of binary predicates alone skips the binary without
+# listing it, so its tests would vanish from that count; `test(/^/)` makes the runner list them.
 default-filter = "not (binary_id(forager::release_artifact_gate) & test(/^/))"
 # A test that runs longer is terminated and named. The shared test environment's deadlines stay
 # under this limit, so a test that waits for something that never comes fails with its own

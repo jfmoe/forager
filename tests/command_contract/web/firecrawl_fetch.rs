@@ -1,13 +1,12 @@
 use serde_json::{Value, json};
 
-use crate::support::samples::sample;
+use crate::support::samples::sample_json;
 use crate::support::{Fixture, RunEnvironment, header, request_json};
 
 #[test]
 fn a_firecrawl_fetch_prints_the_markdown_scraped_with_the_configured_key() {
     let content = "Firecrawl fixture content. ".repeat(30);
-    let mut answer: Value =
-        serde_json::from_str(&sample("firecrawl/scrape.json")).expect("stored scrape answer");
+    let mut answer = sample_json("firecrawl/scrape.json");
     answer["data"]["markdown"] = json!(content);
     let body = answer.to_string();
     let fixture = Fixture::start(200, "application/json", &body);

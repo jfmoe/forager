@@ -497,14 +497,14 @@ mod tests {
 
     use super::{ACCOUNT_PATH, PageFacts, absorb};
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
-    use crate::providers::xiaohongshu_browser::tests::stored;
+    use crate::samples::sample_json;
 
     const SEARCH_PATH: &str = "/api/sns/web/v1/search/notes";
     const ONEBOX_PATH: &str = "/api/sns/web/v1/search/onebox";
 
     /// The stored `search/notes` failure answer with `code` and `msg`.
     fn failure(code: i64, msg: &str) -> Value {
-        let mut answer = stored("search-error.json");
+        let mut answer = sample_json("xiaohongshu_browser/search-error.json");
         answer["code"] = json!(code);
         answer["msg"] = json!(msg);
         answer
@@ -534,11 +534,15 @@ mod tests {
 
     #[test]
     fn an_account_answer_with_a_login_code_or_a_guest_is_a_logged_out_session() {
-        let mut expired = stored("account-logged-out.json");
+        let mut expired = sample_json("xiaohongshu_browser/account-logged-out.json");
         expired["code"] = json!(-100);
-        let mut guest = stored("account.json");
+        let mut guest = sample_json("xiaohongshu_browser/account.json");
         guest["data"]["guest"] = json!(true);
-        let answers = [stored("account-logged-out.json"), expired, guest];
+        let answers = [
+            sample_json("xiaohongshu_browser/account-logged-out.json"),
+            expired,
+            guest,
+        ];
 
         let guests =
             answers.map(|answer| absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&answer))]).guest);
@@ -548,7 +552,11 @@ mod tests {
 
     #[test]
     fn a_logged_in_account_answer_is_no_page_fact() {
-        let facts = absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&stored("account.json")))]);
+        let facts = absorbed(&[exchange(
+            ACCOUNT_PATH,
+            200,
+            Some(&sample_json("xiaohongshu_browser/account.json")),
+        )]);
 
         assert_eq!(
             (facts.guest, facts.blocked_status, facts.api_error.is_none()),
@@ -561,7 +569,7 @@ mod tests {
         let facts = absorbed(&[exchange(
             SEARCH_PATH,
             200,
-            Some(&stored("search-error.json")),
+            Some(&sample_json("xiaohongshu_browser/search-error.json")),
         )]);
 
         assert_eq!((facts.guest, facts.api_error.is_none()), (true, true));
@@ -586,7 +594,11 @@ mod tests {
 
     #[test]
     fn a_zero_code_is_no_failure_even_without_success() {
-        let facts = absorbed(&[exchange(ONEBOX_PATH, 200, Some(&stored("onebox.json")))]);
+        let facts = absorbed(&[exchange(
+            ONEBOX_PATH,
+            200,
+            Some(&sample_json("xiaohongshu_browser/onebox.json")),
+        )]);
 
         assert!(facts.api_error.is_none(), "{:?}", facts.api_error);
     }

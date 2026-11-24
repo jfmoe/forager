@@ -4,6 +4,9 @@
 
 #[path = "cli/app.rs"]
 pub mod app;
+#[cfg(test)]
+#[path = "../tests/support/arxiv_api_samples.rs"]
+mod arxiv_api_samples;
 #[path = "evidence/attempt_log.rs"]
 mod attempt_log;
 #[path = "core/attempt_trace.rs"]
@@ -25,11 +28,19 @@ mod doctor;
 #[path = "core/engine.rs"]
 mod engine;
 #[cfg(test)]
+#[path = "../tests/support/exa_samples.rs"]
+mod exa_samples;
+#[cfg(test)]
 #[path = "capabilities/fixture_server.rs"]
 mod fixture_server;
+#[cfg(test)]
+#[path = "../tests/support/gemini_api_samples.rs"]
+mod gemini_api_samples;
+#[cfg(test)]
+#[path = "../tests/support/hn_api_samples.rs"]
+mod hn_api_samples;
 #[path = "evidence/journal.rs"]
 mod journal;
-// The main-search answers derived from the stored samples, shared like the sample reader.
 #[cfg(test)]
 #[path = "../tests/support/main_search_samples.rs"]
 mod main_search_samples;
@@ -48,13 +59,17 @@ mod platform_fetch;
 mod platform_operation;
 #[path = "core/platform_precheck.rs"]
 mod platform_precheck;
+#[cfg(test)]
+#[path = "../tests/support/polymarket_api_samples.rs"]
+mod polymarket_api_samples;
 #[path = "capabilities/providers/mod.rs"]
 mod providers;
 #[path = "capabilities/rate_limit.rs"]
 mod rate_limit;
 #[path = "infra/redact.rs"]
 mod redact;
-// Shared with the command contract tests, like the fixture server.
+// The sample reader, shared with the command contract tests like the fixture server, as is each
+// `*_samples` module of variants derived from the stored samples.
 #[cfg(test)]
 #[path = "../tests/support/samples.rs"]
 mod samples;
@@ -64,16 +79,16 @@ mod search_fanout;
 mod secure_fs;
 #[path = "ops/smoke.rs"]
 mod smoke;
+#[cfg(test)]
+#[path = "../tests/support/ssrn_crossref_samples.rs"]
+mod ssrn_crossref_samples;
 #[path = "infra/state_file.rs"]
 mod state_file;
 #[path = "infra/types/mod.rs"]
 pub mod types;
-// The Web Fetch and web search answers derived from the stored samples, shared like the sample
-// reader.
 #[cfg(test)]
 #[path = "../tests/support/web_samples.rs"]
 mod web_samples;
-// The xAI Responses bodies derived from the stored samples, shared like the sample reader.
 #[cfg(test)]
-#[path = "../tests/support/x_samples.rs"]
-mod x_samples;
+#[path = "../tests/support/youtube_api_samples.rs"]
+mod youtube_api_samples;

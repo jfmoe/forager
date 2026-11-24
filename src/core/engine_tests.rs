@@ -14,10 +14,10 @@ use crate::config::runtime_config_from_toml;
 use crate::fixture_server::{
     Fixture, Response, advance_after_request, block_on, block_on_paused, request_json,
 };
-use crate::main_search_samples::{answer_with, completed_events, stored_answer};
+use crate::main_search_samples::{answer_with, completed, stored_answer};
 use crate::net::{CONTENT_TRUNCATED_DIAGNOSTIC, MAX_RESPONSE_BYTES, RetryPolicy, build_client};
 use crate::providers::{FetchRequest, MainSearchRequest, ProviderId};
-use crate::samples::sample;
+use crate::samples::{sample, sample_json};
 use crate::types::{
     AttemptErrorKind, Deadline, FallbackPolicy, FetchOutcome, ProviderAttempt, ProviderError,
     SearchOutcome, SupplementalSearchOutcome,
@@ -380,8 +380,7 @@ fn web_search(
 }
 
 fn firecrawl_results(results: &Value) -> Response {
-    let mut body: Value =
-        serde_json::from_str(&sample("firecrawl/search.json")).expect("stored JSON");
+    let mut body = sample_json("firecrawl/search.json");
     body["data"]["web"] = results.clone();
     Response::json(200, &body.to_string())
 }
@@ -567,7 +566,7 @@ fn a_command_deadline_ends_main_search_as_a_timeout_that_keeps_its_attempt() {
 }
 
 fn answer(provider: &str) -> Response {
-    Response::sse(200, &completed_events(&stored_answer(provider)))
+    completed(&stored_answer(provider))
 }
 
 fn overloaded() -> Response {
@@ -613,7 +612,7 @@ fn main_search_falls_back_when_xai_normalization_leaves_no_answer() {
         "<think>hidden only</think>",
         &[("https://example.test/hidden", "Source")],
     );
-    let xai = Fixture::start_sequence(vec![Response::sse(200, &completed_events(&hidden))]);
+    let xai = Fixture::start_sequence(vec![completed(&hidden)]);
     let openai = Fixture::start_sequence(vec![answer("openai")]);
     let document = main_search_document(&[("xai", Some(&xai.url)), ("openai", Some(&openai.url))]);
 

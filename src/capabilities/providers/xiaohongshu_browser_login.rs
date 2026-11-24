@@ -50,7 +50,7 @@ mod tests {
 
     use super::{ACCOUNT_PATH, logged_in};
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
-    use crate::providers::xiaohongshu_browser::tests::stored;
+    use crate::samples::sample_json;
 
     fn account(body: &Value) -> Exchange {
         Exchange {
@@ -66,14 +66,19 @@ mod tests {
 
     #[test]
     fn a_non_guest_account_answer_is_a_login() {
-        assert!(logged_in(&[account(&stored("account.json"))]));
+        assert!(logged_in(&[account(&sample_json(
+            "xiaohongshu_browser/account.json"
+        ))]));
     }
 
     #[test]
     fn a_guest_or_missing_session_is_no_login() {
-        let mut guest = stored("account.json");
+        let mut guest = sample_json("xiaohongshu_browser/account.json");
         guest["data"]["guest"] = json!(true);
-        let answers = [guest, stored("account-logged-out.json")];
+        let answers = [
+            guest,
+            sample_json("xiaohongshu_browser/account-logged-out.json"),
+        ];
 
         assert!(!logged_in(&answers.map(|answer| account(&answer))));
     }

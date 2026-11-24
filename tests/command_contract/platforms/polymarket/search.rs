@@ -2,12 +2,15 @@ use serde_json::json;
 
 use crate::support::path;
 use crate::support::polymarket::{config, run};
-use crate::support::polymarket_samples::stored;
+use crate::support::samples::sample;
 use crate::support::{Fixture, Response, RunEnvironment, payload, stderr};
 
 #[test]
 fn a_search_prints_the_matching_events_as_platform_items() {
-    let gamma = Fixture::start_sequence(vec![Response::json(200, &stored("search.json"))]);
+    let gamma = Fixture::start_sequence(vec![Response::json(
+        200,
+        &sample("polymarket_api/search.json"),
+    )]);
     let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
 
     let output = run(&environment, &["search", "fed rate"]);

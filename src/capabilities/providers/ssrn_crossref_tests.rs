@@ -13,8 +13,8 @@ use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, q
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::{failure, to_json};
-// The stored bodies below read the sample store through this name.
-use crate::samples;
+use crate::samples::{sample, sample_json, with};
+use crate::ssrn_crossref_samples::{work_list, work_with};
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource,
     PlatformFetchOutcome, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -22,16 +22,11 @@ use crate::types::{
     SsrnSearchOptions, SsrnSearchScope, SsrnSort, SsrnSortOrder, SsrnWorkType,
 };
 
-#[path = "../../../tests/support/ssrn_samples.rs"]
-mod stored;
-
-use stored::{stored_json, with, work_list, work_with};
-
 /// The stored work list's first record, an SSRN paper with an abstract, as `ssrn:<id>` titled
 /// `Paper <id>` with the abstract `Abstract of <id>.`.
 fn listed_work(id: &str) -> Value {
     with(
-        stored_json("work-list.json")["message"]["items"][0].clone(),
+        sample_json("ssrn_crossref/work-list.json")["message"]["items"][0].clone(),
         &json!({
             "DOI": format!("10.2139/ssrn.{id}"),
             "title": [format!("Paper {id}")],
@@ -118,7 +113,7 @@ fn fetch(
 
 #[test]
 fn a_search_page_decodes_its_ssrn_records_and_names_the_records_it_drops() {
-    let list = decode_message::<WorkList>(&stored::stored("work-list.json"), "work-list")
+    let list = decode_message::<WorkList>(&sample("ssrn_crossref/work-list.json"), "work-list")
         .expect("a work list");
 
     let page = SearchPage::from_list(list, 0, 10);
@@ -193,7 +188,7 @@ fn records_without_an_ssrn_doi_are_named_in_one_diagnostic() {
 
     let (outcome, _) = search(
         &request,
-        vec![Response::json(200, &stored::stored("work-list.json"))],
+        vec![Response::json(200, &sample("ssrn_crossref/work-list.json"))],
     );
 
     assert_eq!(
@@ -368,7 +363,7 @@ fn a_full_page_that_reaches_the_total_names_no_next_page() {
 
 #[test]
 fn the_last_page_is_judged_before_non_ssrn_records_are_dropped() {
-    let elsewhere = stored_json("work-list.json")["message"]["items"][1].clone();
+    let elsewhere = sample_json("ssrn_crossref/work-list.json")["message"]["items"][1].clone();
     let request = first_page("momentum", 2, SsrnSearchOptions::default());
 
     let (outcome, _) = search(
@@ -453,7 +448,7 @@ fn a_search_answered_with_another_message_type_is_a_runtime_failure() {
 
     let (outcome, _) = search(
         &request,
-        vec![Response::json(200, &stored::stored("work.json"))],
+        vec![Response::json(200, &sample("ssrn_crossref/work.json"))],
     );
 
     assert_eq!(
@@ -507,7 +502,7 @@ fn a_search_sends_no_credential_and_records_one_anonymous_attempt() {
 
 #[test]
 fn a_work_decodes_to_the_paper_with_its_abstract() {
-    let work = decode_message::<Work>(&stored::stored("work.json"), "work").expect("a work");
+    let work = decode_message::<Work>(&sample("ssrn_crossref/work.json"), "work").expect("a work");
 
     let item = select_paper(work, &paper()).expect("the requested paper");
 
@@ -532,7 +527,7 @@ fn a_work_decodes_to_the_paper_with_its_abstract() {
 fn a_fetch_reads_the_work_of_the_papers_ssrn_doi() {
     let (outcome, requests) = fetch(
         ContentDepth::Metadata,
-        Response::json(200, &stored::stored("work.json")),
+        Response::json(200, &sample("ssrn_crossref/work.json")),
     );
 
     let outcome = outcome.expect("a paper");
@@ -570,7 +565,7 @@ fn a_record_without_an_abstract_succeeds_at_metadata_depth() {
 fn an_abstract_request_succeeds_only_with_an_abstract() {
     let (with_abstract, _) = fetch(
         ContentDepth::Abstract,
-        Response::json(200, &stored::stored("work.json")),
+        Response::json(200, &sample("ssrn_crossref/work.json")),
     );
     let (without_abstract, _) = fetch(
         ContentDepth::Abstract,
@@ -598,7 +593,7 @@ fn an_abstract_request_succeeds_only_with_an_abstract() {
 fn a_missing_doi_names_crossref_as_the_source() {
     let (outcome, _) = fetch(
         ContentDepth::Metadata,
-        Response::new(404, "text/plain", &stored::stored("not-found.txt")),
+        Response::new(404, "text/plain", &sample("ssrn_crossref/not-found.txt")),
     );
 
     assert_eq!(
@@ -644,7 +639,7 @@ fn a_record_for_another_doi_is_a_runtime_failure() {
 fn a_fetch_answered_with_another_message_type_is_a_runtime_failure() {
     let (outcome, _) = fetch(
         ContentDepth::Metadata,
-        Response::json(200, &stored::stored("work-list.json")),
+        Response::json(200, &sample("ssrn_crossref/work-list.json")),
     );
 
     assert_eq!(
@@ -790,7 +785,7 @@ fn a_returned_doi_in_another_case_is_the_same_paper() {
 
 #[test]
 fn an_unexpected_message_type_fails_to_decode() {
-    let result = decode_message::<WorkList>(&stored::stored("work.json"), "work-list");
+    let result = decode_message::<WorkList>(&sample("ssrn_crossref/work.json"), "work-list");
 
     assert_eq!(
         result.map(|_| ()).unwrap_err(),
@@ -809,8 +804,8 @@ fn a_body_that_is_not_json_fails_to_decode() {
 fn a_failed_status_reads_the_validation_message_or_names_the_status() {
     assert_eq!(
         [
-            failure_message(&stored::stored("validation-failure.json"), 400),
-            failure_message(&stored::stored("not-found.txt"), 404)
+            failure_message(&sample("ssrn_crossref/validation-failure.json"), 400),
+            failure_message(&sample("ssrn_crossref/not-found.txt"), 404)
         ],
         [
             "Crossref rejected the request: Offset specified as 10001 is too large".to_owned(),

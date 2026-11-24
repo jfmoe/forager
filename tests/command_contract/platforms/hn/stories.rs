@@ -3,7 +3,7 @@ use std::process::Output;
 use serde_json::json;
 
 use crate::support::hn::config;
-use crate::support::hn_samples::story_list;
+use crate::support::hn_api_samples::story_list;
 use crate::support::{Fixture, RunEnvironment, ok_json, payload, stderr};
 
 fn stories(environment: &RunEnvironment, arguments: &[&str]) -> Output {

@@ -404,11 +404,6 @@ mod tests {
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
     use crate::samples::sample;
 
-    /// The stored projection or page `name` of `tests/samples/reddit_browser/`.
-    pub(super) fn stored(name: &str) -> String {
-        sample(&format!("reddit_browser/{name}"))
-    }
-
     fn exchange(url: &str, status: u16) -> Exchange {
         Exchange {
             sequence: 0,
@@ -490,7 +485,7 @@ mod tests {
             }
             assert_eq!(
                 projection.trim_end(),
-                stored(expected).trim_end(),
+                sample(&format!("reddit_browser/{expected}")).trim_end(),
                 "{served}"
             );
         }

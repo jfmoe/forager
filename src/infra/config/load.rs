@@ -26,7 +26,10 @@ pub(super) fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(ConfigError::io(&path, error)),
     };
-    let mut config = deserialize(&content, &path)?;
+    let mut env_paths = HashSet::new();
+    let config = read_document(&content, &path, |config| {
+        apply_environment(config, &mut env_paths)
+    })?;
     let file_value = if content.is_empty() {
         toml::Value::Table(toml::map::Map::new())
     } else {
@@ -35,10 +38,6 @@ pub(super) fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
             detail: diagnostic_without_source(&error.to_string()),
         })?
     };
-    let mut env_paths = HashSet::new();
-    apply_environment(&mut config, &mut env_paths)?;
-    normalize_credentials(&mut config);
-    validate(&config, &path, &content)?;
 
     Ok(LoadedConfig {
         config,
@@ -82,14 +81,25 @@ fn deserialize(content: &str, path: &Path) -> Result<Config, ConfigError> {
     })
 }
 
+/// Reads a configuration document found at `path`, with `overlay` applied before the result is
+/// normalized and validated.
+fn read_document(
+    content: &str,
+    path: &Path,
+    overlay: impl FnOnce(&mut Config) -> Result<(), ConfigError>,
+) -> Result<Config, ConfigError> {
+    let mut config = deserialize(content, path)?;
+    overlay(&mut config)?;
+    normalize_credentials(&mut config);
+    validate(&config, path, content)?;
+    Ok(config)
+}
+
 /// Reads a configuration document as a file at `path` would be read, without the environment's
 /// overrides.
 #[cfg(test)]
 pub(super) fn parse_document(content: &str, path: &Path) -> Result<Config, ConfigError> {
-    let mut config = deserialize(content, path)?;
-    normalize_credentials(&mut config);
-    validate(&config, path, content)?;
-    Ok(config)
+    read_document(content, path, |_| Ok(()))
 }
 
 pub(super) fn diagnostic_without_source(detail: &str) -> String {

@@ -2,7 +2,7 @@
 //! the binary, the fixture server, the stored samples and the helpers built on them.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -13,23 +13,23 @@ mod process;
 pub(crate) use fixture_server::*;
 pub(crate) use process::*;
 
-pub(crate) mod arxiv_feed;
+pub(crate) mod arxiv_api_samples;
 pub(crate) mod browser;
 pub(crate) mod doctor;
+pub(crate) mod exa_samples;
 pub(crate) mod gemini_api;
 pub(crate) mod gemini_api_samples;
 pub(crate) mod hn;
-pub(crate) mod hn_samples;
+pub(crate) mod hn_api_samples;
 pub(crate) mod main_search_samples;
 pub(crate) mod polymarket;
-pub(crate) mod polymarket_samples;
+pub(crate) mod polymarket_api_samples;
 pub(crate) mod samples;
 pub(crate) mod scholar;
 pub(crate) mod smoke;
-pub(crate) mod ssrn_samples;
+pub(crate) mod ssrn_crossref_samples;
 pub(crate) mod web_samples;
 pub(crate) mod x;
-pub(crate) mod x_samples;
 pub(crate) mod youtube;
 pub(crate) mod youtube_api_samples;
 pub(crate) mod youtube_web;
@@ -164,6 +164,17 @@ pub(crate) fn forager_command_through(proxy: &str) -> Command {
     command
 }
 
+/// The forager binary isolated to `home`, reading its configuration from `config_dir` and
+/// keeping its state in `state_dir`.
+pub(crate) fn isolated_command(home: &Path, config_dir: &Path, state_dir: &Path) -> Command {
+    let mut command = forager_command();
+    command
+        .env("FORAGER_CONFIG_DIR", config_dir)
+        .env("XDG_STATE_HOME", state_dir)
+        .env("HOME", home);
+    command
+}
+
 pub(crate) struct RunEnvironment {
     root: tempfile::TempDir,
     pub(crate) config_dir: PathBuf,
@@ -189,12 +200,8 @@ impl RunEnvironment {
     }
 
     pub(crate) fn run_with_env(&self, arguments: &[&str], variables: &[(&str, &str)]) -> Output {
-        let mut command = forager_command();
-        command
-            .args(arguments)
-            .env("FORAGER_CONFIG_DIR", &self.config_dir)
-            .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", self.root.path());
+        let mut command = isolated_command(self.root.path(), &self.config_dir, &self.state_dir);
+        command.args(arguments);
         for (name, value) in variables {
             command.env(name, value);
         }

@@ -9,9 +9,9 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use crate::support::hn::{search_page, story_tree};
-use crate::support::hn_samples::{story_hit, story_item};
-use crate::support::main_search_samples::{answer_with, completed_events};
-use crate::support::scholar::fixture;
+use crate::support::hn_api_samples::{story_hit, story_item};
+use crate::support::main_search_samples::{answer_with, completed, completed_events};
+use crate::support::samples::sample_json;
 use crate::support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
 use crate::support::web_samples::tavily_results;
 use crate::support::{Fixture, Response, forager_command, object_keys, ok_json, run_command};
@@ -524,9 +524,9 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
 #[test]
 fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
     let serpapi = Fixture::start_sequence(vec![
-        ok_json(&fixture("search.json")),
-        ok_json(&fixture("cluster.json")),
-        ok_json(&fixture("cited_by.json")),
+        ok_json(&sample_json("serpapi/search.json")),
+        ok_json(&sample_json("serpapi/cluster.json")),
+        ok_json(&sample_json("serpapi/cited_by.json")),
     ]);
     let run = |keys: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
@@ -566,7 +566,7 @@ fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
 
 #[test]
 fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_it() {
-    let response = |name: &str| crate::support::x::completed(&crate::support::x::fixture(name));
+    let response = |name: &str| completed(&sample_json(&format!("xai/{name}")));
     let xai = Fixture::start_sequence(vec![
         response("x-ask.json"),
         response("x-search.json"),

@@ -15,8 +15,8 @@ use crate::types::{
     PlatformSearchRequest, ProviderError, XAskOutcome, XAskRequest, XRef, XSearchOptions,
 };
 
-use crate::main_search_samples::{completed_events, failed_event};
-use crate::x_samples::stored;
+use crate::main_search_samples::{completed, failed_event};
+use crate::samples::sample_json;
 
 const KEY: &str = "test-xai-key-a";
 const SECOND_KEY: &str = "test-xai-key-b";
@@ -40,10 +40,6 @@ fn route(url: &str, keys: &[&str]) -> Xai {
     )
 }
 
-fn completed(response: &Value) -> Response {
-    Response::sse(200, &completed_events(response))
-}
-
 /// Streams one terminal event of `kind` with `body` merged into it.
 fn terminal(kind: &str, body: &Value) -> Response {
     let mut event = body.clone();
@@ -54,7 +50,7 @@ fn terminal(kind: &str, body: &Value) -> Response {
 /// The stored search response with its structured output replaced by `posts` and its sources
 /// by `cited` status URLs.
 fn search_with(posts: &Value, cited: &[&str]) -> Value {
-    let mut response = stored("x-search.json");
+    let mut response = sample_json("xai/x-search.json");
     let message = response["output"]
         .as_array_mut()
         .expect("output")
@@ -67,7 +63,7 @@ fn search_with(posts: &Value, cited: &[&str]) -> Value {
 
 /// The stored search response's first citation, naming `url` and titled `title`.
 fn citation(url: &str, title: &str) -> Value {
-    let message = stored("x-search.json")["output"]
+    let message = sample_json("xai/x-search.json")["output"]
         .as_array()
         .expect("output")
         .last()
@@ -81,7 +77,7 @@ fn citation(url: &str, title: &str) -> Value {
 
 /// The stored thread response with its structured output replaced by `posts`.
 fn thread_with(posts: &Value) -> Value {
-    let mut response = stored("x-thread.json");
+    let mut response = sample_json("xai/x-thread.json");
     response["output"][1]["content"][0]["text"] = json!(json!({ "posts": posts }).to_string());
     response
 }
@@ -89,7 +85,7 @@ fn thread_with(posts: &Value) -> Value {
 /// Post `index` of the stored response `name`'s structured output, with `url`, `author_handle`
 /// and `text` set.
 fn stored_post(name: &str, index: usize, url: &str, author_handle: &str, text: &str) -> Value {
-    let response = stored(name);
+    let response = sample_json(&format!("xai/{name}"));
     let message = response["output"]
         .as_array()
         .expect("output")
@@ -218,8 +214,12 @@ fn attempt_failure<T>(result: Result<T, AttemptFailure>) -> (AttemptErrorKind, S
 
 #[test]
 fn verified_posts_become_snippet_items_dated_by_their_id() {
-    let (items, dropped) =
-        decode_search(&stored("x-search.json"), &XSearchOptions::default(), 10).expect("items");
+    let (items, dropped) = decode_search(
+        &sample_json("xai/x-search.json"),
+        &XSearchOptions::default(),
+        10,
+    )
+    .expect("items");
 
     assert_eq!(
         (to_json(&items[0]), refs(&items), dropped),
@@ -253,7 +253,8 @@ fn posts_dated_outside_the_requested_days_are_dropped() {
         Some(day("2026-10-14")),
     );
 
-    let (items, dropped) = decode_search(&stored("x-search.json"), &options, 10).expect("items");
+    let (items, dropped) =
+        decode_search(&sample_json("xai/x-search.json"), &options, 10).expect("items");
 
     assert_eq!(
         (refs(&items), dropped),
@@ -328,7 +329,7 @@ fn an_empty_list_is_a_legitimate_empty_result() {
 
 #[test]
 fn output_that_is_not_the_requested_json_is_a_runtime_failure() {
-    let mut response = stored("x-search.json");
+    let mut response = sample_json("xai/x-search.json");
     response["output"][2]["content"][0]["text"] = json!("Here are some posts: none.");
 
     let (kind, message) = attempt_failure(decode_search(&response, &XSearchOptions::default(), 10));
@@ -347,9 +348,12 @@ fn output_that_is_not_the_requested_json_is_a_runtime_failure() {
 
 #[test]
 fn a_thread_returns_the_root_with_every_post_in_order() {
-    let (item, skipped) =
-        decode_thread(&stored("x-thread.json"), x_ref(ROOT), ContentDepth::Thread)
-            .expect("a thread");
+    let (item, skipped) = decode_thread(
+        &sample_json("xai/x-thread.json"),
+        x_ref(ROOT),
+        ContentDepth::Thread,
+    )
+    .expect("a thread");
     let fetched = to_json(&item);
 
     assert_eq!(
@@ -395,7 +399,7 @@ fn a_thread_returns_the_root_with_every_post_in_order() {
 #[test]
 fn metadata_depth_returns_the_post_without_its_thread() {
     let (item, _) = decode_thread(
-        &stored("x-thread.json"),
+        &sample_json("xai/x-thread.json"),
         x_ref(ROOT),
         ContentDepth::Metadata,
     )
@@ -417,7 +421,7 @@ fn metadata_depth_returns_the_post_without_its_thread() {
 #[test]
 fn a_reply_is_fetched_although_its_thread_fetch_cites_only_the_parent() {
     let (item, _) = decode_thread(
-        &stored("x-reply-thread.json"),
+        &sample_json("xai/x-reply-thread.json"),
         x_ref("2098634733248720992"),
         ContentDepth::Thread,
     )
@@ -434,7 +438,7 @@ fn a_reply_is_fetched_although_its_thread_fetch_cites_only_the_parent() {
 
 #[test]
 fn a_root_cited_without_a_thread_fetch_is_fetched() {
-    let mut response = stored("x-thread.json");
+    let mut response = sample_json("xai/x-thread.json");
     response["output"].as_array_mut().expect("output").remove(0);
 
     let fetched = decode_thread(&response, x_ref(ROOT), ContentDepth::Thread);
@@ -466,7 +470,7 @@ fn a_root_other_than_the_requested_post_is_a_runtime_failure() {
 
 #[test]
 fn a_root_neither_thread_fetched_nor_cited_is_a_runtime_failure() {
-    let mut response = stored("x-thread.json");
+    let mut response = sample_json("xai/x-thread.json");
     response["output"].as_array_mut().expect("output").remove(0);
     response["output"][0]["content"][0]["annotations"] = json!([]);
 
@@ -482,7 +486,7 @@ fn a_root_neither_thread_fetched_nor_cited_is_a_runtime_failure() {
 
 #[test]
 fn a_thread_fetch_of_another_post_does_not_verify_the_root() {
-    let mut response = stored("x-thread.json");
+    let mut response = sample_json("xai/x-thread.json");
     response["output"][0]["input"] = json!(r#"{"post_id":"2110126570233094000"}"#);
     response["output"][1]["content"][0]["annotations"] = json!([]);
 
@@ -494,7 +498,7 @@ fn a_thread_fetch_of_another_post_does_not_verify_the_root() {
 
 #[test]
 fn an_unfinished_thread_fetch_does_not_verify_the_root() {
-    let mut response = stored("x-thread.json");
+    let mut response = sample_json("xai/x-thread.json");
     response["output"][0]["status"] = json!("failed");
     response["output"][1]["content"][0]["annotations"] = json!([]);
 
@@ -547,7 +551,7 @@ fn a_post_the_model_cannot_see_is_an_attempt_parameter_error() {
 #[test]
 fn the_answer_keeps_its_citations_and_cited_posts_become_refs() {
     let (answer, sources) = decode_answer(
-        &stored("x-ask.json"),
+        &sample_json("xai/x-ask.json"),
         &route("http://127.0.0.1:9", &[KEY]).credentials,
     )
     .expect("an answer");
@@ -571,7 +575,7 @@ fn the_answer_keeps_its_citations_and_cited_posts_become_refs() {
 
 #[test]
 fn a_cited_profile_keeps_its_url_without_a_ref() {
-    let mut response = stored("x-ask.json");
+    let mut response = sample_json("xai/x-ask.json");
     let mut profile = response["output"][2]["content"][0]["annotations"][0].clone();
     profile["url"] = json!("https://x.com/i/user/34743251");
     profile["title"] = json!("SpaceX");
@@ -598,7 +602,11 @@ fn a_search_sends_only_the_x_search_tool_with_its_filters_and_strict_structured_
     );
     let request = search_request("Rust 2027 edition", 5, options);
 
-    let (outcome, requests) = search(&[KEY], &request, vec![completed(&stored("x-search.json"))]);
+    let (outcome, requests) = search(
+        &[KEY],
+        &request,
+        vec![completed(&sample_json("xai/x-search.json"))],
+    );
     let sent = body(&requests[0]);
 
     assert_eq!(
@@ -682,7 +690,7 @@ fn posts_the_search_did_not_read_are_dropped_with_one_diagnostic() {
 fn a_fetch_sends_the_x_search_tool_alone_and_asks_for_each_posts_role() {
     let (outcome, requests) = fetch(
         ContentDepth::Thread,
-        vec![completed(&stored("x-thread.json"))],
+        vec![completed(&sample_json("xai/x-thread.json"))],
     );
     let sent = body(&requests[0]);
 
@@ -713,7 +721,7 @@ fn a_fetch_sends_the_x_search_tool_alone_and_asks_for_each_posts_role() {
 fn a_fetch_requires_the_model_to_call_its_tool() {
     let (outcome, requests) = fetch(
         ContentDepth::Metadata,
-        vec![completed(&stored("x-thread.json"))],
+        vec![completed(&sample_json("xai/x-thread.json"))],
     );
 
     assert_eq!(
@@ -760,7 +768,7 @@ fn an_ask_sends_the_filtered_x_search_tool_without_structured_output() {
         ),
     };
 
-    let (outcome, requests) = ask(&request, vec![completed(&stored("x-ask.json"))]);
+    let (outcome, requests) = ask(&request, vec![completed(&sample_json("xai/x-ask.json"))]);
     let sent = body(&requests[0]);
     let input = sent["input"][0]["content"].as_str().unwrap_or_default();
 
@@ -797,18 +805,18 @@ fn each_x_operation_records_its_attempt_under_the_x_platform() {
     let (searched, _) = search(
         &[KEY],
         &search_request("rust", 10, XSearchOptions::default()),
-        vec![completed(&stored("x-search.json"))],
+        vec![completed(&sample_json("xai/x-search.json"))],
     );
     let (fetched, _) = fetch(
         ContentDepth::Thread,
-        vec![completed(&stored("x-thread.json"))],
+        vec![completed(&sample_json("xai/x-thread.json"))],
     );
     let (asked, _) = ask(
         &XAskRequest {
             query: "Starship news".to_owned(),
             options: XSearchOptions::default(),
         },
-        vec![completed(&stored("x-ask.json"))],
+        vec![completed(&sample_json("xai/x-ask.json"))],
     );
     let attempts = [
         searched.expect("a page").attempts,
@@ -857,7 +865,7 @@ fn a_rate_limited_key_rotates_to_the_next_key() {
                 "response.failed",
                 &failed("rate_limit_exceeded", "slow down"),
             ),
-            completed(&stored("x-search.json")),
+            completed(&sample_json("xai/x-search.json")),
         ],
     );
     let attempts = outcome.expect("the next key succeeds").attempts;

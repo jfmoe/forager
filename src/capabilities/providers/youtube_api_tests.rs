@@ -16,8 +16,7 @@ use crate::fixture_server::{Fixture, Response, block_on, header, ok_json, pairs,
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::{failure, to_json};
-// The stored bodies below read the sample store through this name.
-use crate::samples;
+use crate::samples::sample_json;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, ContentDepth, Deadline,
     PlatformFetchOutcome, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -26,19 +25,14 @@ use crate::types::{
     YoutubeLiveStatus, YoutubeRef, YoutubeSearchOptions, YoutubeSort, YoutubeVideosOutcome,
     YoutubeVideosRequest,
 };
-
-#[path = "../../../tests/support/youtube_api_samples.rs"]
-mod stored;
-
-use stored::{
-    comment_threads_page, playlist_item, playlist_items_page, search_page, stored, videos_page,
-    zoo_video,
+use crate::youtube_api_samples::{
+    comment_threads_page, playlist_item, playlist_items_page, search_page, videos_page, zoo_video,
 };
 
 /// The stored error body as a `status` answer with one `errors[]` reason, an `ErrorInfo`
 /// detail only when `info_reason` is given, and `message`.
 fn api_error(status: u16, reason: &str, info_reason: Option<&str>, message: &str) -> Value {
-    let mut body = stored("error.json");
+    let mut body = sample_json("youtube_api/error.json");
     let error = &mut body["error"];
     error["code"] = json!(status);
     error["message"] = json!(message);
@@ -76,7 +70,7 @@ fn unreadable_playlist_item(playlist: &str, position: u64, video_id: &str, title
 
 /// The stored `channels.list` response with the uploads playlist of each channel ID given.
 fn channels_page(channels: &[(&str, &str)]) -> Value {
-    let mut page = stored("channels.json");
+    let mut page = sample_json("youtube_api/channels.json");
     let stored_channel = page["items"][0].clone();
     let items = channels
         .iter()
@@ -418,7 +412,7 @@ fn a_page_position_is_sent_as_the_page_token() {
 
 #[test]
 fn search_results_decode_their_entities_and_an_excerpt_makes_a_snippet() {
-    let (items, next_page) = decode_results(&stored("search.json").to_string())
+    let (items, next_page) = decode_results(&sample_json("youtube_api/search.json").to_string())
         .unwrap_or_else(|refusal| panic!("{}", refusal.message));
 
     assert_eq!(
@@ -464,8 +458,8 @@ fn search_results_carry_the_details_of_one_batched_video_request() {
     let (outcome, requests) = search(
         &request,
         vec![
-            ok_json(&stored("search.json")),
-            ok_json(&stored("video-details.json")),
+            ok_json(&sample_json("youtube_api/search.json")),
+            ok_json(&sample_json("youtube_api/video-details.json")),
         ],
     );
     let outcome = outcome.expect("the search succeeds");
@@ -535,9 +529,9 @@ fn search_results_carry_the_details_of_one_batched_video_request() {
 
 #[test]
 fn a_listed_video_the_detail_batch_leaves_out_keeps_no_details() {
-    let (mut items, _) = decode_results(&stored("search.json").to_string())
+    let (mut items, _) = decode_results(&sample_json("youtube_api/search.json").to_string())
         .unwrap_or_else(|refusal| panic!("{}", refusal.message));
-    let mut details = stored("video-details.json");
+    let mut details = sample_json("youtube_api/video-details.json");
     details["items"] = json!([details["items"][1]]);
     let videos = decode_details(&details.to_string())
         .unwrap_or_else(|refusal| panic!("{}", refusal.message));
@@ -555,7 +549,7 @@ fn a_listed_video_the_detail_batch_leaves_out_keeps_no_details() {
 
 #[test]
 fn a_failed_detail_batch_keeps_the_results_and_says_what_is_missing() {
-    let mut page = stored("search.json");
+    let mut page = sample_json("youtube_api/search.json");
     page["items"] = json!([page["items"][0]]);
     let request = search_request("attention", 20, YoutubeSearchOptions::default(), None);
 
@@ -669,7 +663,7 @@ fn a_fetch_reads_one_video_with_every_part_and_the_key_only_in_a_header() {
     let (outcome, requests) = fetch(
         ZOO,
         ContentDepth::Metadata,
-        vec![ok_json(&stored("video.json"))],
+        vec![ok_json(&sample_json("youtube_api/video.json"))],
     );
 
     assert_eq!(
@@ -701,7 +695,7 @@ fn metadata_reads_the_videos_fields_and_leaves_out_the_description() {
         &video(ZOO),
         ContentDepth::Metadata,
         true,
-        &stored("video.json").to_string(),
+        &sample_json("youtube_api/video.json").to_string(),
     )
     .unwrap_or_else(|refusal| panic!("{}", refusal.message));
 
@@ -735,7 +729,7 @@ fn abstract_adds_the_full_description_and_its_chapters() {
             &video(ZOO),
             ContentDepth::Abstract,
             true,
-            &stored("video.json").to_string(),
+            &sample_json("youtube_api/video.json").to_string(),
         )
         .unwrap_or_else(|refusal| panic!("{}", refusal.message)),
     );
@@ -830,7 +824,10 @@ fn comments_read_one_page_of_threads_as_plain_text_with_the_key_only_in_a_header
         sort: YoutubeCommentSort::Time,
     };
 
-    let (outcome, requests) = comments(&request, vec![ok_json(&stored("comment-threads.json"))]);
+    let (outcome, requests) = comments(
+        &request,
+        vec![ok_json(&sample_json("youtube_api/comment-threads.json"))],
+    );
 
     assert_eq!(
         (
@@ -857,9 +854,11 @@ fn comments_read_one_page_of_threads_as_plain_text_with_the_key_only_in_a_header
 
 #[test]
 fn comments_carry_their_authors_counts_and_replies_and_say_whether_the_replies_are_complete() {
-    let (comments, has_more) =
-        decode_threads(&video(ZOO), &stored("comment-threads.json").to_string())
-            .unwrap_or_else(|refusal| panic!("{}", refusal.message));
+    let (comments, has_more) = decode_threads(
+        &video(ZOO),
+        &sample_json("youtube_api/comment-threads.json").to_string(),
+    )
+    .unwrap_or_else(|refusal| panic!("{}", refusal.message));
 
     assert_eq!(
         (to_json(&comments), has_more),
@@ -976,15 +975,17 @@ fn a_playlist_page_reads_its_entries_and_a_later_page_sends_its_token() {
     let (first_page, first_requests) = videos(
         &first,
         vec![ok_json(&playlist_items_page(
-            &stored("playlist-items.json")["items"]
+            &sample_json("youtube_api/playlist-items.json")["items"]
                 .as_array()
                 .expect("entries")
                 .clone(),
             Some("EAAaBlBUOkNBRQ"),
         ))],
     );
-    let (later_page, later_requests) =
-        videos(&later, vec![ok_json(&stored("playlist-items.json"))]);
+    let (later_page, later_requests) = videos(
+        &later,
+        vec![ok_json(&sample_json("youtube_api/playlist-items.json"))],
+    );
     let first_page = first_page.expect("the first page succeeds");
 
     assert_eq!(
@@ -1024,7 +1025,7 @@ fn a_playlist_page_reads_its_entries_and_a_later_page_sends_its_token() {
 
 #[test]
 fn playlist_entries_carry_their_position_owner_and_video_publication_time() {
-    let page = listed_page(&stored("playlist-items.json").to_string())
+    let page = listed_page(&sample_json("youtube_api/playlist-items.json").to_string())
         .unwrap_or_else(|refusal| panic!("{}", refusal.message));
 
     assert_eq!(
@@ -1124,7 +1125,7 @@ fn a_handle_resolves_to_its_channel_and_the_next_page_names_its_uploads_playlist
     let (outcome, requests) = videos(
         &request,
         vec![
-            ok_json(&stored("channels.json")),
+            ok_json(&sample_json("youtube_api/channels.json")),
             ok_json(&playlist_items_page(
                 &[playlist_item(UPLOADS, 0, "LKrwhjOI8Nc", "Newest", "")],
                 Some("EAAaBlBUOkNBRQ"),

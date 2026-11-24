@@ -220,7 +220,7 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{MAX_JSON_NESTING, decode_tree, json_nesting};
-    use crate::samples::sample;
+    use crate::samples::sample_json;
 
     #[test]
     fn nesting_ignores_brackets_inside_strings() {
@@ -240,8 +240,7 @@ mod tests {
     #[test]
     fn a_tree_deeper_than_the_default_serde_limit_decodes() {
         let levels = 100;
-        let stored: Value =
-            serde_json::from_str(&sample("hn_api/item-tree.json")).expect("stored item tree");
+        let stored = sample_json("hn_api/item-tree.json");
         // The stored tree's first comment, nested under itself as each level's only reply.
         let comment = |id: usize, children: Vec<Value>| {
             let mut node = stored["children"][0].clone();

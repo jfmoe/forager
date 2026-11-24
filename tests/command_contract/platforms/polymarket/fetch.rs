@@ -1,5 +1,5 @@
 use crate::support::polymarket::{config, run};
-use crate::support::polymarket_samples::resolved;
+use crate::support::polymarket_api_samples::resolved;
 use crate::support::{Fixture, RunEnvironment, ok_json, stderr};
 
 #[test]

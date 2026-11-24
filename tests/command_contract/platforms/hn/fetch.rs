@@ -4,7 +4,7 @@ use std::process::Output;
 use serde_json::json;
 
 use crate::support::hn::config;
-use crate::support::hn_samples::stored;
+use crate::support::samples::sample;
 use crate::support::{Fixture, Response, RunEnvironment, payload, stderr};
 
 fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
@@ -15,9 +15,12 @@ fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
 
 #[test]
 fn a_thread_is_written_to_the_content_directory_with_a_receipt_on_stdout() {
-    let algolia = Fixture::start_sequence(vec![Response::json(200, &stored("item-tree.json"))]);
-    let firebase =
-        Fixture::start_sequence(vec![Response::json(200, &stored("firebase-item.json"))]);
+    let algolia =
+        Fixture::start_sequence(vec![Response::json(200, &sample("hn_api/item-tree.json"))]);
+    let firebase = Fixture::start_sequence(vec![Response::json(
+        200,
+        &sample("hn_api/firebase-item.json"),
+    )]);
     let environment = RunEnvironment::new(&config(&algolia.url, &firebase.url));
     let content_dir = tempfile::tempdir().expect("content directory");
 

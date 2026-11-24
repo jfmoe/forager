@@ -94,7 +94,9 @@ fn doctor_provider_rejects_values_outside_the_compiled_registry() {
 fn xai_deep_doctor_also_searches_x_while_the_x_order_lists_it() {
     let fixture = Fixture::start_sequence(vec![
         Response::sse(200, &completed_events(&answer_with("xai", "ok", &[]))),
-        crate::support::x::completed(&crate::support::x::fixture("x-search.json")),
+        crate::support::main_search_samples::completed(&crate::support::samples::sample_json(
+            "xai/x-search.json",
+        )),
     ]);
     let environment = RunEnvironment::new(&format!(
         "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",

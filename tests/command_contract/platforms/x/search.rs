@@ -3,14 +3,16 @@
 
 use serde_json::{Value, json};
 
-use crate::support::x::{completed, config, fixture};
+use crate::support::main_search_samples::completed;
+use crate::support::samples::sample_json;
+use crate::support::x::config;
 use crate::support::{Fixture, RunEnvironment, payload, refs, stderr};
 
 const KEY: &str = "test-xai-key-a";
 
 #[test]
 fn verified_posts_become_snippet_items_dated_by_their_id() {
-    let fixture = Fixture::start_sequence(vec![completed(&fixture("x-search.json"))]);
+    let fixture = Fixture::start_sequence(vec![completed(&sample_json("xai/x-search.json"))]);
     let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
 
     let output = environment.run(&["platform", "x", "search", "Rust 2027 edition"]);

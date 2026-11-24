@@ -3,14 +3,16 @@
 
 use serde_json::json;
 
-use crate::support::x::{completed, config, fixture};
+use crate::support::main_search_samples::completed;
+use crate::support::samples::sample_json;
+use crate::support::x::config;
 use crate::support::{Fixture, RunEnvironment, payload};
 
 const KEY: &str = "test-xai-key-a";
 
 #[test]
 fn verbose_output_lists_the_platform_attempt() {
-    let fixture = Fixture::start_sequence(vec![completed(&fixture("x-ask.json"))]);
+    let fixture = Fixture::start_sequence(vec![completed(&sample_json("xai/x-ask.json"))]);
     let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
 
     let output = environment.run(&["platform", "x", "ask", "Starship news", "--verbose"]);

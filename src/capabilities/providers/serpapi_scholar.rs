@@ -537,19 +537,14 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::super::success_protocol;
+    use super::super::tests::result as stored_result;
     use super::{
         DecodedCluster, DecodedPage, OrganicResult, decode_cluster, decode_page, resources,
         result_id_cluster,
     };
     use crate::providers::test_projection::to_json;
-    use crate::samples::sample;
+    use crate::samples::sample_json;
     use crate::types::{PlatformRef, ScholarRef};
-
-    /// The stored SerpApi body `name`.
-    fn stored(name: &str) -> Value {
-        serde_json::from_str(&sample(&format!("serpapi/{name}")))
-            .unwrap_or_else(|error| panic!("stored serpapi/{name}: {error}"))
-    }
 
     /// Decodes a results page as a search or cited-by attempt does.
     fn page(body: &Value) -> DecodedPage {
@@ -566,7 +561,7 @@ mod tests {
 
     #[test]
     fn a_search_page_decodes_its_results_with_cluster_refs_and_metadata() {
-        let source = stored("search.json");
+        let source = sample_json("serpapi/search.json");
         let snippet = |index: usize| source["organic_results"][index]["snippet"].clone();
 
         let decoded = page(&source);
@@ -669,7 +664,7 @@ mod tests {
 
     #[test]
     fn a_result_without_a_verifiable_identity_is_skipped_and_named() {
-        let mut source = stored("search.json");
+        let mut source = sample_json("serpapi/search.json");
         let results = source["organic_results"].as_array().expect("results");
         let mut unidentified = results[3].clone();
         unidentified["result_id"] = Value::Null;
@@ -691,7 +686,7 @@ mod tests {
 
     #[test]
     fn a_cited_by_page_decodes_citing_works_like_search_results() {
-        let source = stored("cited_by.json");
+        let source = sample_json("serpapi/cited_by.json");
 
         let decoded = page(&source);
 
@@ -734,7 +729,7 @@ mod tests {
     #[test]
     fn a_cluster_page_lists_the_versions_of_the_requested_paper_at_metadata_depth() {
         let requested = ScholarRef::from(18_208_131_694_456_651_388);
-        let results = success_protocol(&stored("cluster.json").to_string())
+        let results = success_protocol(&sample_json("serpapi/cluster.json").to_string())
             .unwrap_or_else(|failure| panic!("a cluster page: {}", failure.message));
 
         let DecodedCluster {
@@ -793,10 +788,6 @@ mod tests {
     }
 
     /// The stored search page's result `index`.
-    fn stored_result(index: usize) -> Value {
-        stored("search.json")["organic_results"][index].clone()
-    }
-
     /// The stored search page's Citation entry, which has no link and no resources.
     const CITATION: usize = 5;
     /// The stored search page's result whose author list holds an empty name.

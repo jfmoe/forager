@@ -189,12 +189,12 @@ fn cited_by(arguments: ScholarCitedByArgs) -> Result<CommandOutput, AppError> {
         request: input,
         format,
         common,
-    } = cited_by_input(arguments)?;
+    } = scholar_cited_by_input(arguments)?;
     scholar_cited_by(input, format, &common)
 }
 
 /// Builds the page of citing works a command asks for and checks it before any request.
-fn cited_by_input(
+fn scholar_cited_by_input(
     arguments: ScholarCitedByArgs,
 ) -> Result<PlatformInput<PageInput<ScholarCitedByRequest>, OutputFormat>, AppError> {
     let ScholarCitedByArgs {

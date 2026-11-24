@@ -10,7 +10,7 @@ use crate::fixture_server::{Fixture, Response, block_on, ok_json, pairs, path, q
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::test_projection::{failure, to_json};
-use crate::samples::sample;
+use crate::samples::sample_json;
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, PlatformFetchOutcome, PlatformFetchRequest,
     PlatformRef, PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest,
@@ -38,15 +38,9 @@ fn route(url: &str, keys: &[&str], attempts: usize) -> Serpapi {
     )
 }
 
-/// The stored SerpApi body `name`.
-fn stored(name: &str) -> Value {
-    serde_json::from_str(&sample(&format!("serpapi/{name}")))
-        .unwrap_or_else(|error| panic!("stored serpapi/{name}: {error}"))
-}
-
 /// The stored search page holding only `results`, which SerpApi says no page follows.
 fn last_page(results: &[Value]) -> Value {
-    let mut page = stored("search.json");
+    let mut page = sample_json("serpapi/search.json");
     page["organic_results"] = Value::Array(results.to_vec());
     page["serpapi_pagination"]
         .as_object_mut()
@@ -57,13 +51,14 @@ fn last_page(results: &[Value]) -> Value {
 
 /// The stored error body, saying `message`.
 fn error_body(message: &str) -> String {
-    let mut body = stored("invalid-key.json");
+    let mut body = sample_json("serpapi/invalid-key.json");
     body["error"] = json!(message);
     body.to_string()
 }
 
-fn result(index: usize) -> Value {
-    stored("search.json")["organic_results"][index].clone()
+/// The stored search page's organic result at `index`.
+pub(super) fn result(index: usize) -> Value {
+    sample_json("serpapi/search.json")["organic_results"][index].clone()
 }
 
 fn search_request(
@@ -147,7 +142,7 @@ fn results_or_failure(body: &Value) -> Result<SearchResults, (AttemptErrorKind, 
 #[test]
 fn results_with_success_are_found_with_the_next_page_signal() {
     let page = |pagination: Option<Value>| {
-        let mut body = stored("search.json");
+        let mut body = sample_json("serpapi/search.json");
         let fields = body.as_object_mut().expect("search body");
         match pagination {
             Some(pagination) => fields.insert("serpapi_pagination".to_owned(), pagination),
@@ -164,7 +159,7 @@ fn results_with_success_are_found_with_the_next_page_signal() {
 
     let found = |has_next_page| {
         Ok(SearchResults::Found {
-            results: stored("search.json")["organic_results"]
+            results: sample_json("serpapi/search.json")["organic_results"]
                 .as_array()
                 .expect("stored results")
                 .clone(),
@@ -177,7 +172,7 @@ fn results_with_success_are_found_with_the_next_page_signal() {
 #[test]
 fn a_fully_empty_success_without_results_is_empty() {
     assert_eq!(
-        results_or_failure(&stored("fully-empty.json")),
+        results_or_failure(&sample_json("serpapi/fully-empty.json")),
         Ok(SearchResults::Empty)
     );
 }
@@ -185,7 +180,7 @@ fn a_fully_empty_success_without_results_is_empty() {
 #[test]
 fn an_error_status_is_a_network_failure_with_serpapi_message() {
     assert_eq!(
-        results_or_failure(&stored("status-error.json")),
+        results_or_failure(&sample_json("serpapi/status-error.json")),
         Err((
             AttemptErrorKind::Network,
             "SerpApi reported an error: Google hasn't returned any results for this query."
@@ -197,11 +192,11 @@ fn an_error_status_is_a_network_failure_with_serpapi_message() {
 #[test]
 fn any_other_status_or_results_shape_is_a_runtime_failure() {
     let search_page = |change: &dyn Fn(&mut serde_json::Map<String, Value>)| {
-        let mut page = stored("search.json");
+        let mut page = sample_json("serpapi/search.json");
         change(page.as_object_mut().expect("search page"));
         page
     };
-    let mut fully_empty = stored("fully-empty.json");
+    let mut fully_empty = sample_json("serpapi/fully-empty.json");
     fully_empty["organic_results"] = json!([]);
     let results = [
         search_page(&|page| {
@@ -239,7 +234,7 @@ fn any_other_status_or_results_shape_is_a_runtime_failure() {
 
 #[test]
 fn a_body_that_is_no_serpapi_envelope_is_a_runtime_failure() {
-    let mut page = stored("search.json");
+    let mut page = sample_json("serpapi/search.json");
     page["organic_results"] = json!({"position": 1});
 
     let failure = results_or_failure(&page).unwrap_err();
@@ -266,7 +261,7 @@ fn a_search_sends_the_engine_language_query_and_page_size_with_the_key() {
         None,
     );
 
-    let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&sample_json("serpapi/search.json"))]);
 
     assert_eq!(
         (outcome.is_ok(), path(&requests[0]), query(&requests[0])),
@@ -293,7 +288,7 @@ fn year_bounds_and_review_only_join_the_query_parameters() {
     };
     let request = search_request("momentum", 20, options, None);
 
-    let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&sample_json("serpapi/search.json"))]);
     let query = query(&requests[0]);
 
     assert_eq!(
@@ -312,7 +307,7 @@ fn year_bounds_and_review_only_join_the_query_parameters() {
 fn a_first_page_without_years_or_review_only_sends_no_filter_or_start_parameters() {
     let request = search_request("momentum", 20, ScholarSearchOptions::default(), None);
 
-    let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
+    let (outcome, requests) = search(&request, vec![ok_json(&sample_json("serpapi/search.json"))]);
     let query = query(&requests[0]);
 
     assert_eq!(
@@ -332,14 +327,15 @@ fn the_next_page_starts_one_page_size_later_and_only_adds_its_start() {
         review_only: true,
     };
     let first = search_request("\"time series momentum\"", 10, options, None);
-    let (first_outcome, first_requests) = search(&first, vec![ok_json(&stored("search.json"))]);
+    let (first_outcome, first_requests) =
+        search(&first, vec![ok_json(&sample_json("serpapi/search.json"))]);
     let next = next_page(first_outcome);
     let second = PlatformSearchRequest {
         page: next.clone(),
         ..first
     };
 
-    let (outcome, requests) = search(&second, vec![ok_json(&stored("search.json"))]);
+    let (outcome, requests) = search(&second, vec![ok_json(&sample_json("serpapi/search.json"))]);
     let mut resumed = query(&requests[0]);
     let start = resumed.remove("start");
 
@@ -374,7 +370,7 @@ fn a_page_without_a_next_link_ends_the_search() {
 fn no_next_page_is_named_when_it_would_pass_result_1000() {
     let next = |start: &str| {
         let request = search_request("momentum", 7, ScholarSearchOptions::default(), Some(start));
-        next_page(search(&request, vec![ok_json(&stored("search.json"))]).0)
+        next_page(search(&request, vec![ok_json(&sample_json("serpapi/search.json"))]).0)
     };
 
     assert_eq!([next("980"), next("987")], [Some("987".to_owned()), None]);
@@ -384,7 +380,8 @@ fn no_next_page_is_named_when_it_would_pass_result_1000() {
 fn twenty_result_pages_reach_result_1000_exactly() {
     let page = |start: &str| {
         let request = search_request("momentum", 20, ScholarSearchOptions::default(), Some(start));
-        let (outcome, requests) = search(&request, vec![ok_json(&stored("search.json"))]);
+        let (outcome, requests) =
+            search(&request, vec![ok_json(&sample_json("serpapi/search.json"))]);
         (query(&requests[0])["start"].clone(), next_page(outcome))
     };
 
@@ -434,7 +431,10 @@ fn a_fully_empty_answer_is_an_empty_page() {
         None,
     );
 
-    let (outcome, requests) = search(&request, vec![ok_json(&stored("fully-empty.json"))]);
+    let (outcome, requests) = search(
+        &request,
+        vec![ok_json(&sample_json("serpapi/fully-empty.json"))],
+    );
     let outcome = outcome.expect("an empty page");
 
     assert_eq!(
@@ -451,7 +451,7 @@ fn a_page_without_a_usable_result_is_a_runtime_failure_that_is_not_retried() {
         ("every result skipped", vec![unidentified]),
         ("no results", vec![]),
     ] {
-        let mut page = stored("search.json");
+        let mut page = sample_json("serpapi/search.json");
         page["organic_results"] = Value::Array(results);
         let request = search_request("momentum", 20, ScholarSearchOptions::default(), None);
 
@@ -476,8 +476,8 @@ fn a_status_error_is_a_network_failure_that_the_shared_policy_retries() {
         3,
         &request,
         vec![
-            ok_json(&stored("status-error.json")),
-            ok_json(&stored("search.json")),
+            ok_json(&sample_json("serpapi/status-error.json")),
+            ok_json(&sample_json("serpapi/search.json")),
         ],
     );
     let attempts = outcome
@@ -523,7 +523,7 @@ fn an_exhausted_key_rotates_to_the_next_key_in_the_same_request() {
         &request,
         vec![
             Response::json(429, &error_body("Your account has run out of searches.")),
-            ok_json(&stored("search.json")),
+            ok_json(&sample_json("serpapi/search.json")),
         ],
     );
     let attempts = outcome.expect("the next key succeeds").attempts;
@@ -565,7 +565,10 @@ fn an_invalid_key_is_sent_once_without_rotation_or_retry() {
         &[KEY, SECOND_KEY],
         3,
         &request,
-        vec![Response::json(401, &stored("invalid-key.json").to_string())],
+        vec![Response::json(
+            401,
+            &sample_json("serpapi/invalid-key.json").to_string(),
+        )],
     );
 
     assert_eq!(
@@ -581,7 +584,7 @@ fn the_key_never_reaches_a_failure_or_its_attempts() {
     let exhausted = error_body(&format!(
         "Your account has run out of searches for {CANARY}."
     ));
-    let mut reported = stored("status-error.json");
+    let mut reported = sample_json("serpapi/status-error.json");
     reported["error"] = json!(format!("Upstream failed for api_key={CANARY}"));
     for (case, response) in [
         ("401", Some(Response::json(401, &echo))),
@@ -617,7 +620,7 @@ fn a_cited_by_page_sends_the_cited_cluster_and_page_size_with_the_key() {
     let (outcome, requests) = cited_by(
         1,
         &cited_by_request(20, None),
-        vec![ok_json(&stored("cited_by.json"))],
+        vec![ok_json(&sample_json("serpapi/cited_by.json"))],
     );
 
     assert_eq!(
@@ -652,7 +655,11 @@ fn the_query_years_and_date_order_join_the_cited_by_parameters() {
         (filtered, [Some("crash"), Some("2020"), Some("2024"), None]),
         (by_date, [None, None, None, Some("2")]),
     ] {
-        let (outcome, requests) = cited_by(1, &request, vec![ok_json(&stored("cited_by.json"))]);
+        let (outcome, requests) = cited_by(
+            1,
+            &request,
+            vec![ok_json(&sample_json("serpapi/cited_by.json"))],
+        );
         let query = query(&requests[0]);
 
         assert_eq!(
@@ -674,15 +681,22 @@ fn the_next_cited_by_page_starts_one_page_size_later_and_only_adds_its_start() {
         year_to: Some(2024),
         ..cited_by_request(10, None)
     };
-    let (first_outcome, first_requests) =
-        cited_by(1, &first, vec![ok_json(&stored("cited_by.json"))]);
+    let (first_outcome, first_requests) = cited_by(
+        1,
+        &first,
+        vec![ok_json(&sample_json("serpapi/cited_by.json"))],
+    );
     let next = next_page(first_outcome);
     let second = ScholarCitedByRequest {
         page: next.clone(),
         ..first
     };
 
-    let (outcome, requests) = cited_by(1, &second, vec![ok_json(&stored("cited_by.json"))]);
+    let (outcome, requests) = cited_by(
+        1,
+        &second,
+        vec![ok_json(&sample_json("serpapi/cited_by.json"))],
+    );
     let mut resumed = query(&requests[0]);
     let start = resumed.remove("start");
 
@@ -699,7 +713,11 @@ fn a_date_ordered_page_keeps_the_order_at_its_position() {
         ..cited_by_request(20, Some("20"))
     };
 
-    let (outcome, requests) = cited_by(1, &request, vec![ok_json(&stored("cited_by.json"))]);
+    let (outcome, requests) = cited_by(
+        1,
+        &request,
+        vec![ok_json(&sample_json("serpapi/cited_by.json"))],
+    );
     let query = query(&requests[0]);
 
     assert_eq!(
@@ -719,7 +737,11 @@ fn a_paper_without_citing_works_lists_nothing_and_succeeds() {
         ..cited_by_request(20, None)
     };
 
-    let (outcome, requests) = cited_by(1, &request, vec![ok_json(&stored("fully-empty.json"))]);
+    let (outcome, requests) = cited_by(
+        1,
+        &request,
+        vec![ok_json(&sample_json("serpapi/fully-empty.json"))],
+    );
     let outcome = outcome.expect("an empty page");
 
     assert_eq!(
@@ -752,8 +774,8 @@ fn a_status_error_is_retried_under_the_cited_by_target() {
         3,
         &cited_by_request(20, None),
         vec![
-            ok_json(&stored("status-error.json")),
-            ok_json(&stored("cited_by.json")),
+            ok_json(&sample_json("serpapi/status-error.json")),
+            ok_json(&sample_json("serpapi/cited_by.json")),
         ],
     );
     let attempts = outcome
@@ -789,7 +811,7 @@ fn a_fetch_requests_one_full_page_of_the_cluster() {
     let (outcome, requests) = fetch(
         "scholar:18208131694456651388",
         ContentDepth::Metadata,
-        vec![ok_json(&stored("cluster.json"))],
+        vec![ok_json(&sample_json("serpapi/cluster.json"))],
     );
 
     assert_eq!(
@@ -810,7 +832,7 @@ fn a_fetch_requests_one_full_page_of_the_cluster() {
 
 #[test]
 fn a_cluster_with_more_versions_than_one_page_says_the_list_is_incomplete() {
-    let mut cluster = stored("cluster.json");
+    let mut cluster = sample_json("serpapi/cluster.json");
     cluster["serpapi_pagination"] = json!({
         "current": 1,
         "next": "https://serpapi.com/search.json?cluster=18208131694456651388&engine=google_scholar&hl=en&num=20&start=20"
@@ -840,7 +862,7 @@ fn a_cluster_that_does_not_exist_is_a_parameter_failure() {
     let (outcome, requests) = fetch(
         "scholar:1",
         ContentDepth::Metadata,
-        vec![ok_json(&stored("fully-empty.json"))],
+        vec![ok_json(&sample_json("serpapi/fully-empty.json"))],
     );
 
     assert_eq!(

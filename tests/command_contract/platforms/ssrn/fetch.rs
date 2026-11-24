@@ -2,7 +2,8 @@ use std::process::Output;
 
 use serde_json::json;
 
-use crate::support::ssrn_samples::{stored, work_with};
+use crate::support::samples::sample;
+use crate::support::ssrn_crossref_samples::work_with;
 use crate::support::{Fixture, Response, RunEnvironment, payload};
 
 fn config(url: &str) -> String {
@@ -28,7 +29,7 @@ fn run(arguments: &[&str], responses: Vec<Response>) -> (Output, Vec<String>) {
 fn a_fetch_prints_the_paper_it_names() {
     let (output, _) = run(
         &["ssrn:2042750"],
-        vec![Response::json(200, &stored("work.json"))],
+        vec![Response::json(200, &sample("ssrn_crossref/work.json"))],
     );
     let item = payload(&output);
 
@@ -53,7 +54,7 @@ fn a_fetch_prints_the_paper_it_names() {
 #[test]
 fn markdown_shows_the_abstract_section_only_when_there_is_an_abstract() {
     let without_abstract = work_with(&json!({"abstract": null})).to_string();
-    let sections = [stored("work.json"), without_abstract].map(|body| {
+    let sections = [sample("ssrn_crossref/work.json"), without_abstract].map(|body| {
         let (output, _) = run(
             &["ssrn:2042750", "--format", "markdown"],
             vec![Response::json(200, &body)],

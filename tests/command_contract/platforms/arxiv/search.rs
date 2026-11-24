@@ -3,13 +3,7 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use crate::support::samples::sample;
-use crate::support::{Fixture, Response, RunEnvironment, arxiv_feed, payload, query, refs};
-
-/// A page of `total` results holding the stored entry once for each of `ids`.
-fn feed(total: u64, ids: &[&str]) -> String {
-    arxiv_feed::page(&sample("arxiv_api/feed.xml"), total, ids)
-}
+use crate::support::{Fixture, Response, RunEnvironment, arxiv_api_samples, payload, query, refs};
 
 fn atom(status: u16, body: &str) -> Response {
     Response::new(status, "application/atom+xml", body)
@@ -27,7 +21,10 @@ fn search(environment: &RunEnvironment, arguments: &[&str]) -> Output {
 
 #[test]
 fn a_search_prints_the_found_papers_as_a_platform_page() {
-    let fixture = Fixture::start_sequence(vec![atom(200, &feed(1, &["2401.01234v2"]))]);
+    let fixture = Fixture::start_sequence(vec![atom(
+        200,
+        &arxiv_api_samples::page(1, &["2401.01234v2"]),
+    )]);
     let environment = RunEnvironment::new(&config(&fixture.url));
 
     let output = search(&environment, &["electron"]);
@@ -76,14 +73,20 @@ fn cursors_page_through_results_and_restore_the_original_request() {
         "--limit",
         "2",
     ];
-    let (first, first_query) = page(&arguments, &feed(5, &["2401.00001v1", "2401.00002v1"]));
+    let (first, first_query) = page(
+        &arguments,
+        &arxiv_api_samples::page(5, &["2401.00001v1", "2401.00002v1"]),
+    );
     let first_cursor = first["next_cursor"].as_str().expect("first page cursor");
     let (middle, middle_query) = page(
         &["--cursor", first_cursor],
-        &feed(5, &["2401.00003v1", "2401.00004v1"]),
+        &arxiv_api_samples::page(5, &["2401.00003v1", "2401.00004v1"]),
     );
     let middle_cursor = middle["next_cursor"].as_str().expect("middle page cursor");
-    let (last, last_query) = page(&["--cursor", middle_cursor], &feed(5, &["2401.00005v1"]));
+    let (last, last_query) = page(
+        &["--cursor", middle_cursor],
+        &arxiv_api_samples::page(5, &["2401.00005v1"]),
+    );
     let restored = |query: &BTreeMap<String, String>| {
         let mut query = query.clone();
         query.remove("start");

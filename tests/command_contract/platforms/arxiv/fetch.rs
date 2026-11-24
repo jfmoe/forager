@@ -3,15 +3,10 @@ use std::fs;
 use std::path::Path;
 use std::process::Output;
 
-use serde_json::{Value, json};
+use serde_json::json;
 
-use crate::support::samples::sample;
-use crate::support::{Fixture, Response, RunEnvironment, arxiv_feed, payload};
-
-/// The stored feed with its paper renamed `id`.
-fn entry_feed(id: &str) -> String {
-    arxiv_feed::feed_of(&sample("arxiv_api/feed.xml"), id)
-}
+use crate::support::samples::sample_json;
+use crate::support::{Fixture, Response, RunEnvironment, arxiv_api_samples, payload};
 
 fn atom(status: u16, body: &str) -> Response {
     Response::new(status, "application/atom+xml", body)
@@ -30,8 +25,7 @@ fn body(label: &str) -> String {
 
 /// A Firecrawl scrape answer whose Markdown is `content`.
 fn firecrawl(content: &str) -> Response {
-    let mut answer: Value =
-        serde_json::from_str(&sample("firecrawl/scrape.json")).expect("stored scrape answer");
+    let mut answer = sample_json("firecrawl/scrape.json");
     answer["data"]["markdown"] = json!(content);
     Response::json(200, &answer.to_string())
 }
@@ -65,7 +59,10 @@ fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
 
 #[test]
 fn full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
+    let arxiv = Fixture::start_sequence(vec![
+        atom(200, &arxiv_api_samples::feed_of("2401.01234v2")),
+        head(200),
+    ]);
     let provider = Fixture::start_sequence(vec![firecrawl(&body("HTML body"))]);
     let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
     let content_dir = tempfile::tempdir().expect("content directory");

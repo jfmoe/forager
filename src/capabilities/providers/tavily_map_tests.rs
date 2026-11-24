@@ -10,19 +10,15 @@ use crate::fixture_server::{
 };
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::constructors::build_tavily_map;
-use crate::samples::sample;
+use crate::samples::{sample, sample_json};
 use crate::types::{AttemptErrorKind, Deadline, MapOutcome, ProviderError};
 
 const KEY: &str = "tavily-key";
 const SECOND_KEY: &str = "second-key";
 
-fn stored(name: &str) -> String {
-    sample(&format!("tavily/{name}"))
-}
-
 /// The stored map body with `field` replaced, or removed when `value` is null.
 fn map_with(field: &str, value: Value) -> String {
-    let mut body: Value = serde_json::from_str(&stored("map.json")).expect("stored map JSON");
+    let mut body = sample_json("tavily/map.json");
     let object = body.as_object_mut().expect("map object");
     if value.is_null() {
         object.remove(field);
@@ -87,7 +83,7 @@ fn failure_kinds(error: &ProviderError) -> (AttemptErrorKind, Vec<Option<Attempt
 
 #[test]
 fn a_site_map_decodes_its_base_url_and_results_with_their_secrets_redacted() {
-    let site = decode(&stored("map.json")).expect("stored map decodes");
+    let site = decode(&sample("tavily/map.json")).expect("stored map decodes");
 
     assert_eq!(
         (site.base_url, site.results, site.response_time),
@@ -154,7 +150,7 @@ fn a_malformed_success_body_is_a_runtime_failure() {
 
 #[test]
 fn a_map_posts_every_option_with_the_key_as_a_bearer_token() {
-    let fixture = Fixture::start_json(200, &stored("map.json"));
+    let fixture = Fixture::start_json(200, &sample("tavily/map.json"));
     let request = MapRequest {
         instructions: "Only public API documentation".into(),
         limit: 25,
@@ -192,7 +188,7 @@ fn a_map_posts_every_option_with_the_key_as_a_bearer_token() {
 #[test]
 fn boundary_depths_breadths_and_timeouts_are_sent_unchanged_without_empty_instructions() {
     let sent = [(1, 1, 10), (5, 500, 150)].map(|(depth, breadth, timeout)| {
-        let fixture = Fixture::start_json(200, &stored("map.json"));
+        let fixture = Fixture::start_json(200, &sample("tavily/map.json"));
         block_on(route(&fixture.url, &[KEY], 1, 30).map(map_request(depth, breadth, timeout)))
             .expect("map succeeds");
         request_json(&fixture.finish())
@@ -213,7 +209,7 @@ fn a_refused_parameter_and_a_refused_key_keep_their_failure_kinds() {
         let (outcome, _) = map_with_responses(
             &[KEY],
             1,
-            vec![Response::json(status, &stored("error.json"))],
+            vec![Response::json(status, &sample("tavily/error.json"))],
         );
         let error = outcome.expect_err("an error answer fails");
         (error.kind, error.message)
@@ -238,8 +234,8 @@ fn a_rate_limited_key_rotates_to_the_next_key() {
         &keys,
         1,
         vec![
-            Response::json(429, &stored("error.json")),
-            Response::json(200, &stored("map.json")),
+            Response::json(429, &sample("tavily/error.json")),
+            Response::json(200, &sample("tavily/map.json")),
         ],
     );
     let attempts = outcome.expect("the next key succeeds").attempts;
@@ -274,8 +270,8 @@ fn a_server_failure_is_retried_with_the_same_key() {
         &[KEY],
         2,
         vec![
-            Response::json(500, &stored("error.json")),
-            Response::json(200, &stored("map.json")),
+            Response::json(500, &sample("tavily/error.json")),
+            Response::json(200, &sample("tavily/map.json")),
         ],
     );
 

@@ -10,16 +10,15 @@ use super::{
 use crate::config::runtime_config_from_toml;
 use crate::engine::CapabilityExecution;
 use crate::fixture_server::{Fixture, Response, Route, block_on, request_json};
-use crate::main_search_samples::completed_events;
+use crate::main_search_samples::completed;
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::MainSearchRequest;
-use crate::samples::sample;
+use crate::samples::{sample, sample_json};
 use crate::types::{
     AttemptErrorKind, CapabilitySet, Deadline, FallbackPolicy, SearchCandidate, SearchOutcome,
     Source,
 };
 use crate::web_samples::{jina, stored_with, tavily_results};
-use crate::x_samples::stored;
 
 /// Runs a declared documentation search over the configuration `document` and returns its
 /// branch.
@@ -108,8 +107,7 @@ fn a_docs_search_runs_exa_by_default_and_by_its_configured_order() {
 
 #[test]
 fn a_docs_search_whose_exa_answer_is_refused_becomes_a_capability_gap() {
-    let mut body: Value =
-        serde_json::from_str(&sample("exa/search.json")).expect("stored Exa JSON");
+    let mut body = sample_json("exa/search.json");
     body["results"][0]["url"] = json!("exa:result-id");
     let exa = Fixture::start_json(200, &body.to_string());
 
@@ -387,7 +385,7 @@ fn xai_document(url: &str) -> String {
 
 /// The stored xAI answer as main search receives it.
 fn main_search_answer() -> Response {
-    Response::sse(200, &completed_events(&stored("x-ask.json")))
+    completed(&sample_json("xai/x-ask.json"))
 }
 
 fn tavily_search_order() -> &'static str {
@@ -618,8 +616,7 @@ fn web_search_candidates_join_the_extra_sources_unless_main_search_cited_them() 
 
 #[test]
 fn an_untitled_web_search_result_becomes_a_candidate_with_a_null_title() {
-    let mut body: Value =
-        serde_json::from_str(&sample("firecrawl/search.json")).expect("stored JSON");
+    let mut body = sample_json("firecrawl/search.json");
     body["data"]["web"][0]
         .as_object_mut()
         .expect("stored result")
@@ -648,7 +645,7 @@ fn an_untitled_web_search_result_becomes_a_candidate_with_a_null_title() {
 }
 
 fn sample_result() -> Value {
-    let body: Value = serde_json::from_str(&sample("tavily/search.json")).expect("stored JSON");
+    let body = sample_json("tavily/search.json");
     body["results"][0].clone()
 }
 
@@ -674,7 +671,7 @@ fn a_declared_web_search_without_credentials_is_a_gap_naming_every_provider() {
 fn a_combined_declaration_runs_only_its_seams_in_vocabulary_order_and_concurrently() {
     // Neither request is answered until both arrive, so branches run one after the other would
     // fail; the Web Fetch provider is never asked, although the query names a known URL.
-    let mut docs = serde_json::from_str::<Value>(&sample("exa/search.json")).expect("stored JSON");
+    let mut docs = sample_json("exa/search.json");
     docs["results"][0]["url"] = json!("https://example.test/docs");
     let mut fixtures = Fixture::start_synchronized_sequences(vec![
         vec![Response::json(200, &docs.to_string())],
@@ -729,8 +726,7 @@ fn a_combined_declaration_runs_only_its_seams_in_vocabulary_order_and_concurrent
 
 #[test]
 fn a_failed_declared_web_search_is_a_gap_that_keeps_its_attempts() {
-    let mut unavailable: Value =
-        serde_json::from_str(&sample("tavily/error.json")).expect("stored JSON");
+    let mut unavailable = sample_json("tavily/error.json");
     unavailable["message"] = json!("unavailable");
     let tavily = Fixture::start_json(503, &unavailable.to_string());
     let document = format!(

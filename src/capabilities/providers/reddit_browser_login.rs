@@ -59,11 +59,11 @@ mod tests {
 
     use super::logged_in;
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
-    use crate::providers::reddit_browser::tests::stored;
+    use crate::samples::sample;
 
     /// The stored home page document of a logged-in session.
     fn home() -> String {
-        stored("home.html")
+        sample("reddit_browser/home.html")
     }
 
     fn document(url: &str, body: &str) -> Exchange {

@@ -3,15 +3,16 @@
 
 use serde_json::{Value, json};
 
-use crate::support::scholar::{config, fixture};
+use crate::support::samples::sample_json;
+use crate::support::scholar::config;
 use crate::support::{Fixture, Response, RunEnvironment, ok_json, payload};
 use crate::support::{path, query};
 
 #[test]
 fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
     let fixture = Fixture::start_sequence(vec![
-        ok_json(&fixture("account.json")),
-        ok_json(&fixture("account.json")),
+        ok_json(&sample_json("serpapi/account.json")),
+        ok_json(&sample_json("serpapi/account.json")),
     ]);
     let environment = RunEnvironment::new(&config(&fixture.url, &["first-key", "second-key"]));
 
@@ -53,7 +54,7 @@ fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
 fn an_invalid_key_fails_the_probe_while_the_other_keys_are_still_checked() {
     let fixture = Fixture::start_sequence(vec![
         Response::json(401, r#"{"error":"Invalid API key."}"#),
-        ok_json(&fixture("account.json")),
+        ok_json(&sample_json("serpapi/account.json")),
     ]);
     let environment = RunEnvironment::new(&config(&fixture.url, &["revoked-key", "good-key"]));
 
@@ -95,7 +96,7 @@ fn an_invalid_key_fails_the_probe_while_the_other_keys_are_still_checked() {
 
 #[test]
 fn a_key_without_searches_left_reports_its_quota_and_fails_as_exhausted() {
-    let mut exhausted = fixture("account.json");
+    let mut exhausted = sample_json("serpapi/account.json");
     exhausted["total_searches_left"] = json!(0);
     exhausted["plan_searches_left"] = json!(0);
     let fixture = Fixture::start(200, "application/json", &exhausted.to_string());
@@ -135,7 +136,7 @@ fn neither_the_keys_nor_the_account_identity_reach_output_or_trace_logs() {
         "serpapi-canary-3c4d",
         "serpapi-canary-5e6f",
     ];
-    let account = fixture("account.json");
+    let account = sample_json("serpapi/account.json");
     let mut busy = account.clone();
     busy["this_hour_searches"] = json!(250);
     let echo = format!(
@@ -207,7 +208,7 @@ fn deep_doctor_without_keys_fails_before_any_request() {
 #[test]
 fn markdown_lists_one_line_per_key() {
     let fixture = Fixture::start_sequence(vec![
-        ok_json(&fixture("account.json")),
+        ok_json(&sample_json("serpapi/account.json")),
         Response::json(401, r#"{"error":"Invalid API key."}"#),
     ]);
     let environment = RunEnvironment::new(&config(&fixture.url, &["good-key", "revoked-key"]));

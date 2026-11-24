@@ -7,7 +7,7 @@ use super::SEARCH_PROJECTION;
 use super::{
     SearchObservation, SearchProjection, SearchState, SearchTarget, search_outcome, search_state,
 };
-use crate::providers::reddit_browser::tests::stored;
+use crate::samples::{sample, sample_json};
 use crate::types::{AttemptErrorKind, RedditSearchOptions};
 
 const SEARCH_PAGE: &str = "search.json";
@@ -15,7 +15,8 @@ const CAPTCHA_PAGE: &str = "captcha.json";
 
 /// The stored projection `name`.
 fn projection(name: &str) -> SearchProjection {
-    serde_json::from_str(&stored(name)).unwrap_or_else(|error| panic!("decode {name}: {error}"))
+    serde_json::from_str(&sample(&format!("reddit_browser/{name}")))
+        .unwrap_or_else(|error| panic!("decode {name}: {error}"))
 }
 
 fn global_target() -> SearchTarget {
@@ -373,7 +374,7 @@ fn a_loaded_page_other_than_the_search_page_is_an_unexpected_page() {
 
 #[test]
 fn a_projection_that_leaves_out_a_nullable_fact_does_not_decode() {
-    let mut page: Value = serde_json::from_str(&stored(SEARCH_PAGE)).expect("a JSON sample");
+    let mut page = sample_json(&format!("reddit_browser/{SEARCH_PAGE}"));
     page["page"]
         .as_object_mut()
         .expect("page facts")

@@ -1,7 +1,9 @@
 //! `forager platform x fetch` against a local xAI Responses fixture that replays the stored
 //! thread response.
 
-use crate::support::x::{completed, config, fixture};
+use crate::support::main_search_samples::completed;
+use crate::support::samples::sample_json;
+use crate::support::x::config;
 use crate::support::{Fixture, RunEnvironment};
 
 const KEY: &str = "test-xai-key-a";
@@ -9,7 +11,7 @@ const ROOT: &str = "x:2110126570233094527";
 
 #[test]
 fn content_format_prints_the_thread_as_markdown() {
-    let fixture = Fixture::start_sequence(vec![completed(&fixture("x-thread.json"))]);
+    let fixture = Fixture::start_sequence(vec![completed(&sample_json("xai/x-thread.json"))]);
     let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
 
     let output = environment.run(&["platform", "x", "fetch", ROOT, "--format", "content"]);

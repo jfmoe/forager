@@ -4,8 +4,8 @@
 use serde_json::{Value, json};
 
 use super::{NoteData, note_outcome, without_token};
-use crate::providers::xiaohongshu_browser::tests::stored;
 use crate::redact::CREDENTIAL_MASK;
+use crate::samples::sample_json;
 use crate::types::{AccessToken, AttemptErrorKind, FullTextSource, XiaohongshuRef};
 
 const NOTE_ID: &str = "66f0a1b2c3d4e5f607100001";
@@ -16,7 +16,7 @@ const IMAGE_NOTE_MARKDOWN: &str = "# 手冲咖啡入门\n\n第一次手冲就成
 
 /// The stored observation of the image note's page.
 fn stored_note() -> Value {
-    stored("note.json")
+    sample_json("xiaohongshu_browser/note.json")
 }
 
 /// The stored image note, as the page logic picks it from
