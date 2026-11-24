@@ -117,25 +117,14 @@ pub(super) fn render(output: &str, video: &PlatformItem) -> Result<Rendered, Str
 mod tests {
     use serde_json::json;
 
-    use super::super::tests::{stored_segments, zoo};
+    use super::super::tests::{stored_segments, stored_transcript, zoo};
     use super::render;
     use crate::types::TranscriptSource;
 
-    fn output(segments: &serde_json::Value) -> String {
-        json!({"language": "en", "segments": segments}).to_string()
-    }
-
     #[test]
     fn a_model_transcript_renders_with_its_chapters_and_drops_segments_past_the_end() {
-        let rendered = render(
-            &output(&json!([
-                {"start": 1.2, "end": 3.4, "text": "All right, so here we are."},
-                {"start": 16.9, "end": 23.5, "text": "And that's pretty much all."},
-                {"start": 30.0, "end": 31.0, "text": "Invented."}
-            ])),
-            &zoo(Some(19)),
-        )
-        .expect("rendered transcript");
+        let rendered =
+            render(&stored_transcript().to_string(), &zoo(Some(19))).expect("rendered transcript");
 
         assert_eq!(
             (
@@ -147,14 +136,14 @@ mod tests {
             (
                 "en",
                 TranscriptSource::Model,
-                2,
+                3,
                 Some(
                     "dropped 1 model transcript segment(s) that end past the video's 19-second length"
                 ),
             )
         );
         assert!(rendered.markdown.contains(
-            "## Description\n\nThe first video.\n\n## Transcript\n\n### Intro\n\n[00:01](https://www.youtube.com/watch?v=jNQXAC9IVRw&t=1s) All right, so here we are."
+            "## Description\n\nThe first video.\n\n## Transcript\n\n### Intro\n\n[00:01](https://www.youtube.com/watch?v=jNQXAC9IVRw&t=1s) All right, so here we are, in front of the elephants."
         ));
     }
 
