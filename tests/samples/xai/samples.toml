@@ -1,6 +1,6 @@
-# Upstream samples of the `xai` provider; each record names one file in this directory. Each
-# sample is the `response` object of the `response.completed` event that ends an xAI Responses
-# stream; tests wrap it in the event stream.
+# Upstream samples of the `xai` provider; each record names one file in this directory. A sample
+# of a Responses stream is one event or the `response` object of the `response.completed` event
+# that ends the stream; tests wrap it in the event stream.
 
 [[sample]]
 file = "x-search.json"
@@ -35,3 +35,15 @@ file = "search.json"
 shape = "xAI Responses `POST /responses` for main search with the `web_search` tool: output text that carries a `<think>` block, inline `[[N]](url)` bindings and a trailing `Sources:` block, and a `url_citation` annotation whose URL holds a secret query parameter and a fragment"
 origin = "hand-written"
 observed = 2026-07-26
+
+[[sample]]
+file = "response-failed.json"
+shape = "xAI Responses `POST /responses` stream ending in failure: the `response.failed` event, its reason under `error.message`"
+origin = "hand-written"
+observed = 2026-07-26
+
+[[sample]]
+file = "error.json"
+shape = "xAI Responses `POST /responses` refused before any stream: the error answer, its reason as the string `error`"
+origin = "hand-written"
+observed = 2026-08-02

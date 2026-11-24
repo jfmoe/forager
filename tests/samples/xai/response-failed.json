@@ -1,0 +1,6 @@
+{
+  "type": "response.failed",
+  "error": {
+    "message": "The response failed."
+  }
+}
