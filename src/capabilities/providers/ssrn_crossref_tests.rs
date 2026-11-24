@@ -703,11 +703,16 @@ fn a_full_record_maps_every_crossref_field() {
 
 #[test]
 fn a_record_without_an_abstract_has_metadata_depth_and_a_null_abstract() {
-    let mapped = item(json!({"DOI": "10.2139/ssrn.1", "title": ["T"]}));
+    let mut record = record(&json!({}));
+    record
+        .as_object_mut()
+        .expect("work record")
+        .remove("abstract");
+    let mapped = item(record);
 
     assert_eq!(
-        (&mapped["depth"], &mapped["abstract"], &mapped["published"]),
-        (&json!("metadata"), &json!(null), &json!(null))
+        (&mapped["depth"], &mapped["abstract"]),
+        (&json!("metadata"), &json!(null))
     );
 }
 

@@ -146,23 +146,28 @@ fn results_or_failure(body: &Value) -> Result<SearchResults, (AttemptErrorKind, 
 
 #[test]
 fn results_with_success_are_found_with_the_next_page_signal() {
-    let page = |pagination: Value| {
-        json!({
-            "search_metadata": {"status": "Success"},
-            "organic_results": [{"title": "Time series momentum"}],
-            "serpapi_pagination": pagination
-        })
+    let page = |pagination: Option<Value>| {
+        let mut body = stored("search.json");
+        let fields = body.as_object_mut().expect("search body");
+        match pagination {
+            Some(pagination) => fields.insert("serpapi_pagination".to_owned(), pagination),
+            None => fields.remove("serpapi_pagination"),
+        };
+        body
     };
     let results = [
-        json!({"next": "https://serpapi.com/search.json?start=20"}),
-        json!({"current": 1}),
-        Value::Null,
+        Some(json!({"next": "https://serpapi.com/search.json?start=20"})),
+        Some(json!({"current": 1})),
+        None,
     ]
     .map(|pagination| results_or_failure(&page(pagination)));
 
     let found = |has_next_page| {
         Ok(SearchResults::Found {
-            results: vec![json!({"title": "Time series momentum"})],
+            results: stored("search.json")["organic_results"]
+                .as_array()
+                .expect("stored results")
+                .clone(),
             has_next_page,
         })
     };
