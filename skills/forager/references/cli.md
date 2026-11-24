@@ -1297,11 +1297,13 @@ with the started browser is also `runtime`.
 
 ```console
 forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown]
+forager doctor --offline [--format json|markdown]
 ```
 
 | Option | Meaning | Default |
 | --- | --- | --- |
 | `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--offline` | Run the shallow report's checks that send no request. Conflicts with `--provider` and `--timeout`. | Off |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -1330,15 +1332,27 @@ have only `key_index`, `ok`, and `error_kind` for a failing key, with the failin
 `providers.gemini_api.keys[N]`. Do not use doctor as
 the recovery path for configuration that cannot be loaded.
 
-The shallow report also has a `config` block shaped like `config list`, and `permission_warnings`
-when the configuration directory or file is more open than `0700` or `0600`. Warnings never change
-`ok`, and `ok` is true when nothing is configured. A platform route that no default order lists
+The shallow report also has a `config` block shaped like `config list`, `permission_warnings`
+when the configuration directory or file is more open than `0700` or `0600` (on Windows, when it
+grants access to anyone but its owner), and `state_directories`. `state_directories.state` is
+forager's state directory, `$XDG_STATE_HOME/forager` or `~/.local/state/forager`, and
+`state_directories.journal` is `journal.dir`, checked only while `journal.enabled` is true. Each
+reports `writable`, and a `message` when forager cannot create the directory privately or write a
+file in it. Warnings never change `ok`; an unwritable state directory makes it false with exit 4.
+`ok` is true when nothing is configured. A platform route that no default order lists
 reports `configured: false` until a platform order lists it. A deep probe of a provider whose
 prerequisites are missing, or of a route no order enables, fails with `config` and exit 3 before
 sending anything; a failed probe exits 4. For a provider with a request window, both the shallow
 check and the deep probe wait for that window; when it does not open in time, the shallow report
 marks the provider unreachable and the deep probe fails with `timeout`, and neither sends a
 request.
+
+`--offline` sends no request. Its report has `mode: "offline"` and the same `config`,
+`permission_warnings` and `state_directories`; its provider entries report configuration and key
+presence without `reachable`, and an enabled browser route adds `preflight` with the same
+preflight check, plus its `message` when the check fails. Its `ok` is true when the state
+directories are writable, whatever is configured, including no main search; otherwise it exits 4.
+Use it to check configuration, permissions and state directories without a network.
 
 ### `smoke`
 

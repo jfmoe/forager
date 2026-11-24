@@ -1,9 +1,11 @@
 mod gemini_api;
+mod offline;
 mod platform_routes;
 mod serpapi;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
+use std::fs;
 use std::time::Duration;
 
 use crate::support::doctor::{assert_deep_success, reachable_responses, shallow_config};
@@ -619,4 +621,40 @@ fn jina_deep_doctor_reports_a_failing_key_although_an_anonymous_request_succeeds
         String::from_utf8_lossy(&output.stderr)
     );
     fixture.finish_all();
+}
+
+#[test]
+fn the_default_doctor_reports_and_requires_the_state_directories_as_offline_doctor_does() {
+    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let root = tempfile::tempdir().expect("create journal root");
+    let blocked = root.path().join("journal");
+    fs::write(&blocked, "not a directory").expect("block the journal directory");
+    let environment = RunEnvironment::new(&format!(
+        "{}[journal]\ndir = {:?}\n",
+        shallow_config(&fixture.url),
+        blocked.to_str().expect("UTF-8 path")
+    ));
+
+    let outputs = [&["doctor"][..], &["doctor", "--offline"]].map(|arguments| {
+        let output = environment.run(arguments);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+        (
+            output.status.code(),
+            payload["ok"].clone(),
+            payload["state_directories"].clone(),
+        )
+    });
+
+    assert_eq!(outputs[0], outputs[1]);
+    assert_eq!(
+        (
+            &outputs[0].0,
+            &outputs[0].1,
+            &outputs[0].2["journal"]["writable"]
+        ),
+        (&Some(4), &json!(false), &json!(false)),
+        "{:?}",
+        outputs[0]
+    );
+    assert_eq!(fixture.finish_all().len(), 9);
 }

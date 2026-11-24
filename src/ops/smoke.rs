@@ -1,10 +1,8 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::io::{self, Read};
+use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, LazyLock};
 use std::thread;
@@ -28,7 +26,6 @@ mod shape;
 
 use shape::{ResultShape, result_shape_is_nonempty};
 
-static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
 const PIPELINE_CANARY_QUERY: &str = "Find current Rust release news and official documentation.";
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
@@ -1560,7 +1557,7 @@ fn credential_status(
 }
 
 fn directory_status(enabled: Option<bool>, path: &Path, credentials: &[Secret]) -> DirectoryStatus {
-    match probe_private_directory(path) {
+    match crate::doctor::probe_private_directory(path) {
         Ok(()) => DirectoryStatus {
             enabled,
             writable: true,
@@ -1572,22 +1569,6 @@ fn directory_status(enabled: Option<bool>, path: &Path, credentials: &[Secret]) 
             message: Some(sanitize(&error.to_string(), credentials)),
         },
     }
-}
-
-fn probe_private_directory(path: &Path) -> io::Result<()> {
-    config::ensure_private_directory(path)?;
-    let sequence = PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let probe = path.join(format!(
-        ".forager-smoke-probe-{}-{nanos}-{sequence}",
-        std::process::id()
-    ));
-    let result = config::create_private_file(&probe).and_then(|file| file.sync_all());
-    let cleanup = fs::remove_file(&probe);
-    result.and(cleanup)
 }
 
 fn permission_status() -> Result<PermissionStatus, config::ConfigError> {

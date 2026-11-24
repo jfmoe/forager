@@ -1,4 +1,8 @@
-use std::time::Duration;
+use std::fs;
+use std::io;
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures_util::future::join_all;
 use serde::Serialize;
@@ -9,18 +13,56 @@ use crate::config::{self, PlatformRouteConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{self, FetchRequest, KeyAccount, KeyQuota, MainSearchRequest};
 use crate::rate_limit::RateLimiter;
+use crate::redact::{Secret, redact_credentials};
+use crate::state_file;
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef,
     PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
 };
 
+static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// The all-provider report, in the shallow mode or the offline mode.
 #[derive(Debug, Serialize)]
-pub(crate) struct ShallowDoctorReport {
+pub(crate) struct DoctorReport {
     mode: &'static str,
     ok: bool,
     providers: Vec<ProviderStatus>,
+    state_directories: StateDirectories,
     permission_warnings: Vec<String>,
     config: Value,
+}
+
+#[derive(Debug, Serialize)]
+struct StateDirectories {
+    state: DirectoryStatus,
+    journal: JournalStatus,
+}
+
+impl StateDirectories {
+    fn writable(&self) -> bool {
+        self.state.writable
+            && self
+                .journal
+                .directory
+                .as_ref()
+                .is_none_or(|directory| directory.writable)
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct DirectoryStatus {
+    writable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// A disabled journal writes nothing, so its directory is not checked.
+#[derive(Debug, Serialize)]
+struct JournalStatus {
+    enabled: bool,
+    #[serde(flatten)]
+    directory: Option<DirectoryStatus>,
 }
 
 #[derive(Debug, Serialize)]
@@ -31,6 +73,9 @@ struct ProviderStatus {
     source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     reachable: Option<bool>,
+    /// The browser preflight result of an enabled browser route, in the offline mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preflight: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
@@ -103,12 +148,11 @@ impl From<ProviderError> for ProbeFailure {
     }
 }
 
-pub(crate) fn shallow(
-    timeout_seconds: u64,
-) -> Result<(ShallowDoctorReport, u8), config::ConfigError> {
+pub(crate) fn shallow(timeout_seconds: u64) -> Result<(DoctorReport, u8), config::ConfigError> {
     let effective = serde_json::to_value(config::effective_view()?)
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let runtime_config = config::runtime_config()?;
+    let state_directories = state_directories(&runtime_config);
     let deadline = Deadline::new(Duration::from_secs(timeout_seconds));
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -129,20 +173,49 @@ pub(crate) fn shallow(
         .zip(checks)
         .map(|(registration, check)| status(registration.id, &effective, check, &runtime_config))
         .collect::<Vec<_>>();
-    let ok = providers
-        .iter()
-        .filter(|provider| provider.configured)
-        .all(|provider| provider.reachable == Some(true));
-    let exit_code = if ok { 0 } else { 4 };
+    let ok = state_directories.writable()
+        && providers
+            .iter()
+            .filter(|provider| provider.configured)
+            .all(|provider| provider.reachable == Some(true));
     Ok((
-        ShallowDoctorReport {
+        DoctorReport {
             mode: "shallow",
             ok,
             providers,
+            state_directories,
             permission_warnings: permission_warnings()?,
             config: effective,
         },
-        exit_code,
+        if ok { 0 } else { 4 },
+    ))
+}
+
+/// Runs the shallow report's checks that send nothing. No provider needs to be configured, so
+/// `ok` depends only on the state directories.
+pub(crate) fn offline() -> Result<(DoctorReport, u8), config::ConfigError> {
+    let effective = serde_json::to_value(config::effective_view()?)
+        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
+    let runtime_config = config::runtime_config()?;
+    let state_directories = state_directories(&runtime_config);
+    let providers = catalog::registrations()
+        .iter()
+        .map(|registration| {
+            let finding = offline_finding(local_check(registration, &runtime_config));
+            status(registration.id, &effective, finding, &runtime_config)
+        })
+        .collect();
+    let ok = state_directories.writable();
+    Ok((
+        DoctorReport {
+            mode: "offline",
+            ok,
+            providers,
+            state_directories,
+            permission_warnings: permission_warnings()?,
+            config: effective,
+        },
+        if ok { 0 } else { 4 },
     ))
 }
 
@@ -157,12 +230,13 @@ pub(crate) fn deep(
     let provider_status = status(
         provider,
         &effective,
-        ShallowCheck {
+        ProviderFinding {
             configured: unconfigured.is_none(),
             reachable: Some(endpoint_is_valid(provider_endpoint(
                 provider,
                 &runtime_config,
             ))),
+            preflight: None,
             message: None,
         },
         &runtime_config,
@@ -626,11 +700,38 @@ fn local_check(registration: &ProviderRegistration, runtime: &RuntimeConfig) -> 
     }
 }
 
-/// The shallow result of one provider.
-struct ShallowCheck {
+/// What a report states about one provider.
+struct ProviderFinding {
     configured: bool,
     reachable: Option<bool>,
+    preflight: Option<bool>,
     message: Option<String>,
+}
+
+fn offline_finding(check: LocalCheck) -> ProviderFinding {
+    match check {
+        LocalCheck::NotEnabled => ProviderFinding {
+            configured: false,
+            reachable: None,
+            preflight: None,
+            message: None,
+        },
+        LocalCheck::Http {
+            configured,
+            anonymous,
+        } => ProviderFinding {
+            configured,
+            reachable: None,
+            preflight: None,
+            message: anonymous_note(anonymous),
+        },
+        LocalCheck::Browser { preflight } => ProviderFinding {
+            configured: true,
+            reachable: None,
+            preflight: Some(preflight.is_ok()),
+            message: preflight.err(),
+        },
+    }
 }
 
 /// Checks an HTTP provider by a GET to its endpoint, and a browser route by its preflight
@@ -640,18 +741,19 @@ async fn shallow_check(
     runtime: &RuntimeConfig,
     client: &reqwest::Client,
     deadline: Deadline,
-) -> ShallowCheck {
+) -> ProviderFinding {
     let id = registration.id;
     match local_check(registration, runtime) {
-        LocalCheck::NotEnabled => ShallowCheck {
+        LocalCheck::NotEnabled => ProviderFinding {
             configured: false,
             reachable: Some(false),
+            preflight: None,
             message: None,
         },
         LocalCheck::Http {
             configured,
             anonymous,
-        } => ShallowCheck {
+        } => ProviderFinding {
             configured,
             reachable: Some(
                 probe_reachability(
@@ -662,11 +764,13 @@ async fn shallow_check(
                 )
                 .await,
             ),
+            preflight: None,
             message: anonymous_note(anonymous),
         },
-        LocalCheck::Browser { preflight } => ShallowCheck {
+        LocalCheck::Browser { preflight } => ProviderFinding {
             configured: true,
             reachable: Some(preflight.is_ok()),
+            preflight: None,
             message: preflight.err(),
         },
     }
@@ -737,26 +841,77 @@ fn provider_endpoint(id: ProviderId, runtime: &RuntimeConfig) -> &str {
 fn status(
     id: ProviderId,
     effective: &Value,
-    check: ShallowCheck,
+    finding: ProviderFinding,
     runtime: &RuntimeConfig,
 ) -> ProviderStatus {
     let key_count = runtime.provider_runtime(id).keys.len();
     ProviderStatus {
         provider: id.name(),
-        configured: check.configured,
+        configured: finding.configured,
         key_count,
         source: effective["providers"][id.name()]["keys"]["source"]
             .as_str()
             .unwrap_or("default")
             .to_owned(),
-        reachable: check.reachable,
-        message: check.message,
+        reachable: finding.reachable,
+        preflight: finding.preflight,
+        message: finding.message,
     }
 }
 
 fn endpoint_is_valid(value: &str) -> bool {
     reqwest::Url::parse(value)
         .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
+}
+
+/// Checks that each state directory forager writes can be created and written privately.
+fn state_directories(runtime: &RuntimeConfig) -> StateDirectories {
+    let credentials = &runtime.journal.credentials;
+    let state = match state_file::state_directory() {
+        Some(path) => directory_status(&path, credentials),
+        None => DirectoryStatus {
+            writable: false,
+            message: Some("XDG_STATE_HOME and HOME do not resolve to an absolute path".into()),
+        },
+    };
+    let journal = JournalStatus {
+        enabled: runtime.journal.enabled,
+        directory: runtime
+            .journal
+            .enabled
+            .then(|| directory_status(&runtime.journal.dir, credentials)),
+    };
+    StateDirectories { state, journal }
+}
+
+fn directory_status(path: &Path, credentials: &[Secret]) -> DirectoryStatus {
+    match probe_private_directory(path) {
+        Ok(()) => DirectoryStatus {
+            writable: true,
+            message: None,
+        },
+        Err(error) => DirectoryStatus {
+            writable: false,
+            message: Some(redact_credentials(&error.to_string(), credentials)),
+        },
+    }
+}
+
+/// Creates `path` as a private directory and writes and removes a private file in it.
+pub(crate) fn probe_private_directory(path: &Path) -> io::Result<()> {
+    config::ensure_private_directory(path)?;
+    let sequence = PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let probe = path.join(format!(
+        ".forager-doctor-probe-{}-{nanos}-{sequence}",
+        std::process::id()
+    ));
+    let result = config::create_private_file(&probe).and_then(|file| file.sync_all());
+    let cleanup = fs::remove_file(&probe);
+    result.and(cleanup)
 }
 
 fn permission_warnings() -> Result<Vec<String>, config::ConfigError> {

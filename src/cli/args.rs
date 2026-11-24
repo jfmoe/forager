@@ -129,6 +129,9 @@ pub(super) enum Command {
     Doctor {
         #[arg(long, value_parser = parse_provider)]
         provider: Option<ProviderId>,
+        /// Run only the checks that send no request.
+        #[arg(long, conflicts_with_all = ["provider", "timeout"])]
+        offline: bool,
         #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
@@ -593,5 +596,25 @@ mod search_tests {
             (true, 2, true),
             "{error}"
         );
+    }
+}
+
+/// The `doctor` command's argument rules, proven by parsing its definition in process.
+#[cfg(test)]
+mod doctor_tests {
+    use super::parse;
+
+    #[test]
+    fn the_offline_mode_refuses_a_provider_and_a_timeout_naming_the_option() {
+        for option in [["--provider", "exa"], ["--timeout", "5"]] {
+            let error = parse(&["doctor", "--offline", option[0], option[1]])
+                .expect_err("the parser refuses the combination");
+
+            assert_eq!(
+                (error.exit_code(), error.to_string().contains(option[0])),
+                (2, true),
+                "{option:?}: {error}"
+            );
+        }
     }
 }
