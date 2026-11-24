@@ -9,7 +9,13 @@ use crate::state_file::{self, StateLock, serialized_blocking};
 
 const STATE_FILE: &str = "credential_pool_state.json";
 const STATE_SCHEMA_VERSION: u8 = 1;
+#[cfg(not(test))]
 const LOCK_WAIT: Duration = Duration::from_millis(100);
+// The test build's cursor state lives in a directory of the test process, whose claims
+// `serialized_blocking` already orders, so only a test that holds the lock itself finds it busy
+// and need not wait for it.
+#[cfg(test)]
+const LOCK_WAIT: Duration = Duration::ZERO;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CredentialPool {
