@@ -1,11 +1,15 @@
 //! Repository rules from `AGENTS.md` that a reviewer would otherwise check by hand.
 
+#[path = "repository_rules/doc_tests.rs"]
+mod doc_tests;
 #[path = "repository_rules/links.rs"]
 mod links;
 #[path = "repository_rules/retired.rs"]
 mod retired;
 #[path = "repository_rules/samples.rs"]
 mod samples;
+#[path = "repository_rules/test_binaries.rs"]
+mod test_binaries;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -306,6 +310,119 @@ fn every_adr_reference_names_an_existing_adr() {
         missing.is_empty(),
         "these ADRs do not exist; point to the ADR that replaced them, or drop the reference: {missing:#?}"
     );
+}
+
+#[test]
+fn the_integration_test_binaries_are_the_fixed_set() {
+    let entries = fs::read_dir(root().join("tests"))
+        .expect("read tests/")
+        .map(|entry| {
+            let path = entry.expect("tests/ entry").path();
+            test_binaries::Entry {
+                name: file_name(&path).to_owned(),
+                is_directory: path.is_dir(),
+                has_main: path.join("main.rs").is_file(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let manifest = read(&root().join("Cargo.toml"))
+        .parse::<toml::Table>()
+        .expect("parse Cargo.toml");
+
+    let found = test_binaries::violations(&entries, &manifest);
+    assert!(
+        found.is_empty(),
+        "the integration test binaries are exactly {:?}; docs/agents/testing.md says which layer a new test belongs to: {found:#?}",
+        test_binaries::FIXED_SET
+    );
+}
+
+#[test]
+fn each_way_the_test_layout_breaks_the_fixed_set_is_reported() {
+    let entry = |name: &str, is_directory: bool, has_main: bool| test_binaries::Entry {
+        name: name.to_owned(),
+        is_directory,
+        has_main,
+    };
+    let mut entries = test_binaries::FIXED_SET
+        .iter()
+        .map(|name| match *name {
+            "command_contract" => entry(name, true, true),
+            _ => entry(&format!("{name}.rs"), false, false),
+        })
+        .chain([
+            entry("support", true, false),
+            entry("samples", true, false),
+            entry(".DS_Store", false, false),
+        ])
+        .collect::<Vec<_>>();
+    let manifest = |text: &str| text.parse::<toml::Table>().expect("parse manifest");
+    let plain = manifest("[package]\nname = \"forager\"\n");
+    assert_eq!(
+        test_binaries::violations(&entries, &plain),
+        Vec::<String>::new()
+    );
+
+    entries.retain(|entry| entry.name != "skill_contract.rs");
+    entries.extend([entry("probe.rs", false, false), entry("extra", true, true)]);
+    assert_eq!(
+        test_binaries::violations(
+            &entries,
+            &manifest(
+                "[package]\nname = \"forager\"\nautotests = false\n\n[[test]]\nname = \"listed\"\npath = \"tests/listed.rs\"\n"
+            ),
+        ),
+        [
+            "Cargo.toml: `autotests = false` hides every test file the manifest does not list, so a new one would run nowhere",
+            "Cargo.toml: the `[[test]]` target `listed` adds a binary; let Cargo discover the fixed set",
+            "tests/probe.rs: a test binary outside the fixed set; make it a module of the command contract binary",
+            "tests/extra/main.rs: a test binary outside the fixed set; make it a module of the command contract binary",
+            "tests/: the fixed binary `skill_contract` is missing",
+        ]
+    );
+}
+
+#[test]
+fn the_crate_has_no_doc_tests() {
+    let found = files(&root().join("src"), "rs")
+        .into_iter()
+        .flat_map(|path| {
+            doc_tests::doc_test_lines(&read(&path))
+                .into_iter()
+                .map(move |line| format!("{}:{line}", relative(&path)))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        found.is_empty(),
+        "the checks run tests through nextest, which skips doc tests, so these examples are proven by nothing; \
+         prove the rule in an in-crate test, or give the block a non-Rust info string such as `text`: {found:#?}"
+    );
+}
+
+#[test]
+fn a_rust_code_block_in_a_doc_comment_is_reported() {
+    let cases: [(&str, &[usize]); 9] = [
+        ("/// Plain.\n///\n/// ```\n/// let a = 1;\n/// ```\n", &[3]),
+        ("/// ```rust,no_run\n/// run();\n/// ```\n", &[1]),
+        ("/// ```ignore\n/// run();\n/// ```\n", &[1]),
+        (
+            "    //! ~~~edition2021\n    //! run();\n    //! ~~~\n",
+            &[1],
+        ),
+        ("//! ```text\n//! output\n//! ```\n", &[]),
+        ("// ```\n// run();\n// ```\n", &[]),
+        ("let fence = \"```\";\n", &[]),
+        (
+            "/// Example:\n///\n///     let a = 1;\n///     run(a);\n",
+            &[3],
+        ),
+        ("/// - a list item\n///     continued\n", &[]),
+    ];
+
+    for (source, expected) in cases {
+        assert_eq!(doc_tests::doc_test_lines(source), expected, "{source:?}");
+    }
 }
 
 const SPAWN: &str = "Command::new(env!(\"CARGO_BIN_EXE_forager\"))";
