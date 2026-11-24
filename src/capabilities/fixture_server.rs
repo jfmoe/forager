@@ -14,7 +14,9 @@ mod shared;
 
 pub(crate) use shared::*;
 
-const SYNCHRONIZATION_DEADLINE: Duration = Duration::from_secs(2);
+// Shorter than any test's runner limit, so requests that never arrive together fail with this
+// module's diagnosis.
+const SYNCHRONIZATION_DEADLINE: Duration = Duration::from_secs(1);
 
 impl Fixture {
     pub(crate) fn start_synchronized_sequence(responses: Vec<Response>) -> Self {
@@ -45,7 +47,7 @@ impl Fixture {
                             .map(|(received, response)| {
                                 let stream = shared::accept_request(
                                     &listener,
-                                    shared::ACCEPT_DEADLINE,
+                                    &stopped,
                                     expected_requests,
                                     received,
                                 );
@@ -80,7 +82,7 @@ impl Fixture {
             shared::fixture_listener("unanswered fixture"),
             Some(1),
             move |listener, stopped| {
-                let mut stream = shared::accept_request(&listener, shared::ACCEPT_DEADLINE, 1, 0);
+                let mut stream = shared::accept_request(&listener, &stopped, 1, 0);
                 let request = shared::read_request(&mut stream);
                 server_arrived.store(true, Ordering::Release);
                 let _ = stopped.recv();

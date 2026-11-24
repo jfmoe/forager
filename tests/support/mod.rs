@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use std::sync::mpsc;
 use std::time::Duration;
 
 mod fixture_server;
@@ -38,6 +39,55 @@ impl Response {
     pub(crate) fn with_delay(mut self, delay: Duration) -> Self {
         self.delay = delay;
         self
+    }
+}
+
+/// A fixture whose one response waits until the test releases it, for a test that acts while
+/// the request is in flight.
+pub(crate) struct HeldFixture {
+    pub(crate) url: String,
+    fixture: Fixture,
+    arrived: mpsc::Receiver<()>,
+    release: mpsc::Sender<()>,
+}
+
+impl Fixture {
+    pub(crate) fn start_held(response: Response) -> HeldFixture {
+        let (arrived_tx, arrived) = mpsc::channel();
+        let (release, released) = mpsc::channel();
+        let fixture = Self::serve(
+            fixture_server::fixture_listener("held fixture"),
+            Some(1),
+            move |listener, stopped| {
+                let mut stream = fixture_server::accept_request(&listener, &stopped, 1, 0);
+                let request = fixture_server::read_request(&mut stream);
+                let _ = arrived_tx.send(());
+                let _ = released.recv();
+                fixture_server::write_response(stream, &response);
+                fixture_server::observe_extra_requests(&listener, &stopped, vec![request])
+            },
+        );
+        HeldFixture {
+            url: fixture.url.clone(),
+            fixture,
+            arrived,
+            release,
+        }
+    }
+}
+
+impl HeldFixture {
+    /// Waits until the request is in flight, failing within the command deadline.
+    pub(crate) fn wait_for_request(&self) {
+        self.arrived
+            .recv_timeout(COMMAND_DEADLINE)
+            .expect("the held fixture's request did not arrive");
+    }
+
+    /// Releases the held response and returns the fixture to finish.
+    pub(crate) fn release(self) -> Fixture {
+        let _ = self.release.send(());
+        self.fixture
     }
 }
 

@@ -8,9 +8,11 @@ use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-pub(super) const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
+/// How long the server waits for a connected client to finish sending its request; shorter
+/// than any test's runner limit, so a stalled request fails with this module's diagnosis.
+pub(super) const READ_TIMEOUT: Duration = Duration::from_secs(1);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 pub(crate) struct Fixture {
@@ -43,39 +45,23 @@ impl Fixture {
         )
     }
 
+    /// Answers its requests with `responses` in order. It waits for each request until the test
+    /// finishes it, which fails naming how many requests arrived when any is missing; the client
+    /// has ended by then, so a request still missing never comes.
     pub(crate) fn start_sequence(responses: Vec<Response>) -> Self {
-        Self::start_sequence_with_deadline(responses, ACCEPT_DEADLINE)
-    }
-
-    pub(crate) fn start_sequence_with_deadline(
-        responses: Vec<Response>,
-        accept_deadline: Duration,
-    ) -> Self {
-        Self::serve_sequence(fixture_listener("fixture"), responses, accept_deadline)
+        Self::serve_sequence(fixture_listener("fixture"), responses)
     }
 
     /// Starts a sequence whose responses name the fixture's own URL, such as a link the client
     /// follows next.
     pub(crate) fn start_sequence_for(responses: impl FnOnce(&str) -> Vec<Response>) -> Self {
-        Self::start_sequence_for_with_deadline(ACCEPT_DEADLINE, responses)
-    }
-
-    /// [`Self::start_sequence_for`], waiting up to `accept_deadline` for each request.
-    pub(crate) fn start_sequence_for_with_deadline(
-        accept_deadline: Duration,
-        responses: impl FnOnce(&str) -> Vec<Response>,
-    ) -> Self {
         let listener = fixture_listener("fixture");
         let address = listener.local_addr().expect("fixture address");
         let responses = responses(&format!("http://{address}"));
-        Self::serve_sequence(listener, responses, accept_deadline)
+        Self::serve_sequence(listener, responses)
     }
 
-    fn serve_sequence(
-        listener: TcpListener,
-        responses: Vec<Response>,
-        accept_deadline: Duration,
-    ) -> Self {
+    fn serve_sequence(listener: TcpListener, responses: Vec<Response>) -> Self {
         let expected_requests = responses.len();
         Self::serve(
             listener,
@@ -83,12 +69,8 @@ impl Fixture {
             move |listener, stopped| {
                 let mut requests = Vec::with_capacity(expected_requests);
                 for response in responses {
-                    let stream = accept_request(
-                        &listener,
-                        accept_deadline,
-                        expected_requests,
-                        requests.len(),
-                    );
+                    let stream =
+                        accept_request(&listener, &stopped, expected_requests, requests.len());
                     requests.push(respond(stream, &response));
                 }
                 observe_extra_requests(&listener, &stopped, requests)
@@ -139,7 +121,7 @@ impl Fixture {
                     match listener.accept() {
                         Ok((mut stream, _)) => {
                             stream
-                                .set_read_timeout(Some(ACCEPT_DEADLINE))
+                                .set_read_timeout(Some(READ_TIMEOUT))
                                 .expect("set canary stream read timeout");
                             let request = read_request(&mut stream);
                             let _ = stream.write_all(
@@ -345,7 +327,7 @@ fn accept_until_stopped(
                     .set_nonblocking(false)
                     .unwrap_or_else(|error| panic!("set {label} stream blocking: {error}"));
                 stream
-                    .set_read_timeout(Some(ACCEPT_DEADLINE))
+                    .set_read_timeout(Some(READ_TIMEOUT))
                     .unwrap_or_else(|error| panic!("set {label} stream read timeout: {error}"));
                 serve(stream);
             }
@@ -383,7 +365,7 @@ pub(super) fn read_request(stream: &mut TcpStream) -> String {
     String::from_utf8(request).expect("UTF-8 request")
 }
 
-fn write_response(mut stream: TcpStream, response: &Response) {
+pub(super) fn write_response(mut stream: TcpStream, response: &Response) {
     thread::sleep(response.delay);
     let reason = if response.status == 200 {
         "OK"
@@ -403,13 +385,13 @@ fn write_response(mut stream: TcpStream, response: &Response) {
     let _ = stream.write_all(response.body.as_bytes());
 }
 
+/// Accepts the next request, failing when the fixture is finished first.
 pub(super) fn accept_request(
     listener: &TcpListener,
-    deadline: Duration,
+    stopped: &mpsc::Receiver<()>,
     expected_requests: usize,
     received_requests: usize,
 ) -> TcpStream {
-    let started = Instant::now();
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
@@ -417,17 +399,17 @@ pub(super) fn accept_request(
                     .set_nonblocking(false)
                     .expect("set fixture stream blocking");
                 stream
-                    .set_read_timeout(Some(ACCEPT_DEADLINE))
+                    .set_read_timeout(Some(READ_TIMEOUT))
                     .expect("set fixture stream read timeout");
                 return stream;
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                let elapsed = started.elapsed();
-                assert!(
-                    elapsed < deadline,
-                    "fixture timed out waiting for requests: expected {expected_requests}, received {received_requests}"
-                );
-                thread::sleep(ACCEPT_POLL_INTERVAL.min(deadline.checked_sub(elapsed).unwrap()));
+                match stopped.try_recv() {
+                    Ok(()) | Err(mpsc::TryRecvError::Disconnected) => panic!(
+                        "fixture finished before receiving its requests: expected {expected_requests}, received {received_requests}"
+                    ),
+                    Err(mpsc::TryRecvError::Empty) => thread::sleep(ACCEPT_POLL_INTERVAL),
+                }
             }
             Err(error) => panic!("accept fixture request: {error}"),
         }

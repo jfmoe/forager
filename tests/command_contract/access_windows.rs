@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{fs, thread};
 
 use serde_json::{Value, json};
@@ -108,28 +108,22 @@ fn every_route_with_an_access_policy_waits_for_its_window_before_sending() {
 
 #[test]
 fn a_retry_waits_for_the_window_again() {
-    let fixture =
-        Fixture::start_repeating(Response::json(503, "{}").with_delay(Duration::from_secs(2)));
+    let held = Fixture::start_held(Response::json(503, "{}"));
     let environment = RunEnvironment::new(&format!(
         "[providers.hn_api]\nurl = \"{url}\"\nfirebase_url = \"{url}\"\n\
          [retry]\nmax_attempts = 2\nmultiplier = 1\nmax_wait = 0\n",
-        url = fixture.url
+        url = held.url
     ));
-    let state = state_path(&environment);
 
-    let output = thread::scope(|scope| {
+    // The first request is in flight, so its window is reserved; another process then reserves
+    // the next one before the retry asks for it.
+    let (output, fixture) = thread::scope(|scope| {
         let run =
             scope.spawn(|| environment.run(&["platform", "hn", "search", "x", "--timeout", "5"]));
-        let waited = Instant::now();
-        while !state.exists() {
-            assert!(
-                waited.elapsed() < Duration::from_secs(5),
-                "no first reservation"
-            );
-            thread::sleep(Duration::from_millis(20));
-        }
+        held.wait_for_request();
         reserve_windows(&environment, &["hn_api"]);
-        run.join().expect("run the search")
+        let fixture = held.release();
+        (run.join().expect("run the search"), fixture)
     });
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse search JSON");
 
