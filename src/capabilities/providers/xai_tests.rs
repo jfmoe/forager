@@ -8,10 +8,11 @@ use serde_json::{Value, json};
 use super::Xai;
 use crate::config::{MainSearchProviderConfig, XaiRuntimeConfig};
 use crate::fixture_server::{Fixture, Response, block_on, header, path, request_json};
-use crate::main_search_samples::{answer_with, stored_answer};
+use crate::main_search_samples::{answer_with, failed_event, stored_answer};
 use crate::net::{AttemptFailure, RetryPolicy, build_client};
 use crate::providers::build_main_search;
 use crate::providers::{MainSearchRequest, MainSearchRequestKind, RouteContext};
+use crate::samples::sample;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt, ProviderError, SearchOutcome};
 use crate::x_samples::completed_events;
 
@@ -56,10 +57,19 @@ fn completed(response: &Value) -> Response {
     Response::sse(200, &completed_events(response))
 }
 
-/// A stream that ends with `response.failed` carrying the structured error `code`.
+/// A stream that ends with the stored `response.failed` event carrying the structured error
+/// `code`.
 fn failed(code: &str) -> Response {
-    let event = json!({"type": "response.failed", "error": {"code": code}});
+    let mut event = failed_event("xai");
+    event["error"]["code"] = json!(code);
     Response::sse(200, &format!("event: response.failed\ndata: {event}\n\n"))
+}
+
+/// The stored error answer of a refused request, its reason replaced by `reason`.
+fn refusal(status: u16, reason: &str) -> Response {
+    let mut body: Value = serde_json::from_str(&sample("xai/error.json")).expect("stored JSON");
+    body["error"] = json!(reason);
+    Response::json(status, &body.to_string())
 }
 
 /// Runs one main search through xAI as the provider factory builds it, against a fixture that
@@ -216,10 +226,7 @@ fn a_refused_search_maps_its_status_and_keeps_the_key_out_of_its_message() {
         let (outcome, requests) = search(
             &[KEY],
             1,
-            vec![Response::json(
-                status,
-                &format!(r#"{{"error":"refused for {KEY}"}}"#),
-            )],
+            vec![refusal(status, &format!("refused for {KEY}"))],
         );
         let error = outcome.expect_err("the search is refused");
 
@@ -292,8 +299,8 @@ fn a_structured_rate_limit_event_rotates_to_the_next_key() {
 #[test]
 fn key_rotation_does_not_consume_the_network_retry_quota() {
     let keys = [KEY, SECOND_KEY, THIRD_KEY];
-    let rate_limited = || Response::json(429, r#"{"error":"rate limited"}"#);
-    let unavailable = || Response::json(503, r#"{"error":"network failure"}"#);
+    let rate_limited = || refusal(429, "rate limited");
+    let unavailable = || refusal(503, "network failure");
     let (outcome, requests) = search(
         &keys,
         2,

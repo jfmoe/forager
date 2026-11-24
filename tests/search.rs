@@ -4,7 +4,7 @@ use std::fs;
 
 use serde_json::Value;
 
-use support::main_search_samples::answer_with;
+use support::main_search_samples::{answer_with, failed_event};
 use support::x_samples::completed_events;
 use support::{Fixture, Response, RunEnvironment};
 
@@ -128,7 +128,7 @@ fn search_journals_each_success_and_failure_terminal_once() {
         Response::new(
             200,
             "text/event-stream",
-            "data: {\"type\":\"response.failed\",\"error\":{\"message\":\"failed\"}}\n\n",
+            &format!("data: {}\n\n", failed_event("xai")),
         ),
     ]);
     let environment = RunEnvironment::new(&search_config(&fixture.url, true));

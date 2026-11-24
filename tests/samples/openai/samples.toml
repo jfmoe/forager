@@ -1,9 +1,15 @@
-# Upstream samples of the `openai` provider; each record names one file in this directory. Each
-# sample is the `response` object of the `response.completed` event that ends an OpenAI Responses
-# stream; tests wrap it in the event stream.
+# Upstream samples of the `openai` provider; each record names one file in this directory. A
+# sample of a Responses stream is one event or the `response` object of the `response.completed`
+# event that ends the stream; tests wrap it in the event stream.
 
 [[sample]]
 file = "search.json"
 shape = "OpenAI Responses `POST /responses` for main search with the `web_search` tool: output text with a parenthesized Markdown citation, and `url_citation` annotations whose URLs carry the `utm_source=openai` parameter the tool appends, one of them repeating a page without it"
+origin = "hand-written"
+observed = 2026-10-28
+
+[[sample]]
+file = "response-failed.json"
+shape = "OpenAI Responses `POST /responses` stream ending in failure: the `response.failed` event, its structured code under `error.code` and its reason under `error.message`"
 origin = "hand-written"
 observed = 2026-10-28

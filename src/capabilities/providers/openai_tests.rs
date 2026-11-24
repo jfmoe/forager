@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use super::Openai;
 use crate::config::{MainSearchProviderConfig, OpenaiRuntimeConfig};
 use crate::fixture_server::{Fixture, Response, block_on, header, path, request_json};
-use crate::main_search_samples::stored_answer;
+use crate::main_search_samples::{failed_event, stored_answer};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::constructors::build_openai;
 use crate::providers::{MainSearchRequest, MainSearchRequestKind, build_main_search};
@@ -106,10 +106,9 @@ fn sources_drop_only_the_tracking_parameter_openai_appends() {
 
 #[test]
 fn a_failed_terminal_event_maps_its_structured_code_and_hides_the_key() {
-    let event = json!({
-        "type": "response.failed",
-        "error": {"code": "insufficient_quota", "message": format!("quota of {KEY} is used up")}
-    });
+    let mut event = failed_event("openai");
+    event["error"]["code"] = json!("insufficient_quota");
+    event["error"]["message"] = json!(format!("quota of {KEY} is used up"));
 
     let (outcome, _) = search(&format!("data: {event}\n\n"));
     let error = outcome.expect_err("the terminal event fails the search");
