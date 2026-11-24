@@ -391,7 +391,39 @@ mod tavily_map_tests {
 /// The `exa` commands' argument rules, proven by parsing their definitions in process.
 #[cfg(test)]
 mod exa_tests {
+    use std::time::Duration;
+
     use super::{Command, ExaCommand, ExaSearchType, parse};
+    use crate::app::dispatch::exa_deadline;
+
+    /// The command deadline of the `exa` command `arguments` when Exa's configured timeout is
+    /// 42 seconds.
+    fn deadline(arguments: &[&str]) -> Duration {
+        let Command::Exa {
+            command: ExaCommand::Search { timeout, .. } | ExaCommand::Similar { timeout, .. },
+        } = parse(arguments).expect("the parser accepts the arguments")
+        else {
+            unreachable!("the arguments name an exa command")
+        };
+        exa_deadline(timeout, 42)
+    }
+
+    #[test]
+    fn an_exa_command_has_the_configured_timeout_unless_its_timeout_names_another_deadline() {
+        for (command, target) in [
+            ("search", "rust async drop"),
+            ("similar", "https://example.test/source"),
+        ] {
+            assert_eq!(
+                (
+                    deadline(&["exa", command, target]),
+                    deadline(&["exa", command, target, "--timeout", "7"]),
+                ),
+                (Duration::from_secs(42), Duration::from_secs(7)),
+                "{command}"
+            );
+        }
+    }
 
     #[test]
     fn an_exa_search_without_options_asks_for_five_automatic_results_without_contents() {
@@ -437,6 +469,36 @@ mod exa_tests {
                 );
             }
         }
+    }
+}
+
+/// The `fetch` command's argument rules, proven by parsing its definition in process.
+#[cfg(test)]
+mod fetch_tests {
+    use std::time::Duration;
+
+    use super::{Command, parse};
+    use crate::app::dispatch::fetch_deadline;
+
+    /// The command deadline of the `fetch` command `arguments`.
+    fn deadline(arguments: &[&str]) -> Duration {
+        match parse(arguments).expect("the parser accepts the arguments") {
+            Command::Fetch { timeout, .. } => fetch_deadline(timeout),
+            _ => unreachable!("the arguments name fetch"),
+        }
+    }
+
+    #[test]
+    fn a_fetch_has_three_minutes_unless_its_timeout_names_another_deadline() {
+        let url = "https://example.test/article";
+
+        assert_eq!(
+            (
+                deadline(&["fetch", url]),
+                deadline(&["fetch", url, "--timeout", "7"]),
+            ),
+            (Duration::from_mins(3), Duration::from_secs(7))
+        );
     }
 }
 
