@@ -261,6 +261,18 @@ impl NetworkDependencies {
     }
 }
 
+/// The command deadline of a `fetch` asked to finish within `timeout` seconds, three minutes
+/// when it names none.
+pub(super) fn fetch_deadline(timeout: Option<u64>) -> Duration {
+    Duration::from_secs(timeout.unwrap_or(180))
+}
+
+/// The command deadline of an `exa` command asked to finish within `timeout` seconds, the
+/// configured Exa timeout of `configured_seconds` when it names none.
+pub(super) fn exa_deadline(timeout: Option<u64>, configured_seconds: u64) -> Duration {
+    Duration::from_secs(timeout.unwrap_or(configured_seconds))
+}
+
 impl FetchContext {
     fn load(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
@@ -275,7 +287,7 @@ impl FetchContext {
             config,
             client: dependencies.client,
             retry_policy: dependencies.retry_policy,
-            deadline: Deadline::new(Duration::from_secs(timeout.unwrap_or(180))),
+            deadline: Deadline::new(fetch_deadline(timeout)),
             runtime: dependencies.runtime,
             log_level,
         })
@@ -382,12 +394,12 @@ impl AppContext<providers::Exa> {
                 "providers.exa.keys has no configured credentials".into(),
             )));
         }
-        let command_timeout = timeout.unwrap_or(config.exa.timeout_seconds);
+        let deadline = exa_deadline(timeout, config.exa.timeout_seconds);
         let provider = providers::build_exa(
             config.exa,
             dependencies.client,
             dependencies.retry_policy,
-            Deadline::new(Duration::from_secs(command_timeout)),
+            Deadline::new(deadline),
         );
         Ok(Self {
             provider,

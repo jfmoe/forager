@@ -356,40 +356,28 @@ fn format_search_failure_json(
     if !failure.extra_sources.is_empty() {
         let candidates =
             serde_json::to_value(&failure.extra_sources).map_err(|error| error.to_string())?;
-        let Value::Array(candidates) = candidates else {
+        let Value::Array(mut candidates) = candidates else {
             return Err("extra_sources did not serialize as an array".into());
         };
-        add_failure_candidates(object, candidates, failure.error.verbose)?;
-    }
-    serde_json::to_string(&payload).map_err(|error| error.to_string())
-}
-
-/// Adds the encoded Search Candidates of a failed search to its payload `object`. Unless
-/// `verbose`, they lose their summaries and are cut to fit the payload target, and the payload
-/// says whether any were cut.
-fn add_failure_candidates(
-    object: &mut serde_json::Map<String, Value>,
-    mut candidates: Vec<Value>,
-    verbose: bool,
-) -> Result<(), String> {
-    if verbose {
-        object.insert("extra_sources".into(), Value::Array(candidates));
-        return Ok(());
-    }
-    for candidate in &mut candidates {
-        if let Some(fields) = candidate.as_object_mut() {
-            fields.remove("summary");
+        if failure.error.verbose {
+            object.insert("extra_sources".into(), Value::Array(candidates));
+        } else {
+            for candidate in &mut candidates {
+                if let Some(fields) = candidate.as_object_mut() {
+                    fields.remove("summary");
+                }
+            }
+            object.insert("extra_sources".into(), Value::Array(Vec::new()));
+            object.insert("extra_sources_truncated".into(), Value::Bool(false));
+            let base_len = serde_json::to_string(&*object)
+                .map_err(|error| error.to_string())?
+                .len();
+            let (kept, truncated) = fit_failure_candidates(base_len, candidates);
+            object.insert("extra_sources".into(), Value::Array(kept));
+            object.insert("extra_sources_truncated".into(), Value::Bool(truncated));
         }
     }
-    object.insert("extra_sources".into(), Value::Array(Vec::new()));
-    object.insert("extra_sources_truncated".into(), Value::Bool(false));
-    let base_len = serde_json::to_string(&*object)
-        .map_err(|error| error.to_string())?
-        .len();
-    let (kept, truncated) = fit_failure_candidates(base_len, candidates);
-    object.insert("extra_sources".into(), Value::Array(kept));
-    object.insert("extra_sources_truncated".into(), Value::Bool(truncated));
-    Ok(())
+    serde_json::to_string(&payload).map_err(|error| error.to_string())
 }
 
 // Callers read the default failure payload in full, so its 4 KiB target outranks candidate
@@ -713,9 +701,9 @@ mod tests {
 
     use super::{
         ContentOutputFormat, FAILURE_PAYLOAD_TARGET_BYTES, FetchOutcome, JournalOutcome,
-        OutputTarget, RenderedOutput, SearchFailure, add_failure_candidates, apply_tee,
-        fit_failure_candidates, format_failure_json, format_search_failure_json, render_fetch,
-        render_search, with_attempt_log,
+        OutputTarget, RenderedOutput, SearchFailure, apply_tee, fit_failure_candidates,
+        format_failure_json, format_search_failure_json, render_fetch, render_search,
+        with_attempt_log,
     };
 
     #[test]
@@ -858,19 +846,23 @@ mod tests {
         );
     }
 
-    /// The JSON payload of a search whose main search failed for a bad key, with `gaps` and
-    /// without candidates.
-    fn search_failure_payload(gaps: Vec<CapabilityGap>) -> Value {
+    /// The JSON payload of a search whose main search failed for a bad key, with `gaps` and the
+    /// Search Candidates `extra_sources`, in full when `verbose`.
+    fn search_failure_payload(
+        gaps: Vec<CapabilityGap>,
+        extra_sources: Vec<SearchCandidate>,
+        verbose: bool,
+    ) -> Value {
         let encoded = format_search_failure_json(
             &SearchFailure {
                 error: ProviderError {
                     kind: AttemptErrorKind::Auth,
                     message: "bad key".into(),
                     attempts: Vec::new(),
-                    verbose: false,
+                    verbose,
                     diagnostic: None,
                 },
-                extra_sources: Vec::new(),
+                extra_sources,
                 capability_gaps: gaps,
             },
             &JournalOutcome {
@@ -883,24 +875,30 @@ mod tests {
         serde_json::from_str(&encoded).expect("search failure JSON")
     }
 
-    /// `payload` with `candidates` added as a failed search adds them.
-    fn with_candidates(mut payload: Value, candidates: Vec<Value>, verbose: bool) -> Value {
-        add_failure_candidates(
-            payload.as_object_mut().expect("payload object"),
-            candidates,
-            verbose,
+    /// The candidate Tavily's web search found at `url` titled `title`, with `summary`.
+    fn web_search_candidate(title: &str, url: &str, summary: Option<&str>) -> SearchCandidate {
+        SearchCandidate::from_source(
+            Source {
+                text: summary.map(Into::into),
+                ..source(title, url)
+            },
+            "tavily",
+            Capability::WebSearch,
         )
-        .expect("candidates added");
-        payload
+        .expect("an HTTP candidate")
     }
 
     #[test]
     fn a_failed_search_payload_names_its_capability_gaps() {
-        let payload = search_failure_payload(vec![CapabilityGap {
-            capability: Capability::DocsSearch,
-            reason: "no_configured_provider",
-            providers_skipped: vec!["exa".into()],
-        }]);
+        let payload = search_failure_payload(
+            vec![CapabilityGap {
+                capability: Capability::DocsSearch,
+                reason: "no_configured_provider",
+                providers_skipped: vec!["exa".into()],
+            }],
+            Vec::new(),
+            false,
+        );
 
         assert_eq!(
             (&payload["error_kind"], &payload["capability_gaps"]),
@@ -932,9 +930,13 @@ mod tests {
             .remove("summary");
 
         let payloads = [false, true].map(|verbose| {
-            let payload = with_candidates(
-                search_failure_payload(Vec::new()),
-                vec![candidate.clone()],
+            let payload = search_failure_payload(
+                Vec::new(),
+                vec![web_search_candidate(
+                    "Candidate",
+                    "https://example.test/candidate",
+                    Some("Candidate summary"),
+                )],
                 verbose,
             );
             (
@@ -956,17 +958,15 @@ mod tests {
     fn a_failed_search_payload_cuts_its_candidates_to_the_payload_target() {
         let candidates = (0..20)
             .map(|index| {
-                json!({
-                    "provider": "tavily",
-                    "capability": "web_search",
-                    "title": format!("{index} {}", "long title ".repeat(30)),
-                    "url": format!("https://example.test/candidate/{index}"),
-                    "provider_data": {}
-                })
+                web_search_candidate(
+                    &format!("{index} {}", "long title ".repeat(30)),
+                    &format!("https://example.test/candidate/{index}"),
+                    None,
+                )
             })
             .collect::<Vec<_>>();
 
-        let payload = with_candidates(search_failure_payload(Vec::new()), candidates, false);
+        let payload = search_failure_payload(Vec::new(), candidates, false);
         let kept = payload["extra_sources"].as_array().map_or(0, Vec::len);
 
         assert_eq!(

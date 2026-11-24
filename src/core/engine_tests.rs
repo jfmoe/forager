@@ -20,28 +20,15 @@ use crate::types::{
     AttemptErrorKind, Deadline, FallbackPolicy, FetchOutcome, ProviderAttempt, ProviderError,
     SearchOutcome, SupplementalSearchOutcome,
 };
+use crate::web_samples::{jina, stored_with, tavily_results};
 use crate::x_samples::completed_events;
 
 const ARTICLE: &str = "https://example.test/article";
-
-/// The stored body at `name` with the string at `pointer` set to `value`.
-fn stored_with(name: &str, pointer: &str, value: &str) -> String {
-    let mut body: Value = serde_json::from_str(&sample(name)).expect("stored JSON");
-    *body.pointer_mut(pointer).expect("stored field") = json!(value);
-    body.to_string()
-}
 
 fn firecrawl(markdown: &str) -> Response {
     Response::json(
         200,
         &stored_with("firecrawl/scrape.json", "/data/markdown", markdown),
-    )
-}
-
-fn jina(content: &str) -> Response {
-    Response::json(
-        200,
-        &stored_with("jina/read.json", "/data/content", content),
     )
 }
 
@@ -392,12 +379,6 @@ fn web_search(
             Deadline::new(Duration::from_secs(30)),
         ),
     ))
-}
-
-fn tavily_results(results: &Value) -> Response {
-    let mut body: Value = serde_json::from_str(&sample("tavily/search.json")).expect("stored JSON");
-    body["results"] = results.clone();
-    Response::json(200, &body.to_string())
 }
 
 fn firecrawl_results(results: &Value) -> Response {

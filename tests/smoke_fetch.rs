@@ -5,12 +5,13 @@ mod support;
 
 use serde_json::Value;
 use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
-use support::{Fixture, Response, jina_response};
+use support::web_samples::jina;
+use support::{Fixture, Response};
 
 #[test]
 fn the_jina_case_fails_when_only_the_anonymous_request_reads_the_page() {
     let refused = || Response::json(401, r#"{"message":"Invalid API key"}"#);
-    let anonymous = || Response::json(200, &jina_response(&"Smoke canary content. ".repeat(30)));
+    let anonymous = || jina(&"Smoke canary content. ".repeat(30));
     // Live smoke runs a failing case three times; each run sends the key, then no key.
     let jina = Fixture::start_sequence(
         (0..3)

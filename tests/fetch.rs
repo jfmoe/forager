@@ -5,7 +5,8 @@ use std::fs;
 use serde_json::Value;
 
 use support::samples::sample;
-use support::{Fixture, Response, RunEnvironment, jina_response};
+use support::web_samples::jina;
+use support::{Fixture, Response, RunEnvironment};
 
 /// The stored Tavily extract answer whose page content is `raw_content`.
 fn tavily_extract(raw_content: &str) -> String {
@@ -26,7 +27,7 @@ fn jina_refusal(message: &str) -> String {
 
 #[test]
 fn fetch_reports_quality_when_every_configured_provider_is_thin() {
-    let jina = Fixture::start(200, "application/json", &jina_response(""));
+    let jina = Fixture::start_sequence(vec![jina("")]);
     let tavily = Fixture::start(200, "application/json", &tavily_extract("also thin"));
     let config = fetch_config(
         &jina.url,
@@ -216,7 +217,7 @@ fn fetch_receipt_writes_the_result_file_and_prints_only_a_receipt() {
         .map(|line| format!("Receipt fixture paragraph {line} with enough words to pass the gate."))
         .collect::<Vec<_>>()
         .join("\n");
-    let jina = Fixture::start(200, "application/json", &jina_response(&content));
+    let jina = Fixture::start_sequence(vec![jina(&content)]);
     let config = fetch_config(
         &jina.url,
         &["jina-key"],

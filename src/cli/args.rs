@@ -316,7 +316,7 @@ fn parse(arguments: &[&str]) -> Result<Command, clap::Error> {
 
 /// The `map` command's argument rules, proven by parsing its definition in process.
 #[cfg(test)]
-mod map_tests {
+mod tavily_map_tests {
     use super::{Command, parse};
 
     /// The depth, breadth, limit and timeout a `map` with `options` asks for.
