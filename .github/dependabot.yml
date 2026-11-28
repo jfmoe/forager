@@ -15,6 +15,12 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # reqwest 0.13 trades the bundled certificate roots for the system trust store and ring for
+      # aws-lc, which the offline tests cannot prove; #336 decides whether to take it.
+      - dependency-name: reqwest
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
