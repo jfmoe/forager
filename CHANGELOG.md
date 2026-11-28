@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1](https://github.com/jfmoe/forager/compare/v0.23.0...v0.23.1) - 2026-11-28
+
+### Fixed
+
+- *(state)* leave a non-file under the sweep marker's name alone
+- *(state)* repair state files whose content is not UTF-8
+- *(browser)* remove old Managed Browser versions on install
+
+### Other
+
+- *(state)* name the record ownership check by what it returns
+- *(state)* sweep expired records at most once an hour
+- *(journal)* expire journal records by the time in their names
+- *(dist)* strip the symbol table from release binaries
+- *(state)* stop syncing credential cursor and Access Policy writes
+- *(state)* let each state file say whether its write syncs
+- *(credentials)* select a single key without the cursor state
+- *(browser)* split placing the package out of install
+- *(deps)* state the reqwest decision where Dependabot ignores it
+
 ## [0.23.0](https://github.com/jfmoe/forager/compare/v0.22.0...v0.23.0) - 2026-11-28
 
 ### Fixed
