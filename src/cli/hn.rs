@@ -11,7 +11,9 @@ use super::{
     search,
 };
 use crate::app::args::{ContentOutputFormat, OutputFormat};
-use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
+use crate::app::dispatch::{
+    AppError, CommandOutput, NetworkDependencies, Presentation, provider_attempt_log,
+};
 use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, HnRef, HnSearchOptions, HnSearchType, HnSort, HnStoriesList,
@@ -330,10 +332,12 @@ fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
     });
     Ok(CommandOutput::HnStories {
         result,
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 

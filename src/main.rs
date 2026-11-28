@@ -9,7 +9,8 @@ use std::process::ExitCode;
 use clap::Parser;
 use forager::app::{
     self, AppError, Cli, CommandKind, CommandOutput, ContentOutputFormat, ExaOutcome, Invocation,
-    OutputFormat, OutputTarget, ProviderError, SearchFailure, bounded_attempt_summary,
+    OutputFormat, OutputTarget, Presentation, ProviderError, SearchFailure,
+    bounded_attempt_summary,
 };
 use forager::types::{
     AttemptErrorKind, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome, MapOutcome,
@@ -74,8 +75,6 @@ fn finish(command: CommandKind, invocation: Invocation, exit_code: u8) -> ExitCo
 }
 
 /// Prints a command's output and returns what that settled.
-// One arm per typed command output; each arm only hands its fields to that output's renderer.
-#[expect(clippy::too_many_lines)]
 fn emit_output(output: CommandOutput) -> Settled {
     match output {
         CommandOutput::Text {
@@ -101,107 +100,72 @@ fn emit_output(output: CommandOutput) -> Settled {
         CommandOutput::Search {
             result,
             journal,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            render_search(result, &journal, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            render_search(result, &journal, format, output, verbose)
+        }),
         CommandOutput::Exa {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(render_exa(result, format, output, verbose), attempt_log),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            render_exa(result, format, output, verbose)
+        }),
         CommandOutput::Fetch {
             result,
             host: _,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(render_fetch(result, format, output, verbose), attempt_log),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            render_fetch(result, format, output, verbose)
+        }),
         CommandOutput::Map {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(render_map(result, format, output, verbose), attempt_log),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            render_map(result, format, output, verbose)
+        }),
         CommandOutput::PlatformSearch {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_search(result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_search(result, format, output, verbose)
+        }),
         CommandOutput::PlatformFetch {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_fetch(*result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_fetch(*result, format, output, verbose)
+        }),
         CommandOutput::PlatformComments {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_comments(result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_comments(result, format, output, verbose)
+        }),
         CommandOutput::PlatformAsk {
             platform,
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_ask(platform, result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_ask(platform, result, format, output, verbose)
+        }),
         CommandOutput::PlatformTranscribe {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_transcribe(*result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_transcribe(*result, format, output, verbose)
+        }),
         CommandOutput::HnStories {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_stories(result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_stories(result, format, output, verbose)
+        }),
         CommandOutput::PolymarketHistory {
             result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        } => emit_logged(
-            platform_render::render_history(result, format, output, verbose),
-            attempt_log,
-        ),
+            presentation,
+        } => emit_presented(presentation, |format, output, verbose| {
+            platform_render::render_history(result, format, output, verbose)
+        }),
     }
 }
 
@@ -369,6 +333,20 @@ fn emit_rendered(rendered: Result<RenderedOutput, String>) -> Settled {
             Settled::exit(4)
         }
     }
+}
+
+/// Renders a result as its presentation asks and prints it with the attempt log.
+fn emit_presented<F>(
+    presentation: Presentation<F>,
+    render: impl FnOnce(F, Option<OutputTarget>, bool) -> Result<RenderedOutput, String>,
+) -> Settled {
+    let Presentation {
+        format,
+        output,
+        verbose,
+        attempt_log,
+    } = presentation;
+    emit_logged(render(format, output, verbose), attempt_log)
 }
 
 fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> Settled {

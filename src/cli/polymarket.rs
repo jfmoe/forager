@@ -9,7 +9,9 @@ use super::{
     PageInput, PlatformCommonArgs, PlatformInput, fetch, parse_date, preflight_error, search,
 };
 use crate::app::args::{ContentOutputFormat, OutputFormat};
-use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
+use crate::app::dispatch::{
+    AppError, CommandOutput, NetworkDependencies, Presentation, provider_attempt_log,
+};
 use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -272,10 +274,12 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
     });
     Ok(CommandOutput::PolymarketHistory {
         result,
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 
