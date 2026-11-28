@@ -129,14 +129,27 @@ pub(crate) fn refs(page: &serde_json::Value) -> Vec<String> {
         .collect()
 }
 
+/// The record files in a record directory, which keeps its sweep marker beside them; none when
+/// the directory does not exist.
+pub(crate) fn record_files(directory: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    entries
+        .map(|entry| entry.expect("a directory entry").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect()
+}
+
 /// Reads the single Search Result Journal record an environment wrote.
 pub(crate) fn read_only_journal(environment: &RunEnvironment) -> serde_json::Value {
-    let entry = fs::read_dir(environment.state_dir.join("forager/journal"))
-        .expect("read journal")
-        .next()
-        .expect("journal entry")
-        .expect("valid journal entry");
-    serde_json::from_slice(&fs::read(entry.path()).expect("read journal record"))
+    let [record] = record_files(&environment.state_dir.join("forager/journal"))
+        .try_into()
+        .expect("one journal record");
+    serde_json::from_slice(&fs::read(record).expect("read journal record"))
         .expect("parse journal record")
 }
 

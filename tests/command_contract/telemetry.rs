@@ -8,6 +8,7 @@ use std::process::Stdio;
 use serde_json::{Value, json};
 
 use crate::support::hn::config as hn_config;
+use crate::support::record_files;
 use crate::support::samples::{sample, sample_json};
 use crate::support::web_samples::jina;
 use crate::support::{
@@ -39,13 +40,10 @@ fn directory(environment: &RunEnvironment) -> PathBuf {
 
 /// The stored text of every telemetry file, and each one parsed.
 fn records(environment: &RunEnvironment) -> Vec<(String, Value)> {
-    let Ok(entries) = fs::read_dir(directory(environment)) else {
-        return Vec::new();
-    };
-    entries
-        .map(|entry| {
-            let text = fs::read_to_string(entry.expect("telemetry entry").path())
-                .expect("read telemetry record");
+    record_files(&directory(environment))
+        .into_iter()
+        .map(|path| {
+            let text = fs::read_to_string(path).expect("read telemetry record");
             let value = serde_json::from_str(&text).expect("parse telemetry record");
             (text, value)
         })
