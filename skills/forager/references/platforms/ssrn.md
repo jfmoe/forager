@@ -1,8 +1,9 @@
 # SSRN
 
-SSRN holds working papers in finance, economics, law and other social sciences. forager reads
-SSRN's records in Crossref, so it returns metadata and the abstract when Crossref has one, never
-the full text. It needs no key. Read [`shared.md`](shared.md) for what every platform shares.
+SSRN holds working papers in finance, economics, law and other social sciences. forager reads SSRN's
+records in Crossref, so it returns metadata and the abstract when Crossref has one, never the full
+text. It needs no key. Read [`shared.md`](shared.md) for what every platform shares, and Failures
+below after a non-zero exit.
 
 - **Papers on a topic**: `forager platform ssrn search 'QUERY'`. Matching follows Crossref; a
   title query (`--scope title`) does not need an exact phrase.

@@ -1,15 +1,16 @@
 # Google Scholar
 
 Google Scholar finds papers across publishers, counts citations, and lists the papers that cite a
-given paper, which arXiv and SSRN cannot. It holds no paper body. It runs on the user's own
-SerpApi key. Read [`shared.md`](shared.md) for what every platform shares.
+given paper, which arXiv and SSRN cannot. It holds no paper body. It runs on the user's own SerpApi
+key. Read [`shared.md`](shared.md) for what every platform shares, and Failures below after a
+non-zero exit.
 
 - **Cost**: every search page, fetch and cited-by page spends one search of the key's monthly
   quota (250 on SerpApi's free plan), including an empty page and a ref that does not exist. The
   same request repeated within an hour costs nothing. `forager doctor --provider serpapi` costs
   nothing and reports each key's searches left; run it when the user asks about the quota.
-- **Search once**: `forager platform scholar search 'QUERY'` with the default `--limit 20`, and
-  pick candidates from that page. Narrow the query or the years rather than paging with
+- **Search once**: `forager platform scholar search 'QUERY'` at the default `--limit`, and pick
+  candidates from that page. Narrow the query or the years rather than paging with
   `--cursor`.
 - **Query syntax**: the query goes to Google Scholar unchanged. Quote phrases; `author:"Surname"`
   restricts the whole query, both sides of `OR` included:

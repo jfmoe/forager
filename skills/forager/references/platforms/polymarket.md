@@ -1,9 +1,9 @@
 # Polymarket
 
-Polymarket is a prediction market: traders buy outcomes of future events, and an outcome's price
-is the probability the market implies. Use it when the task asks how likely something is, and
-cite the price beside the commentary. It needs no key. Read [`shared.md`](shared.md) for what
-every platform shares.
+Polymarket is a prediction market: traders buy outcomes of future events, and an outcome's price is
+the probability the market implies. Use it when the task asks how likely something is, and cite the
+price beside the commentary. It needs no key. Read [`shared.md`](shared.md) for what every platform
+shares, and Failures below after a non-zero exit.
 
 - **Markets on a topic**: `forager platform polymarket search 'QUERY'`; `--include-closed` adds
   closed events. Search prices come from a cache that can lag up to 5 minutes.

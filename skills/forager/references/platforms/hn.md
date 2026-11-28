@@ -1,8 +1,8 @@
 # Hacker News
 
-Hacker News is where practitioners discuss software, startups and technical ideas; its comments
-are first-hand opinions and experience. It needs no key. Read [`shared.md`](shared.md) for what
-every platform shares.
+Hacker News is where practitioners discuss software, startups and technical ideas; its comments are
+first-hand opinions and experience. It needs no key. Read [`shared.md`](shared.md) for what every
+platform shares, and Failures below after a non-zero exit.
 
 - **What HN says about a topic**: `forager platform hn search 'QUERY'`. `"double quotes"` match a
   phrase and `-word` excludes a word. `--type`, `--author`, `--from`/`--to`, `--min-points` and

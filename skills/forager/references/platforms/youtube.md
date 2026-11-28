@@ -1,7 +1,8 @@
 # YouTube
 
 YouTube holds talks, lectures, tutorials and reviews. Read [`shared.md`](shared.md) for what every
-platform shares. Three layers of evidence about a video never stand in for each other:
+platform shares, and Failures below after a non-zero exit. Three evidence layers never stand in for
+each other:
 
 - **What the publisher wrote** (title, description, chapters): `forager platform youtube fetch
   'REF_OR_URL' --depth abstract`. Never report it as what the video says or shows.
@@ -15,7 +16,7 @@ platform shares. Three layers of evidence about a video never stand in for each 
 
 Costs and routes:
 
-- **Data API key** (`youtube_api`, one key): search, fetch, comments and videos. Search is scarce:
+- **Data API key** (`youtube_api`): search, fetch, comments and videos. Search is scarce:
   about 100 a day, failed searches included, so search once with the filters the task implies.
   Fetches, comments and video pages draw on a separate, larger daily budget.
 - **Gemini key** (`gemini_api`): `ask` and `transcribe` spend model tokens and take seconds to

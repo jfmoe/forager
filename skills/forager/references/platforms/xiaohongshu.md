@@ -1,7 +1,8 @@
 # Xiaohongshu 小红书
 
 Xiaohongshu (RED) holds Chinese consumer reviews and lifestyle, travel and shopping experience,
-written as personal notes. Read [`shared.md`](shared.md) for what every platform shares.
+written as personal notes. Read [`shared.md`](shared.md) for what every platform shares, and
+Failures below after a non-zero exit.
 
 - **Opt-in**: its only route, `xiaohongshu_browser`, is off until the user enables it. It runs in
   a headless browser that forager drives, logged into the user's Xiaohongshu account.
@@ -19,12 +20,12 @@ written as personal notes. Read [`shared.md`](shared.md) for what every platform
   `access_url`, unchanged. It writes the note's text, tags and image links to a file. A link
   without its `xsec_token`, or a bare ref, cannot open: search for the note and fetch its
   `access_url`. `forager fetch` cannot read a note.
-- **What readers say**: `forager platform xiaohongshu comments 'ACCESS_URL'`. Keep the default
-  `--replies 0` unless the task is about the replies under particular comments; each expanded
+- **What readers say**: `forager platform xiaohongshu comments 'ACCESS_URL'`. Leave `--replies`
+  at its default unless the task is about the replies under particular comments; each expanded
   comment is one more click in the user's account.
 - **Pace**: one browser command every 10 seconds, never retried. Keep the number of commands small,
-  and fetch soon after searching: a token works for that note in that session for a while (22
-  minutes in one check), not indefinitely.
+  and fetch soon after searching: a token works for that note in that session for a while, not
+  indefinitely.
 - **Evidence**: cite the ref (`xiaohongshu:64a1b2c3d4e5f60718293a4b`) with the title, and give the
   user the `access_url`; the canonical `url` does not open without the token. A card supports
   claims about title, author, date and counts only. A note is one person's post: attribute it,
@@ -51,13 +52,13 @@ author.
 - Counts are Xiaohongshu's display text, such as `1.2万`, not exact numbers.
 - Results are personalized and change between runs; never present them as a stable ranking.
 - `next_cursor` is always `null`: a search cannot continue. When stderr says more results remain,
-  rerun once with a larger `--limit` (at most 100).
+  rerun once with a larger `--limit`.
 - A fetch has exact Beijing times in `published` and `updated`, plus `tags`, `images`, `video`
   (length and size; the video is never downloaded) and `ip_location`. Its `access_url` holds the
   token; `ref` and `url` never do.
 - Comment text keeps emoji codes such as `[doge]` as written.
 - Comments carry `has_more` for the note and `replies_has_more` per comment; when `has_more` is
-  true and more comments matter, rerun once with a larger `--limit` (at most 50).
+  true and more comments matter, rerun once with a larger `--limit`.
 
 ## Failures
 
