@@ -20,7 +20,7 @@ use crate::record_directory::{RecordDirectory, RecordKind};
 pub(super) const DIRECTORY: &str = "live_runs";
 const RECORDS: RecordKind = RecordKind {
     prefix: "live_run_",
-    retention: TimeDelta::days(90),
+    retention: Some(TimeDelta::days(90)),
     synced: true,
 };
 
@@ -204,7 +204,7 @@ pub(super) fn conclude(
         .records
         .write(now, &record)
         .map_err(RecordError::Write)
-        .and_then(|()| {
+        .and_then(|_| {
             store
                 .records
                 .remove_expired(now)

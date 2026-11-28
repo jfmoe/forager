@@ -21,7 +21,7 @@ use crate::types::{AttemptDisposition, AttemptErrorKind, Platform, ProviderAttem
 pub(crate) const DIRECTORY: &str = "telemetry";
 const RECORDS: RecordKind = RecordKind {
     prefix: "invocation_",
-    retention: TimeDelta::days(30),
+    retention: Some(TimeDelta::days(30)),
     // Every retrieval command writes a record, a sync on each would cost more than the record is
     // worth, and a record a crash cuts short is skipped by the reader.
     synced: false,

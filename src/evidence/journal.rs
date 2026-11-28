@@ -1,18 +1,15 @@
-use std::fs;
-use std::io::{self, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::io;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use chrono::{TimeDelta, Utc};
 use serde_json::{Value, json};
 
 use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
+use crate::record_directory::{RecordDirectory, RecordKind};
 use crate::redact::{Secret, redact_credentials};
 use crate::search_fanout::SearchFailure;
-use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, SearchOutcome};
-
-static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
 pub(crate) struct SearchRecord<'a> {
@@ -93,27 +90,33 @@ struct WrittenRecord {
     cleanup_warning: Option<String>,
 }
 
-fn write_value(config: &JournalRuntimeConfig, value: Value) -> io::Result<WrittenRecord> {
-    ensure_private_directory(&config.dir)?;
-    let path = config.dir.join(record_name());
-    write_value_to(config, &path, value)
-}
-
-fn write_value_to(
-    config: &JournalRuntimeConfig,
-    path: &std::path::Path,
-    mut value: Value,
-) -> io::Result<WrittenRecord> {
+fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<WrittenRecord> {
     sanitize_record(&mut value, &config.credentials);
-    let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
-    let mut file = create_new_private_file(path)?;
-    file.write_all(&encoded)?;
-    file.write_all(b"\n")?;
-    file.sync_all()?;
+    let records = RecordDirectory::new(
+        config.dir.clone(),
+        RecordKind {
+            prefix: "search_result_",
+            retention: retention(config.retention_days),
+            synced: true,
+        },
+    );
+    let now = Utc::now();
+    let path = records.write(now, &value)?;
     Ok(WrittenRecord {
         reference: path.display().to_string(),
-        cleanup_warning: cleanup_expired(config),
+        cleanup_warning: records
+            .remove_expired(now)
+            .err()
+            .and_then(|error| cleanup_warning(&error)),
     })
+}
+
+/// How long a record is kept for `days` of configured retention, where zero keeps it
+/// indefinitely, as does a retention too long to reach.
+fn retention(days: u64) -> Option<TimeDelta> {
+    (days > 0)
+        .then(|| i64::try_from(days).ok().and_then(TimeDelta::try_days))
+        .flatten()
 }
 
 fn build_search_preflight_record(record: SearchPreflightRecord<'_>) -> Value {
@@ -204,79 +207,11 @@ fn build_record(record: SearchRecord<'_>) -> Value {
     })
 }
 
-fn cleanup_expired(config: &JournalRuntimeConfig) -> Option<String> {
-    if config.retention_days == 0 {
-        return None;
-    }
-    let retention = Duration::from_secs(config.retention_days.saturating_mul(86_400));
-    let cutoff = SystemTime::now()
-        .checked_sub(retention)
-        .unwrap_or(UNIX_EPOCH);
-    let entries = match fs::read_dir(&config.dir) {
-        Ok(entries) => entries,
-        Err(error) => return cleanup_warning(&error),
-    };
-    let mut warnings = Vec::new();
-    for entry in entries {
-        if let Err(error) = entry.and_then(|entry| cleanup_entry(&entry, cutoff))
-            && let Some(warning) = cleanup_warning(&error)
-        {
-            warnings.push(warning);
-        }
-    }
-    (!warnings.is_empty()).then(|| warnings.join("; "))
-}
-
-fn cleanup_entry(entry: &fs::DirEntry, cutoff: SystemTime) -> io::Result<()> {
-    let path = entry.path();
-    if !is_owned_record_name(&entry.file_name()) || !entry.file_type()?.is_file() {
-        return Ok(());
-    }
-    if entry.metadata()?.modified()? < cutoff {
-        fs::remove_file(path)?;
-    }
-    Ok(())
-}
-
-fn is_owned_record_name(name: &std::ffi::OsStr) -> bool {
-    let Some(name) = name.to_str() else {
-        return false;
-    };
-    let Some(fields) = name
-        .strip_prefix("search_result_")
-        .and_then(|name| name.strip_suffix(".json"))
-    else {
-        return false;
-    };
-    let mut fields = fields.split('_');
-    let (Some(nanos), Some(pid), Some(sequence), None) =
-        (fields.next(), fields.next(), fields.next(), fields.next())
-    else {
-        return false;
-    };
-    [nanos, pid, sequence]
-        .into_iter()
-        .all(|field| !field.is_empty() && field.bytes().all(|byte| byte.is_ascii_digit()))
-}
-
 fn cleanup_warning(error: &io::Error) -> Option<String> {
     match error.kind() {
         io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied => None,
         _ => Some(format!("journal cleanup: {error}")),
     }
-}
-
-fn record_name() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let sequence = RECORD_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    format!(
-        "search_result_{nanos}_{}_{}.json",
-        std::process::id(),
-        sequence
-    )
 }
 
 fn sanitize_value(value: &mut Value, credentials: &[Secret]) {
