@@ -8,14 +8,13 @@
 
 use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File};
+use std::fs::{self, File, TryLockError};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fs2::FileExt;
 use serde_json::Value;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
@@ -84,9 +83,9 @@ impl StateLock {
         let file = open_lock_file(path)?;
         let deadline = Instant::now() + wait;
         loop {
-            match file.try_lock_exclusive() {
+            match file.try_lock() {
                 Ok(()) => return Ok(Self { file }),
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                Err(TryLockError::WouldBlock) => {
                     if Instant::now() >= deadline {
                         return Err(io::Error::new(
                             io::ErrorKind::WouldBlock,
@@ -95,7 +94,7 @@ impl StateLock {
                     }
                     thread::sleep(Duration::from_millis(5));
                 }
-                Err(error) => return Err(error),
+                Err(TryLockError::Error(error)) => return Err(error),
             }
         }
     }
@@ -103,7 +102,7 @@ impl StateLock {
 
 impl Drop for StateLock {
     fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.file);
+        let _ = self.file.unlock();
     }
 }
 
@@ -133,13 +132,13 @@ pub(crate) async fn acquire_any_lock(
     loop {
         let mut free = None;
         for (index, file) in files.iter().enumerate() {
-            match file.try_lock_exclusive() {
+            match file.try_lock() {
                 Ok(()) => {
                     free = Some(index);
                     break;
                 }
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                Err(error) => return Err(error),
+                Err(TryLockError::WouldBlock) => {}
+                Err(TryLockError::Error(error)) => return Err(error),
             }
         }
         if let Some(index) = free {

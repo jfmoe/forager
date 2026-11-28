@@ -2,7 +2,6 @@ use std::fs::{self, OpenOptions};
 use std::process::{Output, Stdio};
 
 use crate::support::{forager_command, run_command};
-use fs2::FileExt;
 use serde_json::Value;
 
 #[test]
@@ -464,7 +463,7 @@ fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
         .write(true)
         .open(config_dir.path().join(".config.lock"))
         .expect("open config lock");
-    lock.lock_exclusive().expect("hold config lock");
+    lock.lock().expect("hold config lock");
 
     let set = run(
         config_dir.path(),

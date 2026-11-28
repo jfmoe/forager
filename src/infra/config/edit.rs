@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 use std::env;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fs2::FileExt;
 use tempfile::{Builder, NamedTempFile};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
@@ -439,9 +438,9 @@ fn acquire_config_lock(config_dir: &Path) -> io::Result<File> {
     let lock = open_private_lock(&config_dir.join(".config.lock"))?;
     let deadline = Instant::now() + LOCK_WAIT;
     loop {
-        match lock.try_lock_exclusive() {
+        match lock.try_lock() {
             Ok(()) => return Ok(lock),
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+            Err(TryLockError::WouldBlock) => {
                 if Instant::now() >= deadline {
                     return Err(io::Error::new(
                         io::ErrorKind::WouldBlock,
@@ -450,7 +449,7 @@ fn acquire_config_lock(config_dir: &Path) -> io::Result<File> {
                 }
                 thread::sleep(Duration::from_millis(5));
             }
-            Err(error) => return Err(error),
+            Err(TryLockError::Error(error)) => return Err(error),
         }
     }
 }

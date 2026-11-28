@@ -8,7 +8,6 @@ use std::process::Output;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fs2::FileExt;
 use serde_json::json;
 
 use crate::support::browser::StandIn;
@@ -165,7 +164,7 @@ fn a_profile_another_process_holds_fails_at_once() {
     let profile = environment.state_dir.join("forager/browser/xiaohongshu");
     fs::create_dir_all(&profile).expect("create profile");
     let lock = fs::File::create(profile.join("profile.lock")).expect("create lock file");
-    lock.lock_exclusive().expect("hold the profile lock");
+    lock.lock().expect("hold the profile lock");
 
     let output = login(&environment);
     let payload = payload(&output);
