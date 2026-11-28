@@ -489,7 +489,7 @@ const EXA_LIVE: &[LiveCheck] = &[
                 Text("search"),
                 Text("Rust async drop proposal"),
                 Text("--num-results"),
-                Text("3"),
+                Text("10"),
                 Text("--timeout"),
                 Timeout,
             ],
@@ -502,7 +502,8 @@ const EXA_LIVE: &[LiveCheck] = &[
             Field::text("results[].published_date").in_some_items(),
         ]),
         "a proposal discussed across RFCs, blog posts and issue trackers, so the results come \
-         from several kinds of page with different metadata",
+         from several kinds of page with different metadata; ten results, because the first \
+         three can all be pages without a date",
     ),
     LiveCheck::new(
         "exa:similar",
