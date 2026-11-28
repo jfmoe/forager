@@ -247,8 +247,8 @@ fn next_window(now_ms: u64, last_reserved_ms: Option<u64>, min_interval: Duratio
     last_reserved_ms.map_or(now_ms, |last| now_ms.max(last.saturating_add(interval_ms)))
 }
 
-fn parse_state(content: &str) -> Option<Value> {
-    let state = serde_json::from_str::<Value>(content).ok()?;
+fn parse_state(content: &[u8]) -> Option<Value> {
+    let state = serde_json::from_slice::<Value>(content).ok()?;
     (state["schema_version"].as_u64() == Some(STATE_SCHEMA_VERSION) && state["routes"].is_object())
         .then_some(state)
 }
@@ -517,26 +517,31 @@ mod tests {
 
     #[test]
     fn a_corrupt_state_file_is_replaced_after_a_full_interval() {
-        let directory = tempdir().expect("create state directory");
-        let path = state_file(directory.path());
-        fs::create_dir_all(path.parent().expect("state parent")).expect("create state parent");
-        fs::write(&path, "not json").expect("write corrupt state");
-        block_on_paused(async {
-            let started = Instant::now();
-
-            drop(
-                limiter(Some(path.clone()))
-                    .acquire(budget(10))
-                    .await
-                    .expect("window after corrupt state"),
-            );
-
-            assert_eq!(started.elapsed(), INTERVAL);
+        let outcomes = [&b"not json"[..], b"\xff\xfe\x00garbage"].map(|content| {
+            let directory = tempdir().expect("create state directory");
+            let path = state_file(directory.path());
+            fs::create_dir_all(path.parent().expect("state parent")).expect("create state parent");
+            fs::write(&path, content).expect("write corrupt state");
+            let waited = block_on_paused(async {
+                let started = Instant::now();
+                drop(
+                    limiter(Some(path.clone()))
+                        .acquire(budget(10))
+                        .await
+                        .expect("window after corrupt state"),
+                );
+                started.elapsed()
+            });
+            let state: serde_json::Value =
+                serde_json::from_slice(&fs::read(path).expect("read repaired state"))
+                    .expect("parse repaired state");
+            (
+                waited,
+                state["routes"]["test_route"]["reserved_at_ms"].is_u64(),
+            )
         });
-        let state: serde_json::Value =
-            serde_json::from_slice(&fs::read(path).expect("read repaired state"))
-                .expect("parse repaired state");
-        assert!(state["routes"]["test_route"]["reserved_at_ms"].is_u64());
+
+        assert_eq!(outcomes, [(INTERVAL, true); 2]);
     }
 
     #[test]

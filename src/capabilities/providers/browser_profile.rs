@@ -121,7 +121,7 @@ impl BrowserProfile {
             self.write_identity(&identity)?;
             return Ok(identity);
         };
-        serde_json::from_str::<Identity>(&content)
+        serde_json::from_slice::<Identity>(&content)
             .ok()
             .filter(|identity| identity.version == IDENTITY_VERSION)
             .ok_or_else(|| ProfileError::Unusable {
@@ -288,6 +288,22 @@ mod tests {
         assert_eq!(
             (profile.has_logged_in(), reopened.screen()),
             (true, Some(screen))
+        );
+    }
+
+    #[test]
+    fn an_identity_that_is_not_utf8_asks_to_delete_the_profile() {
+        let (_state, profile) = profile();
+        drop(profile.lock().expect("lock new profile"));
+        std::fs::write(profile.root().join("profile.json"), b"\xff\xfe\x00garbage")
+            .expect("write undecodable identity");
+
+        let result = profile.lock();
+
+        assert!(
+            matches!(&result, Err(ProfileError::Unusable { reason, .. })
+                if reason.ends_with("delete the profile directory and log in again")),
+            "{result:?}"
         );
     }
 

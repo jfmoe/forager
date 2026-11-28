@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File, TryLockError};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, PoisonError};
 use std::thread;
@@ -156,14 +156,12 @@ pub(crate) async fn acquire_any_lock(
     }
 }
 
-/// Reads a state file, returning `None` when it does not exist yet.
-pub(crate) fn read_state(path: &Path) -> io::Result<Option<String>> {
-    let mut content = String::new();
-    match File::open(path) {
-        Ok(mut file) => {
-            file.read_to_string(&mut content)?;
-            Ok(Some(content))
-        }
+/// Reads a state file's bytes, returning `None` when it does not exist yet. The bytes are not
+/// decoded here, so content that is not UTF-8 reaches the caller's handling of a corrupt state
+/// instead of failing as an I/O error.
+pub(crate) fn read_state(path: &Path) -> io::Result<Option<Vec<u8>>> {
+    match fs::read(path) {
+        Ok(content) => Ok(Some(content)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
