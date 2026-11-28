@@ -114,6 +114,62 @@ pub(crate) struct ChainOutcome<T> {
     pub(crate) diagnostic: Option<String>,
 }
 
+impl<T> ChainOutcome<T> {
+    /// The same outcome carrying `map` of its value.
+    pub(crate) fn map<U>(self, map: impl FnOnce(T) -> U) -> ChainOutcome<U> {
+        ChainOutcome {
+            value: map(self.value),
+            attempts: self.attempts,
+            diagnostic: self.diagnostic,
+        }
+    }
+}
+
+/// The attempts recorded before a chain, such as the routes planning skipped or an earlier
+/// stage's read, and the diagnostic of that stage.
+pub(crate) struct LeadingTrace {
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
+}
+
+impl LeadingTrace {
+    /// A trace of `attempts` without a diagnostic.
+    pub(crate) const fn new(attempts: Vec<ProviderAttempt>) -> Self {
+        Self {
+            attempts,
+            diagnostic: None,
+        }
+    }
+
+    /// Leads the result of a chain: these attempts come first and this diagnostic joins the
+    /// chain's, on success and on failure.
+    pub(crate) fn lead<T>(
+        self,
+        result: Result<ChainOutcome<T>, ProviderError>,
+    ) -> Result<ChainOutcome<T>, ProviderError> {
+        let Self {
+            mut attempts,
+            diagnostic,
+        } = self;
+        let joined =
+            |chain: Option<String>| combine_diagnostics([diagnostic, chain].into_iter().flatten());
+        match result {
+            Ok(mut outcome) => {
+                attempts.append(&mut outcome.attempts);
+                outcome.attempts = attempts;
+                outcome.diagnostic = joined(outcome.diagnostic);
+                Ok(outcome)
+            }
+            Err(mut error) => {
+                attempts.append(&mut error.attempts);
+                error.attempts = attempts;
+                error.diagnostic = joined(error.diagnostic);
+                Err(error)
+            }
+        }
+    }
+}
+
 /// Runs `steps` in order under `settings`, merging attempts and diagnostics
 /// and closing out through the configured terminal policy.
 pub(crate) async fn run_chain<S, T, Run, Fut>(

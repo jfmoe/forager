@@ -16,22 +16,20 @@ use reqwest::Client;
 
 use crate::catalog::{self, ProviderId};
 use crate::chain::{
-    self, BudgetPolicy, ChainOutcome, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity,
-    StepSuccess, StepVerdict, TerminalPolicy,
+    self, BudgetPolicy, ChainOutcome, ChainSettings, ChainStep, DiagnosticMerge, LeadingTrace,
+    StepIdentity, StepSuccess, StepVerdict, TerminalPolicy,
 };
 use crate::config::{
     BrowserRouteRuntimeConfig, HnRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
     ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, PlatformRuntimeConfig,
     PolymarketRouteRuntimeConfig, XaiRuntimeConfig,
 };
-use crate::net::{RetryPolicy, combine_diagnostics};
+use crate::net::RetryPolicy;
 use crate::page_cursor::{self, PagedRequest};
 use crate::platform_chain::{
     PlatformPreflightError, operation_target, plan_routes, route_candidates,
 };
-use crate::platform_precheck::{
-    PrecheckDepth, PrecheckPlan, Prechecked, plan_precheck, run_precheck,
-};
+use crate::platform_precheck::{PrecheckDepth, PrecheckPlan, plan_precheck, run_precheck};
 use crate::providers::{self, OperationRoute, RouteContext};
 use crate::types::{
     ASK, AskedVideo, CITED_BY, COMMENTS, ContentDepth, Deadline, HISTORY, HnStoriesOutcome,
@@ -216,10 +214,7 @@ struct Answered<T> {
 impl<C: Send + 'static, Q, I: Sync, T: Traced + Send> OperationPlan<C, Q, I, T> {
     /// Runs the route chain on `input`, led by the skipped routes.
     async fn run(self, input: &I, run: &OperationRun) -> Result<Answered<T>, ProviderError> {
-        let lead = LeadingTrace {
-            attempts: self.skipped,
-            diagnostic: None,
-        };
+        let lead = LeadingTrace::new(self.skipped);
         answer(self.operation, self.configs, input, lead, run).await
     }
 
@@ -231,8 +226,8 @@ impl<C: Send + 'static, Q, I: Sync, T: Traced + Send> OperationPlan<C, Q, I, T> 
         run: &OperationRun,
         input: impl FnOnce(&PlatformItem) -> I,
     ) -> Result<(PlatformItem, Answered<T>), ProviderError> {
-        let Prechecked {
-            video,
+        let ChainOutcome {
+            value: video,
             attempts,
             diagnostic,
         } = run_precheck(
@@ -325,45 +320,6 @@ async fn answer<C: Send + 'static, Q, I: Sync, T: Traced + Send>(
         },
         diagnostic: outcome.diagnostic,
     })
-}
-
-/// The attempts recorded before an operation's route chain, such as the skipped routes and a
-/// precheck's read, and the diagnostic of that read.
-struct LeadingTrace {
-    attempts: Vec<ProviderAttempt>,
-    diagnostic: Option<String>,
-}
-
-impl LeadingTrace {
-    /// Leads the result of the route chain: these attempts come first and this diagnostic joins
-    /// the chain's, on success and on failure.
-    fn lead<T>(
-        self,
-        result: Result<ChainOutcome<T>, ProviderError>,
-    ) -> Result<ChainOutcome<T>, ProviderError> {
-        let Self {
-            mut attempts,
-            diagnostic,
-        } = self;
-        match result {
-            Ok(mut outcome) => {
-                attempts.append(&mut outcome.attempts);
-                outcome.attempts = attempts;
-                outcome.diagnostic = joined(diagnostic, outcome.diagnostic);
-                Ok(outcome)
-            }
-            Err(mut error) => {
-                attempts.append(&mut error.attempts);
-                error.attempts = attempts;
-                error.diagnostic = joined(diagnostic, error.diagnostic);
-                Err(error)
-            }
-        }
-    }
-}
-
-fn joined(first: Option<String>, second: Option<String>) -> Option<String> {
-    combine_diagnostics([first, second].into_iter().flatten())
 }
 
 /// The answer of a route's inherent method, which carries the route's attempts and diagnostic.
@@ -886,60 +842,6 @@ pub(crate) async fn run_history(
 
 #[cfg(test)]
 mod tests {
-    use super::LeadingTrace;
-    use crate::chain::{ChainOutcome, skipped_attempt};
-    use crate::types::{AttemptErrorKind, AttemptTarget, ProviderAttempt, ProviderError};
-
-    fn attempt(provider: &'static str) -> ProviderAttempt {
-        skipped_attempt(AttemptTarget::platform("youtube", "ask"), provider, "test")
-    }
-
-    fn trace() -> LeadingTrace {
-        LeadingTrace {
-            attempts: vec![attempt("youtube_api")],
-            diagnostic: Some("read".into()),
-        }
-    }
-
-    fn providers(attempts: &[ProviderAttempt]) -> Vec<&str> {
-        attempts.iter().map(|attempt| attempt.provider).collect()
-    }
-
-    #[test]
-    fn the_leading_trace_leads_a_successful_chain() {
-        let outcome = trace()
-            .lead(Ok(ChainOutcome {
-                value: (),
-                attempts: vec![attempt("gemini_api")],
-                diagnostic: Some("answered".into()),
-            }))
-            .unwrap_or_else(|error| panic!("lead failed: {}", error.message));
-
-        assert_eq!(
-            (providers(&outcome.attempts), outcome.diagnostic.as_deref()),
-            (vec!["youtube_api", "gemini_api"], Some("read\nanswered"))
-        );
-    }
-
-    #[test]
-    fn the_leading_trace_leads_a_failed_chain() {
-        let error = trace()
-            .lead::<()>(Err(ProviderError {
-                kind: AttemptErrorKind::Quality,
-                message: "refused".into(),
-                attempts: vec![attempt("gemini_api")],
-                verbose: false,
-                diagnostic: None,
-            }))
-            .err()
-            .map(|error| (providers(&error.attempts).join(","), error.diagnostic));
-
-        assert_eq!(
-            error,
-            Some(("youtube_api,gemini_api".to_owned(), Some("read".to_owned())))
-        );
-    }
-
     /// The YouTube API route's videos, the only paged operation whose route resolves its
     /// collection.
     mod youtube_api {
