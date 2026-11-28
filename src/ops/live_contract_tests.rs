@@ -421,6 +421,57 @@ fn a_live_event_needs_clob_prices_unless_none_of_its_markets_is_open() {
     );
 }
 
+/// A comments output whose comments each declare a reply count and carry that many replies.
+fn commented(comments: &[(&str, usize)]) -> Value {
+    json!({
+        "comments": comments
+            .iter()
+            .map(|(declared, carried)| json!({
+                "reply_count": declared,
+                "replies": vec![json!({"id": "r"}); *carried],
+            }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+#[test]
+fn a_comment_declaring_a_reply_thread_needs_some_comment_to_carry_an_expanded_thread() {
+    const CONTRACT: LiveContract =
+        LiveContract::fields(&[]).with_sample(&[SampleRule::RepliesExpanded]);
+    let contract = CONTRACT;
+    let cases = [
+        commented(&[("0", 0), ("3", 3)]),
+        commented(&[("0", 0), ("1", 1), ("", 0)]),
+        commented(&[("0", 0), ("3", 1), ("2", 1)]),
+        commented(&[("1.2万", 1)]),
+    ];
+
+    assert_eq!(
+        cases
+            .iter()
+            .map(|payload| violation(&contract, payload).map(|detail| (
+                detail.rule,
+                detail.at,
+                detail.observed
+            )))
+            .collect::<Vec<_>>(),
+        [
+            None,
+            None,
+            Some((
+                Rule::RepliesExpanded,
+                Some("comments[1].replies".to_owned()),
+                Some(Observed::Array { count: 1 })
+            )),
+            Some((
+                Rule::RepliesExpanded,
+                Some("comments[0].replies".to_owned()),
+                Some(Observed::Array { count: 1 })
+            )),
+        ]
+    );
+}
+
 #[test]
 fn a_runtime_class_attempt_fails_a_contract_the_output_otherwise_meets() {
     const CONTRACT: LiveContract = LiveContract::fields(&[Field::text("answer")]);
