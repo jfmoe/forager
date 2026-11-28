@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use clap::CommandFactory;
-use forager::app::Cli;
+use forager::app::{Cli, report_vocabularies};
 use forager::types::{Capability, LiveCheckRule, Platform, PlatformRef};
 
 #[test]
@@ -117,27 +117,64 @@ fn capability_vocabulary_lists_the_cli_capabilities_in_canonical_order() {
     assert_eq!(ids, Capability::VOCABULARY.map(Capability::as_str).to_vec());
 }
 
+/// The names in backticks in the sentence of `source` that starts at `anchor`.
+fn named_in_sentence<'a>(source: &'a str, anchor: &str) -> Vec<&'a str> {
+    let start = source
+        .find(anchor)
+        .unwrap_or_else(|| panic!("the CLI reference has `{anchor}`"));
+    let sentence = &source[start + anchor.len()..];
+    let end = [". ", ".\n"]
+        .iter()
+        .filter_map(|end| sentence.find(end))
+        .min()
+        .expect("the end of the sentence");
+    sentence[..end].split('`').skip(1).step_by(2).collect()
+}
+
+/// The name in backticks that opens each item, at `indent`, of the list that follows `anchor` in
+/// `source`, up to the blank line that ends it.
+fn named_in_list<'a>(source: &'a str, anchor: &str, indent: &str) -> Vec<&'a str> {
+    let start = source
+        .find(anchor)
+        .unwrap_or_else(|| panic!("the CLI reference has `{anchor}`"));
+    let item = format!("{indent}- `");
+    source[start..]
+        .lines()
+        .skip(1)
+        .skip_while(|line| line.trim().is_empty())
+        .take_while(|line| !line.trim().is_empty())
+        .filter_map(|line| line.strip_prefix(item.as_str()))
+        .filter_map(|line| line.split('`').next())
+        .collect()
+}
+
 #[test]
 fn the_live_check_rules_the_cli_reference_lists_are_the_rules_a_check_reports() {
     let source = fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
-    let start = source
-        .find("The contract rules are")
-        .expect("the CLI reference lists the Live Check rules");
-    let list = &source[start..];
-    let end = [". ", ".\n"]
-        .iter()
-        .filter_map(|end| list.find(end))
-        .min()
-        .expect("the end of the list");
-    let list = &list[..end];
-    let named = list.split('`').skip(1).step_by(2).collect::<Vec<_>>();
 
     assert_eq!(
-        named,
+        named_in_sentence(&source, "The contract rules are"),
         LiveCheckRule::VOCABULARY
             .map(LiveCheckRule::as_str)
             .to_vec()
     );
+}
+
+#[test]
+fn the_report_vocabularies_the_cli_reference_lists_are_the_names_the_reports_use() {
+    let source = fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
+    let listed = |vocabulary: &str| match vocabulary {
+        "health finding" => named_in_list(&source, "has a `finding`:", ""),
+        "schedule status" => named_in_sentence(&source, "`age_hours` and `status`:"),
+        "live check status" => named_in_list(&source, "`status` is one of:", ""),
+        "not started cause" => named_in_list(&source, "and `cause` says why:", "  "),
+        "notification action" => named_in_list(&source, "`title` and `body`:", ""),
+        other => panic!("no list in the CLI reference for the {other} vocabulary"),
+    };
+
+    for (vocabulary, names) in report_vocabularies() {
+        assert_eq!(listed(vocabulary), names, "{vocabulary}");
+    }
 }
 
 #[test]

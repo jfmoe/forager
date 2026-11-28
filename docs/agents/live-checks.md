@@ -10,7 +10,7 @@ Live Checks are the only layer that reaches the real services. This procedure co
 | `metered` | Weekly, on the maintainer's machine | The weekly job |
 | `attended` | Only with the user present: after a release, as [`release.md`](release.md) says, and after a change to an attended route | A person |
 
-GitHub runs no Live Check. Its two scheduled workflows, `scheduled-build.yml` and `scheduled-advisories.yml`, build forager on each release runner and check dependency advisories, and each keeps its own issue through the workflow token; a run cancelled by hand reports nothing. Every scheduled job passes `--unattended`, which refuses the `attended` tier and leaves out expensive and manual-only checks. A rule test checks the job files for it and binds each job's interval to its tier's.
+GitHub runs no Live Check. Its two scheduled workflows, `scheduled-build.yml` and `scheduled-advisories.yml`, build forager on each release runner and check dependency advisories, and each keeps its own issue through the workflow token; a run cancelled by hand reports nothing. Every scheduled job passes `--unattended`, which refuses the `attended` tier and leaves out expensive and manual-only checks. A rule test checks that every `doctor --live` command in the job files passes it, that no job file names the `attended` tier or a provider with attended checks, and that each job's interval is its tier's.
 
 ## Installing the scheduled jobs
 

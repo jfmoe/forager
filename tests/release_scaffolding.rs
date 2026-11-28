@@ -1,3 +1,6 @@
+#[cfg(unix)]
+#[path = "support/isolation.rs"]
+mod isolation;
 #[path = "support/process.rs"]
 mod process;
 #[cfg(unix)]

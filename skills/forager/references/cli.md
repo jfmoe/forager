@@ -1432,10 +1432,13 @@ finding names its subject with the same fields as its entry and has a `finding`:
 - `degraded`: a provider's `metric` (`success_rate`, `empty_rate` or `short_content_rate`) moved
   for the worse by at least 0.2 against the period before, with `current` and `previous`. Only a
   provider with at least 20 calls in both periods is compared.
-- `hidden_failures`, with `count`, and `short_content`, with `count` of short `fetch` pages.
+- `hidden_failures`: a provider's calls that a fallback hid, with `count`.
+- `short_content`: a provider's short `fetch` pages, with `count`.
 - `sample_too_small`: a provider with fewer than `minimum` calls in either period, with `calls`
   and `previous_calls`, so it could not be compared.
-- `overdue`, with `age_hours` and `interval_days`, and `not_recorded`, for a schedule.
+- `overdue`: a schedule whose last run is older than its interval plus one day, with `age_hours`
+  and `interval_days`.
+- `not_recorded`: a schedule with no record.
 
 `ok` is false, and the command exits `4`, when a finding is `failing`, `degraded` or `overdue`; it
 exits `0` otherwise, and `3` when the configuration cannot be loaded. A provider counts as having

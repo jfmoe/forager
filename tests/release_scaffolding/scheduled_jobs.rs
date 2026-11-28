@@ -2,8 +2,11 @@
 
 use std::fs;
 
+use chrono::{SecondsFormat, TimeDelta, Utc};
 use serde_json::{Value, json};
 
+use super::isolation::command_with_empty_environment;
+use super::process::{CLOSED_PROXY, run_command};
 use super::stand_ins::{Fakes, issue_list};
 
 const REPOSITORY: &str = "jfmoe/forager";
@@ -271,15 +274,19 @@ fn the_daily_job_notifies_a_run_that_checked_nothing() {
     );
 }
 
-/// A `gh` that answers the last successful run of the build workflow and runs `advisories` for
-/// the advisory workflow's.
-fn workflow_answers(advisories: &str) -> String {
+/// A `gh` that answers `build` as the last successful run of the build workflow and runs
+/// `advisories` for the advisory workflow's.
+fn workflow_answers_with(build: &str, advisories: &str) -> String {
     format!(
         r#"case "$1 $2 $*" in
-  "run list "*scheduled-build.yml*) echo 2026-11-23T03:30:00Z ;;
+  "run list "*scheduled-build.yml*) echo {build} ;;
   "run list "*scheduled-advisories.yml*) {advisories} ;;
 esac"#
     )
+}
+
+fn workflow_answers(advisories: &str) -> String {
+    workflow_answers_with("2026-11-23T03:30:00Z", advisories)
 }
 
 fn workflow_record(fakes: &Fakes) -> Option<Value> {
@@ -288,8 +295,7 @@ fn workflow_record(fakes: &Fakes) -> Option<Value> {
 }
 
 #[test]
-fn the_weekly_job_runs_the_metered_tier_records_each_workflows_last_success_and_notifies_a_health_finding()
- {
+fn the_weekly_job_runs_the_metered_tier_records_the_workflows_and_notifies_a_health_finding() {
     let mut fakes = Fakes::new();
     fakes.program("forager", FORAGER);
     fakes.program("gh", &workflow_answers("echo"));
@@ -297,16 +303,7 @@ fn the_weekly_job_runs_the_metered_tier_records_each_workflows_last_success_and_
     let output = fakes.run("scripts/schedules/forager-live-weekly", &[], &[]);
 
     assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert_eq!(
-        workflow_record(&fakes),
-        Some(json!({
-            "schema_version": 1,
-            "workflows": [
-                {"workflow": "scheduled-build.yml", "interval_days": 7, "last_success": "2026-11-23T03:30:00Z"},
-                {"workflow": "scheduled-advisories.yml", "interval_days": 7, "last_success": null},
-            ],
-        }))
-    );
+    assert!(workflow_record(&fakes).is_some(), "{output:?}");
     assert_eq!(
         fakes
             .calls()
@@ -380,5 +377,42 @@ fn the_weekly_job_notifies_a_health_summary_that_summarised_nothing_and_not_a_cl
             vec![],
             vec!["notify forager health | doctor --health exited 3; read HEALTH".to_owned()]
         )
+    );
+}
+
+#[test]
+fn the_health_summary_reads_the_workflow_record_the_weekly_job_writes() {
+    let mut fakes = Fakes::new();
+    fakes.program("forager", FORAGER);
+    let yesterday = (Utc::now() - TimeDelta::days(1)).to_rfc3339_opts(SecondsFormat::Secs, true);
+    fakes.program("gh", &workflow_answers_with(&yesterday, "echo"));
+    let weekly = fakes.run("scripts/schedules/forager-live-weekly", &[], &[]);
+    assert_eq!(weekly.status.code(), Some(0), "{weekly:?}");
+
+    let health = run_command(
+        command_with_empty_environment(env!("CARGO_BIN_EXE_forager"), CLOSED_PROXY)
+            .args(["doctor", "--health"])
+            .env("HOME", fakes.home())
+            .env("FORAGER_CONFIG_DIR", fakes.home().join("config"))
+            .env("XDG_STATE_HOME", fakes.state()),
+        None,
+    );
+    let payload: Value = serde_json::from_slice(&health.stdout).expect("parse the health JSON");
+
+    assert_eq!(
+        payload["schedules"]
+            .as_array()
+            .expect("schedules")
+            .iter()
+            .filter_map(|schedule| Some((
+                schedule.get("workflow")?.as_str()?,
+                schedule["status"].as_str()?
+            )))
+            .collect::<Vec<_>>(),
+        [
+            ("scheduled-build.yml", "current"),
+            ("scheduled-advisories.yml", "not_recorded")
+        ],
+        "{health:?}"
     );
 }

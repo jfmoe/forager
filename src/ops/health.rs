@@ -181,6 +181,33 @@ enum FindingKind {
     NotRecorded,
 }
 
+impl FindingKind {
+    /// One finding of each kind, in the order the product skill lists them.
+    const VOCABULARY: [Self; 7] = [
+        Self::Failing {
+            success_rate: Rate(0.0),
+            calls: 0,
+        },
+        Self::Degraded {
+            metric: Metric::Success,
+            current: Rate(0.0),
+            previous: Rate(0.0),
+        },
+        Self::HiddenFailures { count: 0 },
+        Self::ShortContent { count: 0 },
+        Self::SampleTooSmall {
+            calls: 0,
+            previous_calls: 0,
+            minimum: 0,
+        },
+        Self::Overdue {
+            age_hours: 0,
+            interval_days: 0,
+        },
+        Self::NotRecorded,
+    ];
+}
+
 /// The rate a degradation is about.
 #[derive(Clone, Copy, Debug, Serialize)]
 enum Metric {
@@ -248,6 +275,39 @@ enum ScheduleStatus {
     Current,
     Overdue,
     NotRecorded,
+}
+
+impl ScheduleStatus {
+    /// Every status, in the order the product skill lists them.
+    const VOCABULARY: [Self; 3] = [Self::Current, Self::Overdue, Self::NotRecorded];
+}
+
+/// The names of the health summary's findings and schedule statuses, in the order the product
+/// skill lists them.
+pub(crate) fn vocabularies() -> [(&'static str, Vec<String>); 2] {
+    let name = |value: serde_json::Value, field: Option<&str>| {
+        field
+            .map_or(&value, |field| &value[field])
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    };
+    [
+        (
+            "health finding",
+            FindingKind::VOCABULARY
+                .iter()
+                .map(|kind| name(serde_json::json!(kind), Some("finding")))
+                .collect(),
+        ),
+        (
+            "schedule status",
+            ScheduleStatus::VOCABULARY
+                .iter()
+                .map(|status| name(serde_json::json!(status), None))
+                .collect(),
+        ),
+    ]
 }
 
 /// Summarises `evidence` over the `days` before `now`, against the `days` before those.
