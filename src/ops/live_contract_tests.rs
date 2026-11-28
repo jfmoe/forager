@@ -99,6 +99,57 @@ fn removing_any_contracted_field_fails_the_contract_naming_that_field() {
     assert_eq!(unnoticed, Vec::new());
 }
 
+/// `path` with each item index replaced by `[]`, as a contract names it.
+fn declared_form(path: &str) -> String {
+    let mut form = String::new();
+    let mut in_index = false;
+    for character in path.chars() {
+        match character {
+            '[' => {
+                in_index = true;
+                form.push('[');
+            }
+            ']' => {
+                in_index = false;
+                form.push(']');
+            }
+            _ if in_index => {}
+            _ => form.push(character),
+        }
+    }
+    form
+}
+
+#[test]
+fn removing_the_object_that_holds_a_contracted_field_fails_the_contract_naming_where_it_stopped() {
+    let outputs = passing_outputs();
+    let mut unnoticed = Vec::new();
+    for entry in declared() {
+        let Some(output) = outputs.get(entry.check.id) else {
+            continue;
+        };
+        for field in entry.check.contract.fields {
+            let steps = field.path.split('.').collect::<Vec<_>>();
+            for end in 1..steps.len() {
+                if steps[end - 1].ends_with("[]") {
+                    continue;
+                }
+                let parent = steps[..end].join(".");
+                let mut broken = output.clone();
+                remove(&mut broken, &parent);
+                let stopped = violation(&entry.check.contract, &broken)
+                    .and_then(|detail| detail.at.or(detail.path.map(str::to_owned)))
+                    .map(|at| declared_form(&at));
+                if stopped.as_deref() != Some(parent.as_str()) {
+                    unnoticed.push((entry.check.id, parent, stopped));
+                }
+            }
+        }
+    }
+
+    assert_eq!(unnoticed, Vec::new());
+}
+
 #[test]
 fn a_list_in_a_contract_is_declared_before_the_fields_of_its_items() {
     let mut misplaced = Vec::new();
@@ -134,6 +185,7 @@ const CONTRACT: LiveContract = LiveContract::fields(&[
     Field::list("items", 2),
     Field::text("items[].ref"),
     Field::text("items[].link").in_some_items(),
+    Field::text("owner.name"),
 ]);
 
 fn meeting() -> Value {
@@ -143,6 +195,7 @@ fn meeting() -> Value {
         "price": 0.5,
         "open": true,
         "items": [{"ref": "a:1", "link": "https://example.com/"}, {"ref": "a:2"}],
+        "owner": {"name": "An owner"},
     })
 }
 
@@ -169,6 +222,8 @@ fn each_shape_rule_names_the_rule_the_item_and_what_it_found() {
             broken("/items", json!([{"ref": "a:1"}])),
             broken("/items/1", json!({"ref": ""})),
             broken("/items", json!([{"ref": "a:1"}, {"ref": "a:2"}])),
+            broken("/owner", Value::Null),
+            broken("/items/1", Value::Null),
         ),
         (
             None,
@@ -191,6 +246,16 @@ fn each_shape_rule_names_the_rule_the_item_and_what_it_found() {
                     with_field: 0,
                     count: 2
                 })
+            )),
+            Some((
+                Rule::Present,
+                Some("owner".to_owned()),
+                Some(Observed::Null)
+            )),
+            Some((
+                Rule::Present,
+                Some("items[1]".to_owned()),
+                Some(Observed::Null)
             )),
         )
     );

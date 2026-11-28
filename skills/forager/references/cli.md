@@ -1416,7 +1416,8 @@ the run record could not be written. `tiers` lists the tiers the selection used.
 `passed`, `failed`, `unconfigured`, `not_started`, and `unselected`, the declared checks this
 selection does not run. `checks` has one entry per selected check with `id`, `provider`,
 `operation`, `platform`, `tier`, `status`, `attempts` (every command the check started), and, when
-they apply, `cause`, `duration_ms` (how long its last run took), `rerun`, `error_kind`,
+they apply, `cause`, `duration_ms` (how long its last run took), `rerun`, `confirmed`,
+`error_kind`,
 `http_status` (from the last provider attempt that reported one), `detail`, `message`,
 `transition`, and `failing_since`. `status` is one of:
 
@@ -1435,6 +1436,7 @@ they apply, `cause`, `duration_ms` (how long its last run took), `rerun`, `error
     handles any check in the window.
   - `no_input`: the check it depends on did not pass or returned nothing it can read, such as a
     search that found nothing to fetch. Look at that check; a larger `--timeout` does not help.
+    A check whose dependency passed only on its confirmation rerun stays `no_input` in that run.
 
 A check's contract names every field its route decodes from the upstream response, with its type
 and a lower bound (a non-blank string, a count or number of at least some value, a list of at
@@ -1442,7 +1444,8 @@ least some items), and never an exact value; a field that the upstream gives onl
 appear in at least one. Some checks add a rule about their sample, such as a resolved market priced
 by its payout. A failed check's `detail` says what broke: `rule`, and for a contract failure
 `path` (the field as the contract names it), `at` (the item, such as `items[2].title`, when the
-path steps into a list), and `observed`, which holds only the type of what was there with its
+path steps into a list, or the object the path could not step into when it is missing or null),
+and `observed`, which holds only the type of what was there with its
 `length`, `count` or `fields`, or how many items had the field (`with_field` of `count`), never a
 value of the output. The contract rules are `present`, `type`, `nonblank`, `at_least`,
 `min_items`, `in_some_items`, `no_runtime_attempt`, `keyed_read`, `anonymous_read`,
@@ -1455,29 +1458,36 @@ retries and without writing the Search Result Journal. A check on an HTTP route 
 `network` or `timeout` is run once more; any other failure, and any failure of a browser route's
 check, is final. In an unattended run, every check on an HTTP route that still failed, except
 with `auth` or `parameter`, runs once more after a delay of one minute, shared by all of them; its
-result is the second run's, with `rerun: true`, so a check that passes its rerun is `passed` and
-such a failure counts only when both runs failed. An `auth` or `parameter` failure is confirmed
-without a rerun, a browser route's check is never rerun, and a run that is not unattended reruns
-nothing. When less than the delay is left of the run's `--timeout`, or the time limit ends during
-the reruns, a failure that did not get its rerun stands as it is, without `rerun`.
+result is the second run's, with `rerun: true`, so a check that passes its rerun is `passed`. Each
+failed check of an unattended run has `confirmed`:
+
+- `true` when both runs failed, or when the first failure was final: an `auth` or `parameter`
+  failure, or any failure of a browser route's check, which is never rerun.
+- `false` when the rerun did not give a second answer: a rerun starts only while more than the
+  check's own time limit is left of the run's `--timeout` (after the delay, for the first), and a
+  failure left without one, or whose rerun the run's `--timeout` cut short, is unconfirmed.
+
+A run that is not unattended reruns nothing and reports no `confirmed`.
 
 Every live run, attended or not, is recorded in `live_runs/` under forager's state directory
 (`$XDG_STATE_HOME/forager` or `~/.local/state/forager`), one private file per run, and records older
 than 90 days are removed. A record holds the run's identifier, time, forager version, tiers,
 whether it was `scheduled` (true exactly when the run was unattended), the summary, and per check
-its `status`, `cause`, `attempts`, `rerun`, `duration_ms`, `error_kind`, `http_status`, and
-`detail`; it never holds a `message`, so no key, query, URL or content reaches it. A check that ran
-(passed or failed) reports its `transition` against the most recent scheduled record in which it
-ran: `newly_failed` when it failed after a pass or with no earlier run, `still_failing` with
+its `status`, `cause`, `attempts`, `rerun`, `confirmed`, `duration_ms`, `error_kind`,
+`http_status`, and `detail`; it never holds a `message`, so no key, query, URL or content reaches
+it. A record older than 90 days is never read, even before it is removed. A check that reached a
+result (passed, or failed without `confirmed: false`) reports its `transition` against the most
+recent scheduled record in which it reached one: `newly_failed` when it failed after a pass or with no earlier run, `still_failing` with
 `failing_since`, the time of the first scheduled failure in its unbroken run of failures, or
-`recovered` when it passed after a failure. A check that passed as before has no `transition`. A
-run that is not scheduled reports its transitions but never serves as a baseline, so a run by hand
+`recovered` when it passed after a failure. A check that passed as before, and an unconfirmed
+failure, have no `transition`, and an unconfirmed failure is never a baseline. A run that is not
+scheduled reports its transitions but never serves as a baseline, so a run by hand
 changes no later transition.
 
 A live run exits `0` when at least one check ran and every check that ran passed, so unconfigured
-and unselected checks do not fail it; `ok` is true exactly then. It exits `4` when a check failed
-(in an unattended run, failed its rerun too, or failed with `auth` or `parameter`) or the time
-limit left a check unstarted, `3` when none of the selected checks ran or the
+and unselected checks do not fail it; `ok` is true exactly then. It exits `4` when a check failed,
+confirmed or not, because a run that could not confirm a failure has not shown the check healthy,
+or when the time limit left a check unstarted; `3` when none of the selected checks ran or the
 configuration cannot be loaded, and `2` when an unattended or CI run asks for the `attended` tier.
 `--list` exits `0`, or `2` for that same refusal.
 

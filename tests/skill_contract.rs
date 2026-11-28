@@ -4,7 +4,7 @@ use std::path::Path;
 
 use clap::CommandFactory;
 use forager::app::Cli;
-use forager::types::{Capability, Platform, PlatformRef};
+use forager::types::{Capability, LiveCheckRule, Platform, PlatformRef};
 
 #[test]
 fn repository_exposes_only_the_named_installable_skill() {
@@ -115,6 +115,29 @@ fn capability_vocabulary_lists_the_cli_capabilities_in_canonical_order() {
         .collect::<Vec<_>>();
 
     assert_eq!(ids, Capability::VOCABULARY.map(Capability::as_str).to_vec());
+}
+
+#[test]
+fn the_live_check_rules_the_cli_reference_lists_are_the_rules_a_check_reports() {
+    let source = fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
+    let start = source
+        .find("The contract rules are")
+        .expect("the CLI reference lists the Live Check rules");
+    let list = &source[start..];
+    let end = [". ", ".\n"]
+        .iter()
+        .filter_map(|end| list.find(end))
+        .min()
+        .expect("the end of the list");
+    let list = &list[..end];
+    let named = list.split('`').skip(1).step_by(2).collect::<Vec<_>>();
+
+    assert_eq!(
+        named,
+        LiveCheckRule::VOCABULARY
+            .map(LiveCheckRule::as_str)
+            .to_vec()
+    );
 }
 
 #[test]
