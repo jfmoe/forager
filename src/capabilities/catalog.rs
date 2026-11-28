@@ -759,7 +759,7 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Text("--limit"),
             Text("25"),
             Text("--sort"),
-            Text("latest"),
+            Text("most-commented"),
             Text("--publish-time"),
             Text("week"),
             Text("--timeout"),
@@ -779,8 +779,9 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Field::text("items[].shares").in_some_items(),
             Field::text("items[].published_text").in_some_items(),
         ]),
-        "new coffee notes appear every week, so the newest notes of the week fill a second page \
-         under both filters",
+        "coffee notes fill a second page every week under both filters, and the most-commented \
+         order puts first the notes whose comments the later checks read; the newest notes \
+         have too few",
     )
     .time_limit(BROWSER_LIMIT),
     platform_check(
@@ -808,8 +809,8 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Field::text("published"),
             Field::count("content_len", 1),
         ]),
-        "the newest note of the week, which no cache holds, so the page must open with the \
-         access token the search just returned",
+        "a note of this week, so the page must open with the access token the search just \
+         returned",
     )
     .depends_on("xiaohongshu_browser:search")
     .time_limit(BROWSER_LIMIT),
