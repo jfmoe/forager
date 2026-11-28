@@ -61,7 +61,14 @@ missing_const_for_fn = "allow"
 [profile.dev]
 debug = false
 
-# The profile that 'dist' will build with
+# The profile that 'dist' will build with. strip is on because the symbol table only names functions
+# in a RUST_BACKTRACE backtrace, while a panic still names its file and line, and dropping it took
+# the macOS arm64 download from 4.05 MB to 3.67 MB under xz -9, measured. codegen-units stays at its
+# default because 1 saved only another 0.26 MB for three times the clean build, and the x86_64 macOS
+# CI build already takes up to 454 s of its job timeout. panic stays unwind: a panicking
+# credential-claim task falls back to optimistic selection, and the Drop that kills the browser
+# process group must still run.
 [profile.dist]
 inherits = "release"
 lto = "thin"
+strip = true
