@@ -52,6 +52,13 @@ allow_attributes = "warn"
 redundant_clone = "warn"
 missing_const_for_fn = "allow"
 
+# Debug info is off because on macOS it stays in the object files, and every incremental build then
+# leaves a new copy of each one in target/debug/deps: 1,476 files per rebuild, measured, and a
+# directory of 600,000 files made each build about six times slower. A panic still names its file and
+# line; CARGO_PROFILE_DEV_DEBUG=true brings back backtrace lines and debugger variables.
+[profile.dev]
+debug = false
+
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
