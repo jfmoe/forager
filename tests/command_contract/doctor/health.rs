@@ -15,7 +15,11 @@ fn record_scheduled_run(state: &Path, at: DateTime<Utc>, tiers: &[&str]) {
     let directory = state.join("live_runs");
     fs::create_dir_all(&directory).expect("create the run records");
     fs::write(
-        directory.join(format!("live_run_{}_1.json", at.timestamp_millis())),
+        directory.join(format!(
+            "live_run_{}_1.json",
+            at.timestamp_nanos_opt()
+                .expect("a time within the nanosecond range")
+        )),
         json!({"recorded_at": at, "scheduled": true, "tiers": tiers, "checks": []}).to_string(),
     )
     .expect("write the run record");

@@ -5,25 +5,27 @@
 //! providers that were tried and answered, the shape of the result, and the safe fields of each
 //! attempt. Its types have no field for a query, a URL beyond the fetched host, content, a
 //! credential, an error message, an endpoint host, a model name or a Platform Ref, and the record
-//! is built field by field, never projected from an attempt, so none of them can reach it. Each
-//! record is its own exclusively created file, so concurrent processes never write the same file;
-//! a reader skips a file it cannot parse.
+//! is built field by field, never projected from an attempt, so none of them can reach it.
 
 use std::borrow::Cow;
-use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::secure_fs::{create_new_private_file, ensure_private_directory};
+use crate::record_directory::{RecordDirectory, RecordKind};
 use crate::types::{AttemptDisposition, AttemptErrorKind, Platform, ProviderAttempt};
 
 /// The records' directory under the state directory.
 pub(crate) const DIRECTORY: &str = "telemetry";
-const PREFIX: &str = "invocation_";
-const RETENTION: TimeDelta = TimeDelta::days(30);
+const RECORDS: RecordKind = RecordKind {
+    prefix: "invocation_",
+    retention: TimeDelta::days(30),
+    // Every retrieval command writes a record, a sync on each would cost more than the record is
+    // worth, and a record a crash cuts short is skipped by the reader.
+    synced: false,
+};
 const SCHEMA_VERSION: u32 = 1;
 
 /// A retrieval command: one that reaches a provider for its result and writes a record.
@@ -325,90 +327,29 @@ pub(crate) fn record(
     exit_code: u8,
     now: DateTime<Utc>,
 ) -> Result<(), TelemetryError> {
+    let records = RecordDirectory::new(directory.to_path_buf(), RECORDS);
     let record = Record::new(command, invocation, exit_code, now);
-    write(directory, &record).map_err(TelemetryError::Write)?;
-    remove_expired(directory, now).map_err(TelemetryError::RemoveExpired)
-}
-
-fn write(directory: &Path, record: &Record) -> io::Result<()> {
-    ensure_private_directory(directory)?;
-    let path = directory.join(format!(
-        "{PREFIX}{}_{}.json",
-        nanos(record.recorded_at),
-        std::process::id()
-    ));
-    let mut encoded = serde_json::to_vec(record).map_err(io::Error::other)?;
-    // No sync: every retrieval command writes a record, a sync on each would cost more than the
-    // record is worth, and a record a crash cuts short is skipped by the reader.
-    let mut file = create_new_private_file(&path)?;
-    encoded.push(b'\n');
-    file.write_all(&encoded)
+    records
+        .write(record.recorded_at, &record)
+        .map_err(TelemetryError::Write)?;
+    records
+        .remove_expired(now)
+        .map_err(TelemetryError::RemoveExpired)
 }
 
 /// Every readable record in `directory` written at or after `since`, oldest first; a damaged or
 /// foreign file is skipped.
 pub(crate) fn read(directory: &Path, since: DateTime<Utc>) -> Vec<Record> {
-    let Ok(entries) = fs::read_dir(directory) else {
-        return Vec::new();
-    };
-    let since = nanos(since);
-    let mut records = entries
-        .filter_map(Result::ok)
-        .filter(|entry| recorded_nanos(&entry.file_name()).is_some_and(|at| at >= since))
-        .filter_map(|entry| fs::read(entry.path()).ok())
-        .filter_map(|bytes| serde_json::from_slice::<Record>(&bytes).ok())
-        .collect::<Vec<_>>();
-    records.sort_by_key(|record| record.recorded_at);
-    records
-}
-
-/// Removes every record written more than the retention before `now`, going on past a file it
-/// cannot remove and returning the first such error. A record another process removed first is
-/// no error.
-fn remove_expired(directory: &Path, now: DateTime<Utc>) -> io::Result<()> {
-    let cutoff = nanos(now - RETENTION);
-    let mut first_error = None;
-    for entry in fs::read_dir(directory)? {
-        let removed = entry.and_then(|entry| {
-            if recorded_nanos(&entry.file_name()).is_some_and(|at| at < cutoff) {
-                fs::remove_file(entry.path())
-            } else {
-                Ok(())
-            }
-        });
-        match removed {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                first_error.get_or_insert(error);
-            }
-            _ => {}
-        }
-    }
-    first_error.map_or(Ok(()), Err)
-}
-
-fn nanos(at: DateTime<Utc>) -> i64 {
-    at.timestamp_nanos_opt().unwrap_or(i64::MIN)
-}
-
-/// When a record file was written, from its name; `None` for a file the store does not own.
-fn recorded_nanos(name: &std::ffi::OsStr) -> Option<i64> {
-    let (nanos, pid) = name
-        .to_str()?
-        .strip_prefix(PREFIX)?
-        .strip_suffix(".json")?
-        .split_once('_')?;
-    pid.parse::<u32>().ok()?;
-    nanos.parse().ok()
+    RecordDirectory::new(directory.to_path_buf(), RECORDS).read(since)
 }
 
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
-    use std::fs;
 
     use chrono::{DateTime, TimeDelta, Utc};
 
-    use super::{Invocation, RecordedAttempt, ResultSignal, RetrievalCommand, nanos, read, record};
+    use super::{Invocation, RecordedAttempt, ResultSignal, RetrievalCommand, read, record};
     use crate::chain::skipped_attempt;
     use crate::types::{
         AttemptDisposition, AttemptErrorKind, AttemptTarget, Platform, ProviderAttempt,
@@ -566,41 +507,6 @@ mod tests {
                 "{case}"
             );
         }
-    }
-
-    #[test]
-    fn a_reader_skips_a_damaged_record_and_a_file_the_store_does_not_own() {
-        let directory = tempfile::tempdir().expect("telemetry directory");
-        record_at(directory.path(), now());
-        let written = fs::read_dir(directory.path())
-            .expect("telemetry directory")
-            .next()
-            .expect("the written record")
-            .expect("a directory entry")
-            .path();
-        let text = fs::read(&written).expect("the written record");
-        // A record cut short, as a crash during its unsynced write leaves it, named inside the
-        // window the reader asks for so the reader has to parse it.
-        fs::write(
-            directory.path().join(format!(
-                "invocation_{}_1.json",
-                nanos(now() + TimeDelta::milliseconds(500))
-            )),
-            &text[..text.len() / 2],
-        )
-        .expect("a damaged record");
-        fs::write(directory.path().join("notes.json"), "{}").expect("a foreign file");
-        record_at(directory.path(), now() + TimeDelta::seconds(1));
-
-        let records = read(directory.path(), now() - TimeDelta::days(1));
-
-        assert_eq!(
-            records
-                .iter()
-                .map(|record| record.recorded_at)
-                .collect::<Vec<_>>(),
-            [now(), now() + TimeDelta::seconds(1)]
-        );
     }
 
     #[test]
