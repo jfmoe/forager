@@ -157,6 +157,31 @@ async fn install_package(
     deadline: Deadline,
     progress: &mut dyn FnMut(&str),
 ) -> Result<Installed, SetupFailure> {
+    let browsers = install_directory
+        .parent()
+        .ok_or_else(|| runtime("the install directory has no parent"))?;
+    place_package(
+        package,
+        install_directory,
+        browsers,
+        download,
+        unpack,
+        deadline,
+        progress,
+    )
+    .await
+}
+
+/// Puts the pinned version into `install_directory`, unless it is already there.
+async fn place_package(
+    package: &Package,
+    install_directory: &Path,
+    browsers: &Path,
+    download: &impl Download,
+    unpack: &impl Unpack,
+    deadline: Deadline,
+    progress: &mut dyn FnMut(&str),
+) -> Result<Installed, SetupFailure> {
     let executable = install_directory.join(package.executable);
     if is_file(&executable).await {
         return Ok(Installed {
@@ -165,15 +190,12 @@ async fn install_package(
             downloaded: false,
         });
     }
-    let parent = install_directory
-        .parent()
-        .ok_or_else(|| runtime("the install directory has no parent"))?;
-    tokio::fs::create_dir_all(parent)
+    tokio::fs::create_dir_all(browsers)
         .await
         .map_err(|error| io_failure("create the cache directory", &error))?;
-    remove_leftovers(parent).await;
-    let archive = parent.join(format!("{DOWNLOAD_PREFIX}{}", std::process::id()));
-    let staging = parent.join(format!("{STAGING_PREFIX}{}", std::process::id()));
+    remove_leftovers(browsers).await;
+    let archive = browsers.join(format!("{DOWNLOAD_PREFIX}{}", std::process::id()));
+    let staging = browsers.join(format!("{STAGING_PREFIX}{}", std::process::id()));
     let installed = async {
         progress(&format!(
             "downloading fingerprint-chromium {VERSION} from {}",
