@@ -1,131 +1,326 @@
-//! Whether a Live Check's output shows what its contract requires.
+//! Whether a Live Check's output shows what its contract requires, and what a failure observed.
+//! An observation holds only types, counts and lengths, so a failure never carries a title, a
+//! text or any other value of the output.
 
+use serde::Serialize;
 use serde_json::Value;
 
-use crate::catalog::LiveContract;
+use crate::catalog::{Field, LiveContract, SampleRule, Shape};
 
-/// Returns why `payload` breaks `contract`, or `None` when it holds.
-pub(super) fn violation(contract: LiveContract, payload: &Value) -> Option<&'static str> {
-    if contains_runtime_error(payload) {
-        return Some("the output includes a runtime-class provider attempt");
+/// Which rule a check broke, where, and what was there.
+#[derive(Debug, PartialEq, Serialize)]
+pub(super) struct Detail {
+    pub(super) rule: &'static str,
+    /// The field as the contract names it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) path: Option<&'static str>,
+    /// The item where the rule broke, when the path steps into a list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) observed: Option<Observed>,
+}
+
+impl Detail {
+    /// A rule of the run itself, such as the command exiting nonzero, which has no path.
+    pub(super) const fn rule(rule: &'static str) -> Self {
+        Self {
+            rule,
+            path: None,
+            at: None,
+            observed: None,
+        }
     }
-    let holds = match contract {
-        LiveContract::Answer => nonempty_string(payload, "answer"),
-        LiveContract::PipelineSearch => {
-            nonempty_string(payload, "answer") && nonempty_array(payload, "extra_sources")
+
+    fn at(rule: &'static str, path: &'static str, at: &str, value: Option<&Value>) -> Self {
+        Self {
+            rule,
+            path: Some(path),
+            at: (at != path).then(|| at.to_owned()),
+            observed: Some(Observed::of(value)),
         }
-        LiveContract::Results => nonempty_array(payload, "results"),
-        // A read after the keys failed proves the Anonymous Fallback, not the keys; a keyless
-        // read proves the anonymous path only when no attempt sent a key.
-        LiveContract::Fetch { anonymous } => {
-            nonempty_string(payload, "content")
-                && payload["provider_attempts"]
-                    .as_array()
-                    .is_some_and(|attempts| {
-                        !attempts.is_empty()
-                            && attempts
-                                .iter()
-                                .all(|attempt| attempt["anonymous"] == anonymous)
-                    })
+    }
+
+    /// A one-line description that names only the rule and the path.
+    pub(super) fn describe(&self) -> String {
+        match (self.at.as_deref().or(self.path), &self.observed) {
+            (Some(path), Some(observed)) => format!(
+                "the output breaks the contract rule `{}` at `{path}`: found {}",
+                self.rule,
+                observed.describe()
+            ),
+            _ => format!("the check broke the rule `{}`", self.rule),
         }
-        LiveContract::PlatformItems => nonempty_array(payload, "items"),
-        // X posts have no title; their text proves the read.
-        LiveContract::PlatformItem => {
-            nonempty_string(payload, "ref")
-                && (nonempty_string(payload, "title") || nonempty_string(payload, "text"))
+    }
+}
+
+/// The type of what a path held, with its length or count.
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(super) enum Observed {
+    Missing,
+    Null,
+    String {
+        length: usize,
+    },
+    Number,
+    Bool,
+    Array {
+        count: usize,
+    },
+    Object {
+        fields: usize,
+    },
+    /// How many of a list's items had the field.
+    Items {
+        with_field: usize,
+        count: usize,
+    },
+}
+
+impl Observed {
+    fn of(value: Option<&Value>) -> Self {
+        match value {
+            None => Self::Missing,
+            Some(Value::Null) => Self::Null,
+            Some(Value::String(text)) => Self::String {
+                length: text.chars().count(),
+            },
+            Some(Value::Number(_)) => Self::Number,
+            Some(Value::Bool(_)) => Self::Bool,
+            Some(Value::Array(items)) => Self::Array { count: items.len() },
+            Some(Value::Object(fields)) => Self::Object {
+                fields: fields.len(),
+            },
         }
-        // Many Xiaohongshu notes have no title, so only the body proves the read.
-        LiveContract::PlatformFullText => {
-            nonempty_string(payload, "ref")
-                && payload["content_len"].as_u64().is_some_and(|len| len > 0)
+    }
+
+    fn describe(&self) -> String {
+        match self {
+            Self::Missing => "nothing".into(),
+            Self::Null => "null".into(),
+            Self::String { length } => format!("a string of {length} characters"),
+            Self::Number => "a number".into(),
+            Self::Bool => "a boolean".into(),
+            Self::Array { count } => format!("a list of {count} items"),
+            Self::Object { fields } => format!("an object of {fields} fields"),
+            Self::Items { with_field, count } => {
+                format!("{with_field} of {count} items with the field")
+            }
         }
-        // The canary video has millions of comments, so an empty page means a broken read.
-        LiveContract::Comments => nonempty_array(payload, "comments"),
-        LiveContract::XiaohongshuComments => return xiaohongshu_comments(payload),
-        // A resolved market is priced by its payout, so the fetch never asks the CLOB.
-        LiveContract::PolymarketResolved { winner } => {
-            let winner = elements(payload, "markets")
-                .find(|market| market["ref"] == winner)
-                .unwrap_or(&Value::Null);
-            let yes = &winner["outcomes"][0];
-            elements(payload, "provider_attempts").count() == 1
-                && winner["status"] == "resolved"
-                && yes["name"] == "Yes"
-                && yes["price"] == 1.0
-                && yes["basis"] == "resolution"
-        }
-        // Gamma's cached prices stand in when the CLOB fails, so an event with an open market
-        // proves the live read only with `clob`.
-        LiveContract::PolymarketLive => {
-            (payload["price_source"] == "clob"
-                || elements(payload, "markets").all(|market| market["status"] != "open"))
-                && nonempty_string(payload, "prices_as_of")
-                && nonempty_array(payload, "markets")
-                && elements(payload, "markets").all(|market| {
-                    nonempty_array(market, "outcomes")
-                        && elements(market, "outcomes").all(|outcome| {
-                            nonempty_string(outcome, "name") && outcome["basis"].is_string()
-                        })
-                })
-        }
-        // The canary resolved Yes, so its whole history ends in a payout of 1 kept out of the
-        // series.
-        LiveContract::PolymarketSettlement => {
-            nonempty_array(payload, "points") && payload["settlement"]["price"] == 1.0
-        }
+    }
+}
+
+/// Returns the first rule `payload` breaks, or `None` when it meets `contract`.
+pub(super) fn violation(contract: &LiveContract, payload: &Value) -> Option<Detail> {
+    runtime_attempt(payload)
+        .or_else(|| {
+            contract
+                .fields
+                .iter()
+                .find_map(|field| broken(field, payload))
+        })
+        .or_else(|| {
+            contract
+                .sample
+                .iter()
+                .find_map(|rule| sample_violation(*rule, payload))
+        })
+}
+
+/// A runtime-class attempt means a route answered something it could not classify, even when
+/// another route then succeeded.
+fn runtime_attempt(payload: &Value) -> Option<Detail> {
+    const PATH: &str = "provider_attempts[].error_kind";
+    locate(payload, PATH)
+        .into_iter()
+        .find(|(_, value)| value.and_then(Value::as_str) == Some("runtime"))
+        .map(|(at, value)| Detail::at("no_runtime_attempt", PATH, &at, value))
+}
+
+fn broken(field: &Field, payload: &Value) -> Option<Detail> {
+    let located = locate(payload, field.path);
+    if field.in_some_items {
+        let with_field = located
+            .iter()
+            .filter(|(_, value)| shape_rule(field.shape, *value).is_none())
+            .count();
+        return (with_field == 0).then_some(Detail {
+            rule: "in_some_items",
+            path: Some(field.path),
+            at: None,
+            observed: Some(Observed::Items {
+                with_field,
+                count: located.len(),
+            }),
+        });
+    }
+    located.iter().find_map(|(at, value)| {
+        shape_rule(field.shape, *value).map(|rule| Detail::at(rule, field.path, at, *value))
+    })
+}
+
+/// The rule `value` breaks for `shape`, if any.
+fn shape_rule(shape: Shape, value: Option<&Value>) -> Option<&'static str> {
+    let Some(value) = value.filter(|value| !value.is_null()) else {
+        return Some("present");
     };
-    (!holds).then_some("the output is empty or lacks a field the contract requires")
+    let (typed, bounded) = match shape {
+        Shape::Text => (
+            value.is_string(),
+            value.as_str().is_some_and(|text| !text.trim().is_empty()),
+        ),
+        Shape::Count { min } => (
+            value.is_u64(),
+            value.as_u64().is_some_and(|count| count >= min),
+        ),
+        Shape::Number { min } => (
+            value.is_number(),
+            value.as_f64().is_some_and(|number| number >= min),
+        ),
+        Shape::Bool => (value.is_boolean(), true),
+        Shape::List { min } => (
+            value.is_array(),
+            value.as_array().is_some_and(|items| items.len() >= min),
+        ),
+    };
+    if !typed {
+        Some("type")
+    } else if !bounded {
+        Some(match shape {
+            Shape::Text => "nonblank",
+            Shape::List { .. } => "min_items",
+            _ => "at_least",
+        })
+    } else {
+        None
+    }
 }
 
-/// A note without comments is a legitimate result, but it proves nothing here: the read must
-/// reach the second comment page (10 top-level comments each) and expand one comment's replies
-/// (a comment carries one reply before it is expanded).
-fn xiaohongshu_comments(payload: &Value) -> Option<&'static str> {
-    if !nonempty_string(payload, "note") {
-        return Some("the output names no note");
+/// Every place `path` reaches, with its concrete location and what is there. A `name[]` step
+/// goes into each item of the list at `name`; a step into something that is not a list or an
+/// object reaches nothing, because the field that holds it has its own rule.
+fn locate<'a>(payload: &'a Value, path: &str) -> Vec<(String, Option<&'a Value>)> {
+    let mut reached = vec![(String::new(), Some(payload))];
+    for step in path.split('.') {
+        let (key, into_items) = step
+            .strip_suffix("[]")
+            .map_or((step, false), |key| (key, true));
+        reached = reached
+            .into_iter()
+            .filter_map(|(at, value)| Some((at, value?.as_object()?)))
+            .flat_map(|(at, object)| {
+                let at = if at.is_empty() {
+                    key.to_owned()
+                } else {
+                    format!("{at}.{key}")
+                };
+                let value = object.get(key);
+                if into_items {
+                    value
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .enumerate()
+                        .map(|(index, item)| (format!("{at}[{index}]"), Some(item)))
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![(at, value)]
+                }
+            })
+            .collect();
     }
-    let comments = payload["comments"]
-        .as_array()
-        .map_or(&[][..], Vec::as_slice);
-    if comments.len() <= 10 {
-        return Some("the note has 10 or fewer comments, so the second comment page was not read");
-    }
-    let expanded = comments.iter().any(|comment| {
-        comment["replies"]
-            .as_array()
-            .is_some_and(|replies| replies.len() > 1)
-    });
-    (!expanded).then_some("no returned comment had more replies to expand")
+    reached
 }
 
-fn contains_runtime_error(value: &Value) -> bool {
-    match value {
-        Value::Object(object) => {
-            object
-                .get("error_kind")
-                .and_then(Value::as_str)
-                .is_some_and(|kind| kind == "runtime")
-                || object.values().any(contains_runtime_error)
+fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
+    match rule {
+        SampleRule::Credentials { anonymous } => {
+            const PATH: &str = "provider_attempts[].anonymous";
+            let name = if anonymous {
+                "anonymous_read"
+            } else {
+                "keyed_read"
+            };
+            let attempts = locate(payload, PATH);
+            if attempts.is_empty() {
+                return Some(Detail::at(
+                    name,
+                    "provider_attempts",
+                    "provider_attempts",
+                    payload.get("provider_attempts"),
+                ));
+            }
+            attempts
+                .into_iter()
+                .find(|(_, value)| value.and_then(Value::as_bool) != Some(anonymous))
+                .map(|(at, value)| Detail::at(name, PATH, &at, value))
         }
-        Value::Array(values) => values.iter().any(contains_runtime_error),
-        _ => false,
+        SampleRule::ResolvedByPayout { winner } => resolved_by_payout(payload, winner),
+        SampleRule::LiveQuotes => {
+            let open = locate(payload, "markets[].status")
+                .iter()
+                .any(|(_, status)| status.and_then(Value::as_str) == Some("open"));
+            let source = payload.get("price_source");
+            (open && source.and_then(Value::as_str) != Some("clob"))
+                .then(|| Detail::at("live_quotes", "price_source", "price_source", source))
+        }
     }
 }
 
-fn elements<'a>(payload: &'a Value, field: &str) -> impl Iterator<Item = &'a Value> {
-    payload[field].as_array().into_iter().flatten()
-}
-
-fn nonempty_string(payload: &Value, field: &str) -> bool {
-    payload[field]
-        .as_str()
-        .is_some_and(|value| !value.trim().is_empty())
-}
-
-fn nonempty_array(payload: &Value, field: &str) -> bool {
-    payload[field]
-        .as_array()
-        .is_some_and(|values| !values.is_empty())
+/// The winning market resolved Yes at a payout of 1, priced by its resolution, and the fetch
+/// made one attempt, so it never asked the CLOB.
+fn resolved_by_payout(payload: &Value, winner: &str) -> Option<Detail> {
+    const RULE: &str = "resolved_by_payout";
+    let markets = payload["markets"].as_array().map_or(&[][..], Vec::as_slice);
+    let Some((index, market)) = markets
+        .iter()
+        .enumerate()
+        .find(|(_, market)| market["ref"] == winner)
+    else {
+        return Some(Detail {
+            rule: RULE,
+            path: Some("markets[].ref"),
+            at: None,
+            observed: Some(Observed::Array {
+                count: markets.len(),
+            }),
+        });
+    };
+    let at = |field: &str| format!("markets[{index}].{field}");
+    let yes = &market["outcomes"][0];
+    let checks: [(&'static str, String, Option<&Value>, bool); 4] = [
+        (
+            "markets[].status",
+            at("status"),
+            market.get("status"),
+            market["status"] == "resolved",
+        ),
+        (
+            "markets[].outcomes[].name",
+            at("outcomes[0].name"),
+            yes.get("name"),
+            yes["name"] == "Yes",
+        ),
+        (
+            "markets[].outcomes[].price",
+            at("outcomes[0].price"),
+            yes.get("price"),
+            yes["price"].as_f64().is_some_and(|price| price >= 1.0),
+        ),
+        (
+            "markets[].outcomes[].basis",
+            at("outcomes[0].basis"),
+            yes.get("basis"),
+            yes["basis"] == "resolution",
+        ),
+    ];
+    if let Some((path, at, value, _)) = checks.into_iter().find(|(.., holds)| !holds) {
+        return Some(Detail::at(RULE, path, &at, value));
+    }
+    let attempts = payload.get("provider_attempts");
+    (attempts.and_then(Value::as_array).map(Vec::len) != Some(1))
+        .then(|| Detail::at(RULE, "provider_attempts", "provider_attempts", attempts))
 }
 
 #[cfg(test)]

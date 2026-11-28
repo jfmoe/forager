@@ -817,6 +817,18 @@ fn live_markdown(value: &Value) -> String {
         if let Some(status) = check["status"].as_str() {
             let _ = write!(output, ": {status}");
         }
+        if check["rerun"] == true {
+            output.push_str(", rerun");
+        }
+        if let Some(transition) = check["transition"].as_str() {
+            let _ = write!(output, ", {}", transition.replace('_', " "));
+            if let Some(since) = check["failing_since"].as_str() {
+                let _ = write!(output, " since {since}");
+            }
+        }
+        if let Some(status) = check["http_status"].as_u64() {
+            let _ = write!(output, ", HTTP {status}");
+        }
         if let Some(selected) = check["selected"].as_bool() {
             let _ = write!(output, ": selected={selected}");
             for flag in ["expensive", "manual_only"] {
@@ -829,6 +841,9 @@ fn live_markdown(value: &Value) -> String {
             let _ = write!(output, " ({message})");
         }
         output.push('\n');
+    }
+    if let Some(warning) = value["record_warning"].as_str() {
+        let _ = writeln!(output, "\nrecord_warning: {warning}");
     }
     output
 }
@@ -1441,9 +1456,13 @@ mod tests {
                     "id": "hn_api:search",
                     "tier": "free",
                     "status": "failed",
-                    "attempts": 2,
+                    "attempts": 4,
+                    "rerun": true,
                     "error_kind": "network",
+                    "http_status": 502,
                     "message": "the command failed with network: connection refused",
+                    "transition": "still_failing",
+                    "failing_since": "2026-11-02T06:00:00Z",
                 },
                 {
                     "id": "exa:docs_search",
@@ -1453,6 +1472,7 @@ mod tests {
                     "message": "providers.exa.keys has no configured credentials",
                 },
             ],
+            "record_warning": "cannot write the run record: disk full",
         });
 
         assert_eq!(
@@ -1461,9 +1481,11 @@ mod tests {
              ok: false\nunattended: true\ntiers: free, metered\n\n\
              summary: failed=1, not_started=0, passed=1, unconfigured=1, unselected=30\n\n\
              - jina:web_fetch:anonymous (free): passed\n\
-             - hn_api:search (free): failed (the command failed with network: connection refused)\n\
+             - hn_api:search (free): failed, rerun, still failing since 2026-11-02T06:00:00Z, \
+             HTTP 502 (the command failed with network: connection refused)\n\
              - exa:docs_search (metered): unconfigured \
-             (providers.exa.keys has no configured credentials)\n"
+             (providers.exa.keys has no configured credentials)\n\n\
+             record_warning: cannot write the run record: disk full\n"
         );
     }
 

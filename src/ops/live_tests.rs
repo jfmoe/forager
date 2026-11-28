@@ -4,14 +4,18 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use super::{
-    Declared, Execution, LiveError, LiveSelection, Prepared, Status, declared, exit_code, prepare,
-    run_checks, select, summarize,
+    CONFIRMATION_DELAY, Confirmation, Declared, Execution, LiveError, LiveSelection, Prepared,
+    Status, declared, exit_code, prepare, run_checks, select, summarize,
 };
 use crate::catalog::{
-    LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveInput, LiveTier, ProviderId, RoutePin,
+    Field, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveInput, LiveTier, ProviderId,
+    RoutePin,
 };
 use crate::redact::Secret;
 use crate::types::{Deadline, Platform};
+
+const RESULTS: LiveContract =
+    LiveContract::fields(&[Field::list("results", 1), Field::text("results[].url")]);
 
 const PASSING: &[LiveArgument] = &[LiveArgument::Text("pass")];
 
@@ -23,7 +27,8 @@ fn check(id: &'static str, tier: LiveTier) -> LiveCheck {
             arguments: PASSING,
             routes: RoutePin::Configured,
         },
-        LiveContract::Results,
+        RESULTS,
+        "a test sample",
     )
 }
 
@@ -59,6 +64,18 @@ fn run(
     executions: Vec<Execution>,
     deadline: Deadline,
 ) -> (Vec<Value>, Vec<Prepared>, u8) {
+    let (results, started, exit, _) = run_with(declared, executions, deadline, false);
+    (results, started, exit)
+}
+
+/// As [`run`], in an unattended run when `confirming`; also returns each confirmation delay
+/// the run waited.
+fn run_with(
+    declared: &[Declared],
+    executions: Vec<Execution>,
+    deadline: Deadline,
+    confirming: bool,
+) -> (Vec<Value>, Vec<Prepared>, u8, Vec<Duration>) {
     let mut executions = VecDeque::from(executions);
     let mut started = Vec::new();
     let mut execute = |command: &Prepared, _: Duration| {
@@ -70,6 +87,8 @@ fn run(
             .pop_front()
             .expect("an execution for every command")
     };
+    let mut waited = Vec::new();
+    let mut wait = |delay| waited.push(delay);
     let results = run_checks(
         declared,
         &vec![true; declared.len()],
@@ -77,13 +96,17 @@ fn run(
         deadline,
         &[Secret::from("sk-live-secret")],
         &mut execute,
+        confirming.then_some(Confirmation {
+            delay: CONFIRMATION_DELAY,
+            wait: &mut wait,
+        }),
     );
     let exit = exit_code(&results);
     let results = results
         .iter()
         .map(|result| serde_json::to_value(result).expect("serialize result"))
         .collect();
-    (results, started, exit)
+    (results, started, exit, waited)
 }
 
 fn long() -> Deadline {
@@ -601,6 +624,7 @@ fn the_summary_counts_each_status_and_the_unselected_checks() {
         long(),
         &[],
         &mut execute,
+        None,
     );
 
     assert_eq!(
@@ -626,10 +650,11 @@ fn a_run_where_no_selected_check_is_configured_exits_3() {
         long(),
         &[],
         &mut execute,
+        None,
     );
 
     assert_eq!(
-        (results[0].status, exit_code(&results)),
+        (results[0].outcome.status, exit_code(&results)),
         (Status::Unconfigured, 3)
     );
 }
@@ -740,5 +765,202 @@ fn a_listing_shows_every_declared_check_and_whether_the_selection_runs_it() {
                 .all(|check| (check["tier"] == "free") == (check["selected"] == true)),
         ),
         (declared().len(), true)
+    );
+}
+
+fn failed_with_status(error_kind: &str, http_status: u16) -> Execution {
+    Execution::Exited {
+        code: Some(4),
+        stdout: json!({
+            "error_kind": error_kind,
+            "message": "upstream refused",
+            "provider_attempts": [
+                {"provider": "exa", "error_kind": error_kind, "http_status": http_status},
+            ],
+        })
+        .to_string()
+        .into_bytes(),
+    }
+}
+
+fn broke_contract() -> Execution {
+    Execution::Exited {
+        code: Some(0),
+        stdout: json!({
+            "results": [{"url": "", "title": "MARKER-CONTENT"}],
+            "provider_attempts": [{"provider": "exa", "error_kind": null, "http_status": 200}],
+        })
+        .to_string()
+        .into_bytes(),
+    }
+}
+
+#[test]
+fn a_failure_reports_its_rule_path_observation_error_kind_http_status_and_duration() {
+    let declared = [on(
+        ProviderId::Exa,
+        check("exa:docs_search", LiveTier::Metered),
+    )];
+
+    let (contract, ..) = run(&declared, vec![broke_contract()], long());
+    let (command, ..) = run(
+        &declared,
+        vec![failed_with_status("quota_exhausted", 429)],
+        long(),
+    );
+    let reported = |result: &Value| {
+        (
+            result["error_kind"].clone(),
+            result["http_status"].clone(),
+            result["detail"].clone(),
+            result["duration_ms"].is_u64(),
+        )
+    };
+
+    assert_eq!(
+        (reported(&contract[0]), reported(&command[0])),
+        (
+            (
+                json!("contract"),
+                json!(200),
+                json!({
+                    "rule": "nonblank",
+                    "path": "results[].url",
+                    "at": "results[0].url",
+                    "observed": {"type": "string", "length": 0},
+                }),
+                true
+            ),
+            (
+                json!("quota_exhausted"),
+                json!(429),
+                json!({"rule": "command_succeeds"}),
+                true
+            ),
+        )
+    );
+}
+
+#[test]
+fn a_contract_failure_shows_no_content_of_the_output() {
+    let declared = [on(
+        ProviderId::Exa,
+        check("exa:docs_search", LiveTier::Metered),
+    )];
+
+    let (results, ..) = run(&declared, vec![broke_contract()], long());
+
+    let reported = results[0].to_string();
+    assert!(
+        results[0]["status"] == "failed" && !reported.contains("MARKER-CONTENT"),
+        "{reported}"
+    );
+}
+
+#[test]
+fn an_unattended_run_reruns_a_failed_check_once_after_the_delay_and_the_rerun_decides() {
+    let declared = [on(
+        ProviderId::Exa,
+        check("exa:docs_search", LiveTier::Metered),
+    )];
+    let outcome = |executions| {
+        let (results, started, exit, waited) = run_with(&declared, executions, long(), true);
+        (
+            results[0]["status"].clone(),
+            results[0]["rerun"].clone(),
+            started.len(),
+            exit,
+            waited,
+        )
+    };
+
+    assert_eq!(
+        (
+            outcome(vec![broke_contract(), passed()]),
+            outcome(vec![broke_contract(), broke_contract()]),
+        ),
+        (
+            (json!("passed"), json!(true), 2, 0, vec![CONFIRMATION_DELAY]),
+            (json!("failed"), json!(true), 2, 4, vec![CONFIRMATION_DELAY]),
+        )
+    );
+}
+
+#[test]
+fn the_failed_checks_of_an_unattended_run_share_one_delay_before_their_reruns() {
+    let declared = [
+        on(ProviderId::Exa, check("exa:docs_search", LiveTier::Metered)),
+        on(ProviderId::Exa, check("exa:similar", LiveTier::Metered)),
+    ];
+
+    let (results, started, exit, waited) = run_with(
+        &declared,
+        vec![broke_contract(), broke_contract(), passed(), passed()],
+        long(),
+        true,
+    );
+
+    assert_eq!(
+        (
+            statuses(&results),
+            results[1]["attempts"].clone(),
+            started.len(),
+            exit,
+            waited
+        ),
+        (
+            vec![
+                ("exa:docs_search", "passed", None),
+                ("exa:similar", "passed", None)
+            ],
+            json!(2),
+            4,
+            0,
+            vec![CONFIRMATION_DELAY]
+        )
+    );
+}
+
+#[test]
+fn an_authentication_or_parameter_failure_is_confirmed_without_a_rerun() {
+    let declared = [on(
+        ProviderId::Exa,
+        check("exa:docs_search", LiveTier::Metered),
+    )];
+    for error_kind in ["auth", "parameter"] {
+        let (results, started, exit, waited) = run_with(
+            &declared,
+            vec![failed(error_kind, "rejected")],
+            long(),
+            true,
+        );
+
+        assert_eq!(
+            (
+                results[0]["status"].as_str(),
+                results[0].get("rerun"),
+                started.len(),
+                exit,
+                waited
+            ),
+            (Some("failed"), None, 1, 4, Vec::new()),
+            "{error_kind}"
+        );
+    }
+}
+
+#[test]
+fn a_run_that_is_not_unattended_reruns_nothing() {
+    let declared = [on(
+        ProviderId::Exa,
+        check("exa:docs_search", LiveTier::Metered),
+    )];
+
+    let (results, started, exit, waited) =
+        run_with(&declared, vec![broke_contract()], long(), false);
+
+    assert_eq!(
+        (results[0].get("rerun"), started.len(), exit, waited),
+        (None, 1, 4, Vec::new())
     );
 }

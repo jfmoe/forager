@@ -240,3 +240,54 @@ fn the_hidden_supplemental_web_search_entry_prints_the_providers_results() {
         stderr(&output)
     );
 }
+
+#[test]
+fn every_live_run_is_recorded_and_only_an_unattended_one_is_marked_scheduled() {
+    let fixture = Fixture::start_sequence(vec![jina(&article()), jina(&article())]);
+    let environment = RunEnvironment::new(&jina_config(&fixture.url));
+    let arguments = ["doctor", "--live", "--provider", "jina", "--tier", "free"];
+
+    let attended = environment.run(&arguments);
+    let unattended = environment.run(&[&arguments[..], &["--unattended"]].concat());
+    fixture.finish_all();
+    let mut records = std::fs::read_dir(environment.state_dir.join("forager/live_runs"))
+        .expect("read the run records")
+        .map(|entry| {
+            let record: Value = serde_json::from_slice(
+                &std::fs::read(entry.expect("a record").path()).expect("read a record"),
+            )
+            .expect("parse a record");
+            (
+                record["recorded_at"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
+                record["scheduled"].clone(),
+                record["checks"][0]["status"].clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    records.sort_by(|left, right| left.0.cmp(&right.0));
+
+    assert_eq!(
+        (
+            attended.status.code(),
+            unattended.status.code(),
+            records
+                .into_iter()
+                .map(|(_, scheduled, status)| (scheduled, status))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(0),
+            Some(0),
+            vec![
+                (json!(false), json!("passed")),
+                (json!(true), json!("passed"))
+            ]
+        ),
+        "stderr: {} {}",
+        stderr(&attended),
+        stderr(&unattended)
+    );
+}
