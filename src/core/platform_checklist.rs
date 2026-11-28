@@ -3,8 +3,8 @@
 //! The compiler names every dispatch site a new route must handle, but not whether facts declared
 //! in separate places agree: the platform catalog, the provider registration, the route
 //! declaration and the route built from it, and the configuration schema, nor whether a platform
-//! and its routes have the samples, tests and Live Checks they need. Each [`Rule`] states one such
-//! fact and what to add when it breaks.
+//! and its routes have the samples, tests, Live Checks and product skill file they need. Each
+//! [`Rule`] states one such fact and what to add when it breaks.
 
 use crate::catalog::{
     self, Credentials, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
@@ -30,6 +30,7 @@ enum Rule {
     SampleRefs,
     AccessWindowTest,
     ContractLayout,
+    SkillFile,
 }
 
 impl Rule {
@@ -75,6 +76,10 @@ impl Rule {
             Self::ContractLayout => (
                 "the command contract tests of a platform with more than one route are grouped by route: every test is in a module `platforms::<platform>::<route>` of the command contract tests, named by one of its routes' provider IDs",
                 "move the platform's command modules into a module per route, named by the route's provider ID",
+            ),
+            Self::SkillFile => (
+                "the product skill has a file for every built-in platform, so an agent learns of the platform in the release that adds it",
+                "write `skills/forager/references/platforms/<platform>.md` and add the platform's row to the entry's platform table",
             ),
         }
     }
@@ -145,6 +150,8 @@ struct Registry<'a> {
     /// The command contract modules that hold the platform's tests, as paths such as
     /// `platforms::youtube::youtube_web`.
     contract_modules: &'a dyn Fn(Platform) -> Vec<String>,
+    /// Whether the product skill has the platform's file.
+    has_skill_file: &'a dyn Fn(Platform) -> bool,
 }
 
 fn violation(platform: Platform, rule: Rule, detail: &str) -> Violation {
@@ -223,6 +230,13 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<Violation> {
         catalog.routes(PlatformOperation::Fetch),
         &mut found,
     );
+    if !(registry.has_skill_file)(platform) {
+        found.push(violation(
+            platform,
+            Rule::SkillFile,
+            "the product skill has no file for it",
+        ));
+    }
     found
 }
 
@@ -506,6 +520,13 @@ fn contract_modules(platform: Platform) -> Vec<String> {
     modules
 }
 
+fn has_skill_file(platform: Platform) -> bool {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("skills/forager/references/platforms")
+        .join(format!("{}.md", platform.as_str()))
+        .is_file()
+}
+
 fn baseline() -> Registry<'static> {
     Registry {
         platforms: PLATFORMS,
@@ -524,6 +545,7 @@ fn baseline() -> Registry<'static> {
         sample_refs: &sample_refs,
         has_window_test: &has_window_test,
         contract_modules: &contract_modules,
+        has_skill_file: &has_skill_file,
     }
 }
 
@@ -828,5 +850,25 @@ fn a_multi_route_platform_with_tests_outside_its_route_modules_breaks_the_layout
             Vec::new()
         ),
         "a platform with one route keeps a module per command"
+    );
+}
+
+#[test]
+fn a_platform_without_a_skill_file_breaks_the_skill_file_rule() {
+    let registry = Registry {
+        has_skill_file: &|platform| platform != Platform::Polymarket,
+        ..baseline()
+    };
+
+    let rules = |platform| {
+        violations(platform, &registry)
+            .into_iter()
+            .map(|violation| violation.rule)
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        (rules(Platform::Polymarket), rules(Platform::Hn)),
+        (vec![Rule::SkillFile], Vec::new())
     );
 }

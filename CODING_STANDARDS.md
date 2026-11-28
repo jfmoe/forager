@@ -26,12 +26,6 @@ becomes checkable by a machine, it turns into a repository rule test and leaves 
   issue was open. Such a path runs only when something is already wrong, so no ordinary run shows
   that it is silent.
 
-## Documents and the product skill
-
-- **A list of values that the product skill states is bound to the code's enum** in
-  `tests/skill_contract.rs`, in the commit that adds the list. Without the binding, renaming a
-  value leaves the skill wrong and every test green.
-
 ## Rules with another owner that reviews keep catching
 
 Their wording and reasons stay with the owner; check the change against it.

@@ -35,7 +35,7 @@ After a release, finish these steps in order. The task is complete only when all
 3. **Update the Managed Browser.** Run `forager browser install`. When the new version pins the same browser version, it downloads nothing; otherwise it downloads, verifies and installs the new one. The old installation directory is no longer used and is not deleted automatically.
 4. **Run the Live Checks, with the user present.** Run `forager doctor --live --tier free,metered,attended` with the real configuration. Selecting every tier runs every declared check, the expensive and manual-only ones included, and selecting `attended` is the user's consent to the checks that open pages of a logged-in site or put the egress address at risk; the user stays at the machine to handle a login or verification page as [`browser-routes.md`](browser-routes.md) describes. Run it in a shell where `CI` is unset or `false`: a CI environment counts as unattended and refuses the attended tier with exit 2 before any request. Give the tool running the command a timeout longer than the run's time limit, whose default `forager doctor --help` shows. Report the status of every check.
 
-   The product skill defines each status, cause and exit code; what to do about each result:
+   [`live-checks.md`](live-checks.md) defines each status, cause and exit code; what to do about each result:
 
    - **`not_started`, cause `deadline`**: rerun with a larger `--timeout`; the run counts it as failed.
    - **`not_started`, cause `site_stop`**: do not rerun; follow the stop rules in [`browser-routes.md`](browser-routes.md). Another run only triggers the block again.

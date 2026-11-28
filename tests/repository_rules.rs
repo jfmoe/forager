@@ -12,6 +12,8 @@ mod retired;
 mod runner;
 #[path = "repository_rules/samples.rs"]
 mod samples;
+#[path = "repository_rules/skill.rs"]
+mod skill;
 #[path = "repository_rules/test_binaries.rs"]
 mod test_binaries;
 
@@ -444,6 +446,116 @@ fn repository_exposes_only_the_named_installable_skill() {
 }
 
 #[test]
+fn the_product_skill_stays_within_its_size_budgets() {
+    let found = skill::budget_violations(&skill_files());
+
+    assert!(
+        found.is_empty(),
+        "an agent reads the entry and one or two files per task, often only their first lines, so \
+         each file and the whole skill keep a budget; remove or split before you add, and change a \
+         budget only in a commit that says what the room is for: {found:#?}"
+    );
+}
+
+#[test]
+fn a_skill_file_or_the_whole_skill_over_its_budget_is_reported() {
+    let file = |path: &str, characters: usize| skill::File {
+        path: path.to_owned(),
+        text: "é".repeat(characters),
+    };
+    let within = [
+        file("SKILL.md", 6_000),
+        file("references/ordinary-search.md", 4_000),
+        file("references/platforms/invented.md", 6_000),
+    ];
+    let over = [
+        file("SKILL.md", 6_001),
+        file("references/platforms/shared.md", 4_001),
+        file("references/platforms/invented.md", 6_001),
+        file("references/invented.md", 4_001),
+    ];
+    let whole = (0..12)
+        .map(|index| file(&format!("references/platforms/p{index}.md"), 6_000))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            skill::budget_violations(&within),
+            skill::budget_violations(&over),
+            skill::budget_violations(&whole),
+        ),
+        (
+            Vec::<String>::new(),
+            vec![
+                "SKILL.md: 6001 characters, budget 6000".to_owned(),
+                "references/platforms/shared.md: 4001 characters, budget 4000".to_owned(),
+                "references/platforms/invented.md: 6001 characters, budget 6000".to_owned(),
+                "references/invented.md: 4001 characters, budget 4000".to_owned(),
+            ],
+            vec!["the whole skill: 72000 characters, budget 70000".to_owned()],
+        )
+    );
+}
+
+#[test]
+fn every_skill_link_resolves_and_every_skill_file_is_reachable_from_the_entry() {
+    let found = skill::link_violations(&skill_files());
+
+    assert!(
+        found.is_empty(),
+        "the skill ships alone, so a link must land on one of its own files, and an agent finds a \
+         file only through links from SKILL.md; fix the link or link the file from where an agent \
+         needs it: {found:#?}"
+    );
+}
+
+#[test]
+fn a_broken_skill_link_and_an_unreachable_skill_file_are_reported() {
+    let file = |path: &str, text: &str| skill::File {
+        path: path.to_owned(),
+        text: text.to_owned(),
+    };
+    let files = [
+        file(
+            "SKILL.md",
+            "Read [a](references/a.md#part), [gone](references/gone.md) and \
+             [web](https://example.com/x.md).\n",
+        ),
+        file(
+            "references/a.md",
+            "See [b](platforms/b.md), [out](../../README.md) and `[c](c.md)`.\n",
+        ),
+        file("references/platforms/b.md", "Back to [a](../a.md).\n"),
+        file("references/orphan.md", "Links to [a](a.md).\n"),
+    ];
+
+    assert_eq!(
+        skill::link_violations(&files),
+        [
+            "SKILL.md -> references/gone.md: no such file in the skill",
+            "references/a.md -> ../../README.md: no such file in the skill",
+            "references/orphan.md: no link from SKILL.md reaches it",
+        ]
+    );
+}
+
+/// Every file of the installable skill.
+fn skill_files() -> Vec<skill::File> {
+    let skill_root = root().join("skills/forager");
+    all_files(&skill_root)
+        .into_iter()
+        .filter(|path| !file_name(path).starts_with('.'))
+        .map(|path| skill::File {
+            path: relative(&path)
+                .strip_prefix("skills/forager/")
+                .expect("a path under the skill")
+                .to_owned(),
+            text: read(&path),
+        })
+        .collect()
+}
+
+#[test]
 fn every_adr_reference_names_an_existing_adr() {
     let existing = files(&root().join("docs/adr"), "md")
         .iter()
@@ -518,7 +630,7 @@ fn each_way_the_test_layout_breaks_the_fixed_set_is_reported() {
         Vec::<String>::new()
     );
 
-    entries.retain(|entry| entry.name != "skill_contract.rs");
+    entries.retain(|entry| entry.name != "config_permissions.rs");
     entries.extend([entry("probe.rs", false, false), entry("extra", true, true)]);
     assert_eq!(
         test_binaries::violations(
@@ -532,7 +644,7 @@ fn each_way_the_test_layout_breaks_the_fixed_set_is_reported() {
             "Cargo.toml: the `[[test]]` target `listed` adds a binary; let Cargo discover the fixed set",
             "tests/probe.rs: a test binary outside the fixed set; make it a module of the command contract binary",
             "tests/extra/main.rs: a test binary outside the fixed set; make it a module of the command contract binary",
-            "tests/: the fixed binary `skill_contract` is missing",
+            "tests/: the fixed binary `config_permissions` is missing",
         ]
     );
 }

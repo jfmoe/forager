@@ -22,25 +22,6 @@ pub enum LiveCheckRule {
 }
 
 impl LiveCheckRule {
-    /// Every rule, in the order the product skill lists them.
-    pub const VOCABULARY: [Self; 15] = [
-        Self::Present,
-        Self::Type,
-        Self::Nonblank,
-        Self::AtLeast,
-        Self::MinItems,
-        Self::InSomeItems,
-        Self::NoRuntimeAttempt,
-        Self::KeyedRead,
-        Self::AnonymousRead,
-        Self::ResolvedByPayout,
-        Self::LiveQuotes,
-        Self::CommandSucceeds,
-        Self::TimeLimit,
-        Self::ValidJson,
-        Self::CommandRuns,
-    ];
-
     /// The name a report and a run record show.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

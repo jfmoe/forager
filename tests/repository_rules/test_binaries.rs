@@ -4,15 +4,14 @@
 
 use std::collections::BTreeSet;
 
-/// The integration test binaries, by name: the command contract tests, the two rule binaries a
-/// document change runs alone, the release shape tests, and the two targets the Windows job names.
-pub(crate) const FIXED_SET: [&str; 6] = [
+/// The integration test binaries, by name: the command contract tests, the rule binary a document
+/// change runs alone, the release shape tests, and the two targets the Windows job names.
+pub(crate) const FIXED_SET: [&str; 5] = [
     "command_contract",
     "config_permissions",
     "release_artifact_gate",
     "release_scaffolding",
     "repository_rules",
-    "skill_contract",
 ];
 
 /// One entry directly under `tests/`.

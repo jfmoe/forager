@@ -5,11 +5,20 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use crate::catalog::{self, LiveTier, ProviderId};
 use crate::providers::SearchType;
 use crate::telemetry::RetrievalCommand;
-use crate::types::{CapabilitySet, FallbackPolicy, Platform};
+use crate::types::{Capability, CapabilitySet, FallbackPolicy, Platform};
 
 /// Parsed `forager` command-line arguments.
 #[derive(Debug, Parser)]
-#[command(name = "forager", version, infer_subcommands = false)]
+#[command(
+    name = "forager",
+    version,
+    infer_subcommands = false,
+    about = "Search the live web, fetch known pages, and read platform items, through a chain of providers",
+    after_help = "Take the cheapest command that finishes the task: `fetch` for a known URL or PDF, \
+                  `search` for one live search with the supplemental capabilities it declares \
+                  (`forager search --help`), and `platform` beside either when a built-in \
+                  platform answers the task (`forager platform --help`)."
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub(super) command: Command,
@@ -92,62 +101,87 @@ pub enum CommandKind {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum Command {
+    /// Answer a question with a live main search and the supplemental capabilities it declares.
     #[command(visible_alias = "s")]
     Search {
+        /// The question or search request.
         query: String,
-        #[arg(long)]
+        /// The complete set of supplemental capabilities, comma-separated, or `none`.
+        #[arg(long, value_name = "CSV|none", long_help = capabilities_help())]
         capabilities: Option<CapabilitySet>,
+        /// The model of the first main-search backend that runs; a fallback keeps its own.
         #[arg(long)]
         model: Option<String>,
+        /// Supplemental candidates to gather, up to 20; 0 lets each capability choose.
         #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u16).range(0..=20))]
         extra_sources: u16,
+        /// Whether a failing provider falls back to the next (`auto` or `off`); defaults to
+        /// `search.fallback`.
         #[arg(long)]
         fallback: Option<FallbackPolicy>,
+        /// Whole-command deadline in seconds, retries and fallback included.
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
+        /// `content` prints only the answer.
         #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
         format: ContentOutputFormat,
         #[command(flatten)]
         output: OutputArgs,
+        /// Include every provider attempt in the result.
         #[arg(long)]
         verbose: bool,
     },
+    /// Read a known page or PDF as text through the Web Fetch providers.
     #[command(visible_alias = "f")]
     Fetch {
+        /// The page or document URL; quote it so the shell keeps `?` and `&`.
         url: String,
+        /// Whole-command deadline in seconds, fallback included; 180 by default.
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
+        /// `content` prints only the page text.
         #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
         format: ContentOutputFormat,
         #[command(flatten)]
         output: OutputArgs,
+        /// Include every provider attempt in the result.
         #[arg(long)]
         verbose: bool,
     },
+    /// List the pages of a site, starting from a URL.
     Map {
+        /// The site root or page to start from.
         url: String,
+        /// Which pages or parts of the site to prioritize.
         #[arg(long, default_value = "")]
         instructions: String,
+        /// Link levels to follow, 1 to 5.
         #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..=5))]
         max_depth: u16,
+        /// Links to follow per level, 1 to 500.
         #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..=500))]
         max_breadth: u16,
+        /// Most pages to return.
         #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u16).range(1..))]
         limit: u16,
+        /// Whole-command deadline in seconds, 10 to 150.
         #[arg(long, default_value_t = 150, value_parser = clap::value_parser!(u64).range(10..=150))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
         #[command(flatten)]
         output: OutputArgs,
+        /// Include every provider attempt in the result.
         #[arg(long)]
         verbose: bool,
     },
+    /// Call Exa directly, without capability routing or fallback.
     Exa {
         #[command(subcommand)]
         command: ExaCommand,
     },
-    /// Search or fetch items of a built-in platform through its configured routes.
+    /// Search or fetch items of a built-in platform: papers, discussions, videos, markets and
+    /// posts. Each platform below says what it answers and what it needs.
     Platform {
         #[command(subcommand)]
         command: super::platform::PlatformCommand,
@@ -157,16 +191,22 @@ pub(super) enum Command {
         #[command(subcommand)]
         command: super::browser::BrowserCommand,
     },
+    /// Show or change the configuration.
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+    /// Write the configuration by prompting for the main model and the provider keys.
     Setup {
+        /// Write a commented template of every key instead of prompting; never overwrites a file.
         #[arg(long)]
         non_interactive: bool,
+        /// The language of the prompts.
         #[arg(long, value_enum)]
         lang: Option<Language>,
     },
+    /// Check configuration and providers, summarise real use with `--health`, or run Live Checks
+    /// against the real services with `--live`.
     Doctor {
         /// The provider to check alone, or, with `--live`, whose Live Checks to run.
         #[arg(long, value_parser = parse_provider)]
@@ -212,26 +252,37 @@ pub(super) enum Command {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum ExaCommand {
+    /// Search the web with Exa.
     Search {
+        /// The search query.
         query: String,
+        /// Results to return, 1 to 100.
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
         num_results: u16,
         #[arg(long, value_enum, default_value_t = ExaSearchType::Auto)]
         search_type: ExaSearchType,
+        /// Include each result's page text.
         #[arg(long)]
         include_text: bool,
+        /// Most characters of page text per result.
         #[arg(long, default_value_t = 3000, requires = "include_text", value_parser = clap::value_parser!(u32).range(1..))]
         text_max_characters: u32,
+        /// Include the passages of each result that match the query.
         #[arg(long)]
         include_highlights: bool,
+        /// Only results published on or after this date.
         #[arg(long)]
         start_published_date: Option<String>,
+        /// Only results from these comma-separated domains; use it instead of `site:` in the query.
         #[arg(long, value_delimiter = ',')]
         include_domains: Vec<String>,
+        /// No results from these comma-separated domains.
         #[arg(long, value_delimiter = ',')]
         exclude_domains: Vec<String>,
+        /// Only results in this Exa category.
         #[arg(long)]
         category: Option<String>,
+        /// Deadline in seconds; defaults to `providers.exa.timeout`.
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
@@ -241,10 +292,14 @@ pub(super) enum ExaCommand {
         #[arg(long)]
         verbose: bool,
     },
+    /// Find pages similar to a URL with Exa.
     Similar {
+        /// The page to find similar pages for.
         url: String,
+        /// Results to return, 1 to 100.
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
         num_results: u16,
+        /// Deadline in seconds; defaults to `providers.exa.timeout`.
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
@@ -258,17 +313,23 @@ pub(super) enum ExaCommand {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum ConfigCommand {
+    /// Print the configuration file's path, without reading the file.
     Path,
+    /// Print every effective value with its source, keys masked.
     #[command(visible_alias = "ls")]
     List,
+    /// Set one key in the configuration file.
     Set {
+        /// A dotted key such as `providers.exa.timeout`.
         key: String,
         #[arg(
             help = "string, number, or boolean as plain text; an array as a TOML literal such as '[\"a\"]'; or - for standard input. Argument values may be saved in shell history"
         )]
         value: String,
     },
+    /// Remove one key from the configuration file; an environment override still applies.
     Unset {
+        /// A dotted key such as `providers.exa.timeout`.
         key: String,
     },
 }
@@ -323,8 +384,11 @@ impl OutputTarget {
 
 #[derive(Clone, Debug, Args)]
 pub(super) struct OutputArgs {
-    #[arg(long)]
+    /// Also write the result to this file; standard output still carries it.
+    #[arg(long, value_name = "FILE")]
     output: Option<PathBuf>,
+    /// With `--output`, print only a one-line receipt on success, so a long result stays in the
+    /// file.
     #[arg(long, requires = "output")]
     receipt: bool,
 }
@@ -347,6 +411,22 @@ pub enum ContentOutputFormat {
     Json,
     Markdown,
     Content,
+}
+
+/// The long help of `--capabilities`: each capability with when to declare it, in vocabulary
+/// order.
+fn capabilities_help() -> String {
+    let values = Capability::VOCABULARY
+        .into_iter()
+        .map(|capability| format!("  {:<12} {}", capability.as_str(), capability.select_when()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "The complete set of supplemental capabilities, comma-separated. forager adds none you \
+         leave out; without this option, or with `none`, main search runs alone. Declare a \
+         capability when the answer needs:\n{values}\n  {:<12} nothing beyond main search's own answer",
+        "none"
+    )
 }
 
 fn parse_tier(value: &str) -> Result<LiveTier, String> {

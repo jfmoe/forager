@@ -9,7 +9,7 @@ Each rule is proven once, at the cheapest layer that can observe it breaking. Pl
 | In-crate tests | Did my change break forager's own logic? | Decisions; response decoding against stored samples; request construction and HTTP semantics against the local fixture server; validation and argument rules; pacing, back-off and deadlines; the platform-independent rules of planning, fallback and attribution |
 | Binary unit tests | Does the binary present a result correctly? | Rendering of command outputs and the mapping from errors to exit codes |
 | Command contract tests | Does the real binary keep its outer contract? | Each command's outer path and the items of the [outer checklist](#the-outer-checklist) |
-| Rule tests | Do the repository's documents and layout follow their rules? | The repository rules and the product skill contract |
+| Rule tests | Do the repository's documents and layout follow their rules? | The repository rules |
 | Release and permission tests | Does what CI, a release and the schedules rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, the scheduled jobs' scripts run against stand-ins for the programs they call, and private file permissions on each operating system |
 | Real-browser tests | Do the browser transport and Page Logic work in the Managed Browser? | Off by default; [`browser-routes.md`](browser-routes.md) runs them |
 | Live Checks | Do real sites and keys still answer as forager expects? | Canaries of each provider's operations against the real services, run by `forager doctor --live`: on the maintainer's machine daily and weekly, after a release, as [`release.md`](release.md) says, and after a change to an adapter, as [`live-checks.md`](live-checks.md) says; never offline and never on GitHub |
@@ -53,7 +53,7 @@ Run this command and the gate command below as `AGENTS.md` says every check is r
 - **A provider:** its ID, plus each platform that it is the only route of. The `xai` provider is `xai|x`, because it is the X platform's only route; `youtube_web` is `youtube_web`, because YouTube has other routes. `gemini_api` alone also selects YouTube's ask and transcribe commands, because it is the only route that serves them.
 - **A platform:** its ID, plus each of its routes that serves nothing else. Google Scholar is `scholar|serpapi`. X is `x` alone: the `xai` route also backs main search, and listing it would select main-search tests.
 
-The routes of each platform are in the platform catalog and in the product skill. Words match whole, so the X filter never selects `xai`, and `hn` never selects a module that merely starts with the letters.
+The routes of each platform are in the platform catalog. Words match whole, so the X filter never selects `xai`, and `hn` never selects a module that merely starts with the letters.
 
 ## Local and CI runs
 

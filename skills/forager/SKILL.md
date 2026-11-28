@@ -1,71 +1,72 @@
 ---
 name: forager
-description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv, SSRN, or Google Scholar papers, Xiaohongshu (小红书) notes, X posts, Hacker News discussions, YouTube videos, Polymarket prediction markets, and Reddit discussions, site mapping, official/API documentation lookup, source-backed fact checking, deep research, or forager configuration and diagnostics."
+description: "Fetch known URLs, search the live web, and read platform items (arXiv, SSRN, Google Scholar, Hacker News, Polymarket, YouTube, X, Reddit, Xiaohongshu 小红书) with the local forager CLI. Use for reading a given page or PDF, questions that need current or source-backed answers, official documentation lookup, multi-source research, and forager configuration errors or defects."
 ---
 
 # forager
 
-Use the local `forager` CLI as the execution layer. The CLI owns provider selection, ordering,
-credential rotation, and same-capability fallback. If `forager` is not installed, report it and stop
-this skill run. If a command or option this skill names is missing, the installed forager is older
-than this skill: report the observed `forager --version` and ask the user to upgrade forager.
+Run the local `forager` CLI for every retrieval below; it picks providers, rotates keys and falls
+back on its own. If `forager` is not installed, say so and stop. If a command or option named here
+is missing, report `forager --version` and ask the user to upgrade forager. `forager <command>
+--help` gives every option, value and default.
 
-## Run commands to completion
+## Run each command to completion
 
-Treat a command as complete only at terminal exit. When the runner yields a handle, poll that handle
-until it exits before reading output, diagnosing, or retrying. Main search can run for 60 seconds or
-longer; keep its default `--timeout` and give the outer runner more headroom.
+A command is done only when it exits. When the runner hands back a handle, wait on it until exit
+before you read output, diagnose or retry. A search can run a minute or longer: keep forager's
+default `--timeout` and give the runner more. Judge the outcome by the exit code; a failure prints
+its payload on stdout too.
 
-This step is complete when the selected command has a terminal exit and its full result is
-available.
+## Choose the branch
 
-## Route on the cost ladder
+Take the cheapest branch that can finish the task; move to the next only when the task's shape or
+an observed shortfall shows the current one cannot.
 
-When the request names a platform, supplies a platform URL or ref, or needs platform-native items,
-read [`references/platforms.md`](references/platforms.md) first; it decides whether a platform
-command serves the request and covers its direct and search branches.
+1. **Direct retrieval**: the task gives a URL or PDF, or asks which pages a site has. Read
+   [`references/direct-retrieval.md`](references/direct-retrieval.md).
+2. **Ordinary search**: one live search can answer it. Read
+   [`references/ordinary-search.md`](references/ordinary-search.md) before you run the search.
+3. **Investigation**: the question needs decomposition or several sources. Split it into parts;
+   run `forager search` for a part that needs discovery, `forager fetch` for each source that may
+   answer it, and the platform searches the table below matches. Judge a source by whether it bears
+   on the question, not by how many there are. Cite only fetched content, and name each part no
+   source answered. Stop when more searches are unlikely to change the answer, the task budget is
+   spent, or access is blocked, and say what remains open.
 
-Route every request through `direct retrieval → ordinary search → multi-source investigation`.
-Choose the cheapest branch that can complete the request. Run one eligible branch, then escalate
-only when the request shape or an observed shortfall shows that branch cannot finish the task. A
-multi-source investigation is the most expensive branch.
+The branch is chosen when exactly one matches the task, or the previous one returned an observed
+reason to move on.
 
-- For a known URL, PDF, site map, or provider-direct operation, read
-  [`references/direct-retrieval.md`](references/direct-retrieval.md) and follow it through
-  completion.
-- For a request one live search can complete, read
-  [`references/ordinary-search.md`](references/ordinary-search.md) and follow it through
-  completion.
-- For a request that requires decomposition or multi-source verification, orchestrate the
-  investigation yourself. Split the question into parts; run `forager search` for a part that
-  needs discovery, `forager fetch` for each source that may answer it, and the platform commands
-  for platform-native items. Judge each source on whether it bears on the question, not by how
-  many sources there are. Cite only fetched content, and disclose each part no source answered.
-  Stop when further searches are unlikely to change the answer, the task budget is reached, or
-  access is blocked, and report what remains open.
+## Platforms
 
-Routing is complete when exactly one branch matches the request shape or the preceding branch has
-returned an observable reason to escalate.
+A platform is one of these nine services and nothing else. A WeChat article, a Discord question or a
+page on any other site goes through direct retrieval or ordinary search.
 
-## Diagnose or configure
+| Platform | Answers best | Cost |
+| --- | --- | --- |
+| [arXiv](references/platforms/arxiv.md) | Preprints in physics, maths, CS, quantitative finance; full text | Free |
+| [SSRN](references/platforms/ssrn.md) | Working papers in finance, economics, law; abstracts | Free |
+| [Google Scholar](references/platforms/scholar.md) | Papers across publishers, citation counts, who cites a paper | Key: SerpApi quota |
+| [Hacker News](references/platforms/hn.md) | What practitioners think of a tool, product or technical idea | Free |
+| [Polymarket](references/platforms/polymarket.md) | How likely an event is: live market probabilities | Free |
+| [YouTube](references/platforms/youtube.md) | Talks, lectures, tutorials; what a video says or shows | Key: YouTube and Gemini; captions opt-in |
+| [X](references/platforms/x.md) | What accounts post on X now; reactions to news | Key: main search's xAI key |
+| [Reddit](references/platforms/reddit.md) | User experience and community discussion in English | Opt-in: user's login |
+| [Xiaohongshu 小红书](references/platforms/xiaohongshu.md) | Chinese consumer reviews, lifestyle and travel experience | Opt-in: user's login |
 
-For a configuration error, use `forager config path` and `forager config list`; repair a parseable
-document with `forager config set` or `forager config unset`, and edit the reported path when its
-TOML is malformed.
+- **Match a row, add its search.** When the task asks what a row answers best, run that platform
+  beside the branch you chose, whether or not the user named it. Read the platform's file first;
+  every platform file builds on [`references/platforms/shared.md`](references/platforms/shared.md).
+  When the task matches no row, run no platform command.
+- **Key**: the user's key or quota pays for each request; spend it only on what the task needs.
+- **Opt-in**: the route is off until the user enables it. When the task would gain from it and
+  forager refuses because the route is off, tell the user what the platform would add, what
+  enabling it needs, and what it risks (their account or network address, against the site's
+  terms), then wait for their answer. Continue the task from the other sources meanwhile.
+  Enabling, installing and logging in stay with the user.
 
-For a provider's configuration, prerequisites, or key validity, use
-`forager doctor --provider PROVIDER --format json`; it sends no billed request and opens no page.
-For connectivity of every configured provider, use `forager doctor --format json`. To see which
-providers have been failing in the user's real use, including failures a fallback hid, use
-`forager doctor --health --format json`; it reads only local records and sends nothing. To check
-against the real service that a provider's operations still work, use
-`forager doctor --live --provider PROVIDER`, but only when the user asks for it: its requests can
-spend quota, and for a route in the `attended` tier, naming it is the user's consent to open pages
-of a logged-in site or put the egress address at risk.
+## Configure, diagnose or report
 
-Diagnosis is complete when the reported cause and recovery command are actionable.
-
-## CLI reference
-
-Read [`references/cli.md`](references/cli.md) only for exact command syntax, non-routine commands,
-or diagnosis and recovery details. Treat `forager <command> --help` as the final parsing authority.
+- A configuration, credential or quota error, or a request to set up or check forager: read
+  [`references/diagnostics.md`](references/diagnostics.md).
+- A result that looks wrong, a command that fails without a configuration cause, or a request to
+  report a forager problem: read [`references/feedback.md`](references/feedback.md).

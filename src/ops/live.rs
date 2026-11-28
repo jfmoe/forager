@@ -398,16 +398,6 @@ enum Status {
     NotStarted,
 }
 
-impl Status {
-    /// Every status, in the order the product skill lists them.
-    const VOCABULARY: [Self; 4] = [
-        Self::Passed,
-        Self::Failed,
-        Self::Unconfigured,
-        Self::NotStarted,
-    ];
-}
-
 /// Why a configured, selected check did not start.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -418,35 +408,6 @@ enum NotStarted {
     SiteStop,
     /// The check it depends on did not pass or left nothing to read.
     NoInput,
-}
-
-impl NotStarted {
-    /// Every cause, in the order the product skill lists them.
-    const VOCABULARY: [Self; 3] = [Self::Deadline, Self::SiteStop, Self::NoInput];
-}
-
-/// The names of a live run's check statuses, its causes for a check that did not start and its
-/// notification actions, in the order the product skill lists them.
-pub(crate) fn vocabularies() -> [(&'static str, Vec<String>); 3] {
-    fn names<T: Serialize>(values: &[T]) -> Vec<String> {
-        values
-            .iter()
-            .map(|value| {
-                serde_json::json!(value)
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_owned()
-            })
-            .collect()
-    }
-    [
-        ("live check status", names(&Status::VOCABULARY)),
-        ("not started cause", names(&NotStarted::VOCABULARY)),
-        (
-            "notification action",
-            names(&notification::Action::VOCABULARY),
-        ),
-    ]
 }
 
 /// How long an unattended run waits before it runs its failed checks once more.

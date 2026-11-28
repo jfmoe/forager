@@ -101,10 +101,9 @@ _Avoid_: provider override, router hint, capability patch
 
 **Capability Vocabulary**:
 The single vocabulary of the capabilities a caller may declare: each one's identity, canonical
-order, selection meaning and example phrases. Identity and order are compiled into the CLI, and
-`--capabilities` validation reads them there; the product skill's vocabulary file adds selection
-meaning and example phrases, and a product skill contract test binds its identities and order to
-the compiled ones. Provider fallback and routing control flow are not part of it.
+order and selection meaning. All three are compiled into the CLI: `--capabilities` validation and
+`forager search --help` read them there, and the product skill restates when to declare each
+beside the search it teaches. Provider fallback and routing control flow are not part of it.
 _Avoid_: Skill capability list, routing rules DSL, provider registry
 
 **Citation Binding**:
@@ -358,8 +357,10 @@ _Avoid_: raw provider parameters, best-effort filters
 
 **Spec**:
 The description of one change, kept in a GitHub issue and closed when the change ships. An issue
-is never the source of a current fact: on delivery, what a CLI user can observe goes into the
-product skill, how it works stays in the code, and a hard-to-reverse trade-off goes into an ADR.
+is never the source of a current fact: on delivery, what an end user's agent needs goes into the
+product skill, option syntax into the command definition, detail only a maintainer uses into the
+procedure that uses it, how it works stays in the code, and a hard-to-reverse trade-off goes into
+an ADR.
 _Avoid_: standing spec, spec chapter
 
 **Upstream Sample**:
