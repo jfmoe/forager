@@ -4,7 +4,7 @@
 
 forager has no vertical search capability. The capability, its only provider AnySearch, the
 `anysearch` command, their configuration, the Verified Domain Manifest, and their entries in
-doctor, the live tests and setup are removed. The capabilities that search can plan are
+doctor, the Live Checks and setup are removed. The capabilities that search can plan are
 Documentation Search, Web Search and Web Fetch. Old capability declarations, configuration keys,
 environment variables and the old command are rejected as unknown input, with no alias or
 compatibility layer.
@@ -23,8 +23,8 @@ heavy use and little contribution:
   (ADR-0019).
 - The domain-level search was never called in the session logs; the Verified Domain Manifest was
   always empty, so structured domain search never switched on.
-- The capability ran through the CLI, configuration, the classifier, research, doctor, the live
-  tests, setup, release verification and the documentation, and every related change had to carry
+- The capability ran through the CLI, configuration, the classifier, research, doctor, the Live
+  Checks, setup, release verification and the documentation, and every related change had to carry
   that whole chain.
 
 ## Rejected alternatives

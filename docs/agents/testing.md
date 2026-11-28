@@ -65,6 +65,8 @@ cargo nextest run --profile ci --locked --test release_artifact_gate
 
 No profile retries a failed test, so a red run always means something; a test that fails only sometimes is fixed, not retried.
 
+The scheduled jobs' tests need `jq` on the host's `PATH`, as the scheduled jobs themselves do: the scripts read and write their JSON with it, so a stand-in would prove nothing about the filters they pass it. A host without it fails those tests, naming the missing tool, instead of skipping them, because a skipped test reads as a pass. The CI runners and the maintainer's machine have it.
+
 ## Upstream samples
 
 The sample store is `tests/samples/<provider>/`. Every upstream body a test replays comes from there, and the in-crate tests and the command contract tests read the same file, so an upstream change is fixed in one place. Tests locate samples relative to the crate root, because the runner does not fix the working directory.

@@ -27,8 +27,9 @@ Each script first checks that the programs it needs are on that `PATH`, and noti
 
 1. Make sure `forager`, `gh` and `jq` are installed, `gh auth status` shows the maintainer's account, and the keys of the `metered` providers are configured.
 2. Copy the three scripts into `~/.local/bin`: `mkdir -p ~/.local/bin && install -m 755 scripts/schedules/forager-live-* ~/.local/bin/`. Copy them rather than linking, so a checked-out branch never changes what a job runs.
-3. Copy both plists into `~/Library/LaunchAgents/`, replace `USERNAME` with the account name, and load each with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<file>`.
-4. Start each job once with `launchctl kickstart gui/$(id -u)/<label>` and read its log in `~/Library/Logs/forager/`. That directory also keeps each tier's last report (`live-free.json`, `live-metered.json`) and the last health summary.
+3. Create the log directory with `mkdir -p ~/Library/Logs/forager`. launchd opens the log file each plist names before the script starts, so the scripts' own `mkdir` comes too late for it.
+4. Copy both plists into `~/Library/LaunchAgents/`, replace `USERNAME` with the account name, and load each with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<file>`.
+5. Start each job once with `launchctl kickstart gui/$(id -u)/<label>` and read its log in `~/Library/Logs/forager/`. That directory also keeps each tier's last report (`live-free.json`, `live-metered.json`) and the last health summary.
 
 After a change to these files, copy them again; for a plist, `launchctl bootout` it before bootstrapping it again. launchd starts a job that a sleeping machine missed when the machine wakes, and skips it while the machine is off. Either way the health summary flags a tier or workflow whose last run is overdue.
 
@@ -63,7 +64,7 @@ Adapter work is done only when the changed provider's Live Checks pass:
 forager doctor --live --provider <provider>
 ```
 
-Save the report in the task's working directory under `.local/` and cite the status of each check when you report the work. A provider with checks in the `attended` tier opens pages of a logged-in site or risks the egress address, and naming it selects those checks, so run it only with the user present and agreeing, as [`browser-routes.md`](browser-routes.md) says. Without the user, run `--tier free,metered` and report the attended checks as not run. An `unconfigured` check proves nothing about its upstream; report it with its `message`. Give the tool that runs the command a timeout longer than the run's own.
+Run only the changed provider's checks, by naming it, and save the report in the task's working directory under `.local/`; cite the status of each check when you report the work. Two kinds of check are started only by the user, present and agreeing: an `attended` check opens pages of a logged-in site or risks the egress address, as [`browser-routes.md`](browser-routes.md) says, and a `manual_only` check uses a service in a way not confirmed to comply with the provider's terms. `forager doctor --live --list --provider <provider>` shows both. Without the user, add `--tier free,metered` to leave out the attended checks; a provider with a manual-only check is not run at all, because no selection by hand leaves that check out. Report every check you did not run as not run. Do not run every provider's checks, such as `--tier free,metered` without `--provider`, because that includes other providers' manual-only checks. An `unconfigured` check proves nothing about its upstream; report it with its `message`. Give the tool that runs the command a timeout longer than the run's own.
 
 ## Adding a Live Check
 
