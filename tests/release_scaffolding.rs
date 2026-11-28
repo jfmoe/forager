@@ -290,7 +290,7 @@ fn release_target_preparation_is_fail_closed() {
         )
         .cloned()
         .collect::<Vec<_>>();
-    assert!(!combined.is_empty());
+    assert_ne!(combined, Vec::<Value>::new());
     assert_eq!(targets, Value::Array(combined));
 
     let empty_source = directory.path().join("empty-targets.json");
@@ -352,7 +352,7 @@ fn every_release_asset_command_of_the_artifact_gate_names_the_repository() {
         })
         .collect::<Vec<_>>();
 
-    assert!(!commands.is_empty());
+    assert_ne!(commands, Vec::<String>::new());
     for command in commands {
         assert!(command.contains("--repo"), "command: {command}");
     }

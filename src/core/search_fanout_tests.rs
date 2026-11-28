@@ -413,7 +413,6 @@ fn search_invocation(
         &config,
         execution(FallbackPolicy::Auto),
     ))
-    .map_err(Box::new)
 }
 
 fn attempt_seams(attempts: &[crate::types::ProviderAttempt]) -> Vec<Option<&'static str>> {

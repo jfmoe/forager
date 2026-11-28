@@ -211,7 +211,7 @@ fn classify_blocks(
     facts: &PageFacts,
     blocked: impl FnOnce(&str, &str) -> String,
 ) -> Result<(), AttemptFailure> {
-    let notice = facts.notice.as_deref().map(str::trim).unwrap_or_default();
+    let notice = facts.notice.as_deref().map_or_default(str::trim);
     if facts.guest || LOGIN_NOTICES.iter().any(|login| notice.contains(login)) {
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Auth,
@@ -257,7 +257,7 @@ fn classify_blocks(
     let Some(api) = &facts.api_error else {
         return Ok(());
     };
-    let msg = api.msg.as_deref().map(str::trim).unwrap_or_default();
+    let msg = api.msg.as_deref().map_or_default(str::trim);
     let msg = if msg.is_empty() { "no message" } else { msg };
     if BLOCK_CODES.contains(&api.code) {
         return Err(AttemptFailure {

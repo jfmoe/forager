@@ -71,19 +71,15 @@ fn read_workflows(path: &Path) -> Option<Vec<WorkflowStatus>> {
 /// directory, nothing is recorded.
 pub(crate) fn report(days: u32, now: DateTime<Utc>) -> HealthReport {
     let state = crate::state_file::state_directory();
-    let telemetry = state
-        .as_ref()
-        .map(|state| {
-            telemetry::read(
-                &state.join(telemetry::DIRECTORY),
-                now - TimeDelta::days(2 * i64::from(days)),
-            )
-        })
-        .unwrap_or_default();
+    let telemetry = state.as_ref().map_or_default(|state| {
+        telemetry::read(
+            &state.join(telemetry::DIRECTORY),
+            now - TimeDelta::days(2 * i64::from(days)),
+        )
+    });
     let scheduled_runs = state
         .as_ref()
-        .map(|state| crate::live::last_scheduled_runs(state, now))
-        .unwrap_or_default();
+        .map_or_default(|state| crate::live::last_scheduled_runs(state, now));
     let workflows = state
         .as_ref()
         .and_then(|state| read_workflows(&state.join(WORKFLOWS_FILE)));

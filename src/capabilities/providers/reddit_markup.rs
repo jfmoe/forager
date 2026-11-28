@@ -146,7 +146,7 @@ fn table(element: ElementRef<'_>) -> String {
             let _ = write!(
                 line,
                 " {} |",
-                cells.get(column).map(String::as_str).unwrap_or_default()
+                cells.get(column).map_or_default(String::as_str)
             );
         }
         line

@@ -162,15 +162,12 @@ fn the_projection_of_each_local_page_is_the_sample_the_judgement_reads() {
 }
 
 fn ids(decoded: &Value) -> Vec<String> {
-    decoded["items"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .map(|item| item["ref"].as_str().unwrap_or_default().to_owned())
-                .collect()
-        })
-        .unwrap_or_default()
+    decoded["items"].as_array().map_or_default(|items| {
+        items
+            .iter()
+            .map(|item| item["ref"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    })
 }
 
 fn failure(observation: &SearchObservation) -> (AttemptErrorKind, Option<u16>, String) {

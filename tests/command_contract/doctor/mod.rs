@@ -106,7 +106,7 @@ fn doctor_provider_rejects_values_outside_the_compiled_registry() {
     let output = environment.run(&["doctor", "--provider", "not_a_provider"]);
 
     assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("invalid provider"),
         "{}",
@@ -306,7 +306,7 @@ fn doctor_rejects_bad_configuration_before_any_probe() {
     let output = environment.run(&["doctor", "--provider", "exa"]);
 
     assert_eq!(output.status.code(), Some(3));
-    assert!(output.stdout.is_empty());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("unknown"),
         "{}",

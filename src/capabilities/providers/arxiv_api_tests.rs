@@ -39,7 +39,7 @@ fn without(xml: &str, names: &[&str]) -> String {
                 (_, _, Some(closing)) => start + closing + close.len(),
                 _ => panic!("element `{name}` does not end"),
             };
-            let line_start = xml[..start].rfind('\n').map_or(start, |newline| newline);
+            let line_start = xml[..start].rfind('\n').unwrap_or(start);
             let cut_from = if xml[line_start..start].trim().is_empty() {
                 line_start
             } else {

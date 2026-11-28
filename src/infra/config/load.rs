@@ -204,12 +204,8 @@ mod tests {
             Ok(())
         });
 
-        let messages = [from_file, from_environment].map(|loaded| {
-            loaded
-                .err()
-                .map(|error| error.to_string())
-                .unwrap_or_default()
-        });
+        let messages = [from_file, from_environment]
+            .map(|loaded| loaded.err().map_or_default(|error| error.to_string()));
 
         for message in messages {
             assert!(

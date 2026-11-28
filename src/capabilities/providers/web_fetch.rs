@@ -143,8 +143,7 @@ impl Service {
                         .results
                         .into_iter()
                         .next()
-                        .map(|result| result.raw_content)
-                        .unwrap_or_default()
+                        .map_or_default(|result| result.raw_content)
                 }),
             Self::Firecrawl => serde_json::from_str::<FirecrawlResponse>(body)
                 .map_err(|error| format!("invalid Firecrawl response: {error}"))

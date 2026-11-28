@@ -478,10 +478,7 @@ struct ErrorBody {
 fn failure_message(body: &str, status: u16) -> String {
     match serde_json::from_str::<ErrorEnvelope>(body) {
         Ok(ErrorEnvelope { error }) if !error.message.is_empty() => {
-            let reason = error
-                .status
-                .map(|reason| format!(" ({reason})"))
-                .unwrap_or_default();
+            let reason = error.status.map_or_default(|reason| format!(" ({reason})"));
             format!(
                 "Gemini API returned HTTP {status}{reason}: {}",
                 error.message

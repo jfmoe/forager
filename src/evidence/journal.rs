@@ -21,7 +21,7 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) elapsed: Duration,
     pub(crate) capabilities: &'a [Capability],
     pub(crate) plan_source: PlanSource,
-    pub(crate) result: &'a Result<SearchOutcome, SearchFailure>,
+    pub(crate) result: &'a Result<SearchOutcome, Box<SearchFailure>>,
 }
 
 /// Who chose the capabilities a search ran.

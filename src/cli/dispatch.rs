@@ -66,7 +66,7 @@ pub enum CommandOutput {
     /// One completed Default Search Invocation.
     Search {
         /// Main-search terminal result.
-        result: Result<SearchOutcome, SearchFailure>,
+        result: Result<SearchOutcome, Box<SearchFailure>>,
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// How the result is presented.
@@ -301,7 +301,7 @@ impl SearchContext {
         extra_sources: u16,
         fallback_override: Option<FallbackPolicy>,
     ) -> (
-        Result<SearchOutcome, SearchFailure>,
+        Result<SearchOutcome, Box<SearchFailure>>,
         JournalOutcome,
         Option<String>,
     ) {

@@ -120,7 +120,7 @@ pub(crate) async fn search(
     requested_target: u16,
     config: &RuntimeConfig,
     execution: CapabilityExecution,
-) -> Result<SearchOutcome, SearchFailure> {
+) -> Result<SearchOutcome, Box<SearchFailure>> {
     let query = request.query.clone();
     let (main_result, capability_results) = futures_util::future::join(
         crate::engine::search(
@@ -140,7 +140,7 @@ pub(crate) async fn search(
             capability_results.merge_into(&mut outcome);
             Ok(outcome)
         }
-        Err(error) => Err(capability_results.into_failure(error)),
+        Err(error) => Err(Box::new(capability_results.into_failure(error))),
     }
 }
 

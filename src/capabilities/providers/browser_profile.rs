@@ -207,14 +207,12 @@ impl LockedProfile {
 
 #[cfg(test)]
 fn entries(path: &Path) -> Vec<String> {
-    let mut names = std::fs::read_dir(path)
-        .map(|entries| {
-            entries
-                .filter_map(Result::ok)
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let mut names = std::fs::read_dir(path).map_or_default(|entries| {
+        entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+    });
     names.sort();
     names
 }

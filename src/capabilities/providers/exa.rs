@@ -179,8 +179,7 @@ fn normalize_source(
     Source {
         title: result
             .title
-            .map(|value| credentials.redact(&value))
-            .unwrap_or_default(),
+            .map_or_default(|value| credentials.redact(&value)),
         url: credentials.redact(&redact_url(&result.url)),
         published_date: result
             .published_date

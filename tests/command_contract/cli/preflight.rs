@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::support::RunEnvironment;
+use crate::support::{RunEnvironment, stderr};
 
 #[test]
 fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
@@ -146,7 +146,7 @@ fn recordable_search_preflight_failure_is_journaled_once() {
             &serde_json::json!({"source": "preflight", "capabilities": []}),
         )
     );
-    assert!(output.stderr.is_empty());
+    assert_eq!(stderr(&output), "");
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn json_preflight_failures_follow_the_output_tee_contract() {
         std::fs::read(&output_path).expect("read preflight tee"),
         output.stdout
     );
-    assert!(output.stderr.is_empty());
+    assert_eq!(stderr(&output), "");
 
     let recordable = RunEnvironment::new("");
     std::fs::create_dir_all(&recordable.state_dir).expect("create state directory");
@@ -188,7 +188,7 @@ fn json_preflight_failures_follow_the_output_tee_contract() {
         std::fs::read(&recordable_path).expect("read recordable preflight tee"),
         output.stdout
     );
-    assert!(output.stderr.is_empty());
+    assert_eq!(stderr(&output), "");
 }
 
 #[test]

@@ -159,9 +159,7 @@ fn terminal_classification_uses_only_structured_signals() {
 #[test]
 fn completed_response_requires_nonempty_output_text() {
     let answers = ["xai", "openai"].map(|provider| {
-        output_text(SERVICE, &stored_answer(provider))
-            .ok()
-            .is_some_and(|(answer, _)| !answer.is_empty())
+        output_text(SERVICE, &stored_answer(provider)).is_ok_and(|(answer, _)| !answer.is_empty())
     });
     let mut reasoning_only = stored_answer("xai");
     reasoning_only["output"][0]["content"] = json!([{"type": "reasoning", "text": "hidden"}]);

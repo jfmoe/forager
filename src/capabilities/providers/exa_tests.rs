@@ -235,8 +235,7 @@ fn a_body_without_results_or_naming_a_non_http_result_is_refused() {
             message
                 .split(" at line")
                 .next()
-                .map(str::to_owned)
-                .unwrap_or_default()
+                .map_or_default(str::to_owned)
         })),
         [
             Some("invalid Exa response: missing field `results`".to_owned()),

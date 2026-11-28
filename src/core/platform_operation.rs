@@ -1091,8 +1091,7 @@ mod tests {
             let document = transcribed
                 .fetched
                 .content
-                .map(|content| content.text)
-                .unwrap_or_default();
+                .map_or_default(|content| content.text);
 
             assert!(
                 document.starts_with("# Me at the zoo\n")

@@ -542,8 +542,7 @@ fn failure_message(body: &str, status: u16) -> String {
                 .errors
                 .iter()
                 .find_map(|entry| entry.reason.as_deref())
-                .map(|reason| format!(" ({reason})"))
-                .unwrap_or_default();
+                .map_or_default(|reason| format!(" ({reason})"));
             format!(
                 "{FAILURE_PREFIX} {status}{reason}: {}",
                 markup_text(&error.message)
