@@ -4,7 +4,7 @@
   returned it, single-quoted. Build no ref, ID or URL yourself from a title, slug or snippet.
 - **Options**: set a search filter or sort only when the task states or clearly implies it.
 - **One platform**: a platform command returns only that platform's items and never falls back to
-  another; a general question still goes through the branch the entry chose.
+  another.
 - **Empty is not an error**: an empty `items` with exit 0 means nothing matched.
 
 ## Content depth
@@ -28,18 +28,18 @@ with `content_path`, `content_len` and, for a page read from elsewhere, `content
    citations.
 
 `--format content` prints the body instead of writing a file; use it only when the body must enter
-context or a pipe directly. `--content-dir DIR` chooses where the file goes.
+context or a pipe directly.
 
 ## Pages
 
 `next_cursor` continues a search: pass it alone with `--cursor`, without the query, options or
-`--limit`, because it restores the whole request. `null` means no page follows; a platform file
-says when that does not mean the results are complete.
+`--limit`; it restores the whole request. `null` means no page follows; a platform file says when
+that does not mean the results are complete.
 
 ## Recover
 
 - Exit 2 naming an option the route does not support: retry once without it and tell the user
-  which condition you dropped. Any other exit 2: fix the input the message names.
+  which condition you dropped.
 - A cursor that fails: drop it and search again from the first page.
 - Exit 3, or an `auth` failure on a keyed route: read [`diagnostics.md`](../diagnostics.md). Exit
   3 because an opt-in route is off: follow the opt-in rule in the entry.

@@ -55,13 +55,9 @@ the answer rests on is read from its source.
 
 ## Failures
 
-- Exit 3 naming `providers.serpapi.keys`: no key is configured. Ask the user to run `forager
-  config set providers.serpapi.keys -` and type `["THEIR_KEY"]` on stdin, or rerun `forager
-  setup`, so the key stays out of shell history and this conversation.
 - Exit 4 `quota_exhausted`: every key has used its month's searches. Tell the user and continue
   with `forager search`, arXiv or SSRN; do not retry Scholar.
 - Exit 4 `rate_limited`: SerpApi's hourly limit. Tell the user and retry later, not in a loop.
-- Exit 4 `auth`: SerpApi rejected the key; ask the user to check `providers.serpapi.keys`.
 - Exit 4 `parameter` saying Google Scholar has no cluster: the ref is wrong or gone.
 - Exit 2 on `--sort date` with years: Google Scholar ignores years when it sorts by date; drop one.
 - A cited-by cursor works only with `cited-by`, a search cursor only with `search`.

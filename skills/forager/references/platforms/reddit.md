@@ -4,16 +4,16 @@ Reddit holds community discussion: user experience, recommendations and troubles
 votes. Read [`shared.md`](shared.md) for what every platform shares, and Failures below after a
 non-zero exit.
 
-- **Opt-in**: Reddit's only route, `reddit_browser`, is off until the user enables it. It reads
-  Reddit in forager's headless browser, logged into the user's own Reddit account.
+- **Opt-in**: Reddit's only route, `reddit_browser`, is off until the user enables it, as the
+  entry's opt-in rule says. It reads Reddit in forager's headless browser, logged into the user's
+  own Reddit account.
   - What it adds: Reddit posts and their discussions with scores, which general search reaches
     only in part.
   - What it needs: the user runs `forager browser install`, then `forager browser login reddit`
     and logs in in the window it opens, then adds `reddit_browser` to `platforms.reddit.order`.
   - What it risks: Reddit's User Agreement does not allow automated access, and the risk falls on
     the user's Reddit account.
-  Tell the user these three things and wait for their answer, as the entry's opt-in rule says;
-  until then, use `forager search` for Reddit content.
+  Until the user enables it, use `forager search` for Reddit content.
 - **What Reddit says about a topic**: `forager platform reddit search 'QUERY'`, in Reddit's own
   search syntax. `--subreddit`, `--sort` and `--time` only when the task implies them; `--time`
   applies to `relevance`, `top` and `comments`, not to `hot` or `new`.

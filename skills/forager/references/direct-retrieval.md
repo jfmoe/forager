@@ -6,11 +6,7 @@ Single-quote every URL so the shell passes `?` and `&` through unchanged.
 - **A long page**: `forager fetch 'URL' --format content --output FILE --receipt`, list its
   headings with `grep -n '^#' FILE`, and read only the line ranges you need.
 - **A site's structure**: `forager map 'URL' --instructions "GOAL" --format json`.
-- **A URL of a platform in the entry's table**: use that platform's fetch instead, which returns
-  the platform's ref and fields; for example an x.com post goes to `forager platform x fetch`, a
-  news.ycombinator.com item to `forager platform hn fetch`, a YouTube video to `forager platform
-  youtube fetch`. Read the platform's file first. Any other site, a WeChat article included, stays
-  with `forager fetch`.
+- **A URL of a platform in the entry's table**: read that platform's file and use its fetch.
 - **A JSON API endpoint** such as `api.github.com`: `fetch` extracts readable page text, so call
   the API with `gh api` or `curl`.
 - **A page that needs the user's login**: forager cannot read it; use an authenticated client
