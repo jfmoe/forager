@@ -634,8 +634,9 @@ impl Site {
 
 /// Runs each selected check in declaration order; `unconfigured` holds each check's reason not
 /// to run, and `execute` starts one command with a time limit. With a `confirmation`, every
-/// failure but a rejected key or request is observed once more after its delay, and the second
-/// observation decides.
+/// failure on an HTTP route but a rejected key or request is observed once more after one shared
+/// delay, and the second observation decides; when the run's time limit leaves no room for the
+/// delay, the first observation stands.
 fn run_checks(
     declared: &[Declared],
     selected: &[bool],
@@ -704,7 +705,12 @@ fn run_checks(
             Ok(payload) => {
                 outputs.insert(check.id, payload.clone());
             }
-            Err(failure) if failure.kind.needs_confirmation() => {
+            // A browser check is never run twice in a run, so a rerun cannot open more pages on
+            // a site that has started to refuse them.
+            Err(failure)
+                if failure.kind.needs_confirmation()
+                    && entry.transport() == ProviderTransport::Http =>
+            {
                 unconfirmed.push((results.len(), index));
             }
             Err(_) => {}

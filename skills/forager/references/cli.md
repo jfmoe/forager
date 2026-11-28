@@ -1453,11 +1453,13 @@ command, quotes its error; only the report shows it.
 Each check runs forager as a separate process with its own time limit, without that command's own
 retries and without writing the Search Result Journal. A check on an HTTP route that fails with
 `network` or `timeout` is run once more; any other failure, and any failure of a browser route's
-check, is final. In an unattended run, every check that still failed, except with `auth` or
-`parameter`, runs once more after a delay of one minute, shared by all of them; its result is the
-second run's, with `rerun: true`, so a check that passes its rerun is `passed` and a failure counts
-only when both runs failed. An `auth` or `parameter` failure is confirmed without a rerun, and a
-run that is not unattended reruns nothing.
+check, is final. In an unattended run, every check on an HTTP route that still failed, except
+with `auth` or `parameter`, runs once more after a delay of one minute, shared by all of them; its
+result is the second run's, with `rerun: true`, so a check that passes its rerun is `passed` and
+such a failure counts only when both runs failed. An `auth` or `parameter` failure is confirmed
+without a rerun, a browser route's check is never rerun, and a run that is not unattended reruns
+nothing. When less than the delay is left of the run's `--timeout`, or the time limit ends during
+the reruns, a failure that did not get its rerun stands as it is, without `rerun`.
 
 Every live run, attended or not, is recorded in `live_runs/` under forager's state directory
 (`$XDG_STATE_HOME/forager` or `~/.local/state/forager`), one private file per run, and records older
