@@ -112,7 +112,7 @@ pub(super) enum Command {
         /// The model of the first main-search backend that runs; a fallback keeps its own.
         #[arg(long)]
         model: Option<String>,
-        /// Supplemental candidates to gather, up to 20; 0 lets each capability choose.
+        /// Supplemental candidates to gather; 0 lets each capability choose.
         #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u16).range(0..=20))]
         extra_sources: u16,
         /// Whether a failing provider falls back to the next (`auto` or `off`); defaults to
@@ -136,7 +136,7 @@ pub(super) enum Command {
     Fetch {
         /// The page or document URL; quote it so the shell keeps `?` and `&`.
         url: String,
-        /// Whole-command deadline in seconds, fallback included; 180 by default.
+        /// Whole-command deadline in seconds, fallback included.
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
         /// `content` prints only the page text.
@@ -155,16 +155,16 @@ pub(super) enum Command {
         /// Which pages or parts of the site to prioritize.
         #[arg(long, default_value = "")]
         instructions: String,
-        /// Link levels to follow, 1 to 5.
+        /// Link levels to follow.
         #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..=5))]
         max_depth: u16,
-        /// Links to follow per level, 1 to 500.
+        /// Links to follow per level.
         #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..=500))]
         max_breadth: u16,
         /// Most pages to return.
         #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u16).range(1..))]
         limit: u16,
-        /// Whole-command deadline in seconds, 10 to 150.
+        /// Whole-command deadline in seconds.
         #[arg(long, default_value_t = 150, value_parser = clap::value_parser!(u64).range(10..=150))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
@@ -256,7 +256,7 @@ pub(super) enum ExaCommand {
     Search {
         /// The search query.
         query: String,
-        /// Results to return, 1 to 100.
+        /// Results to return.
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
         num_results: u16,
         #[arg(long, value_enum, default_value_t = ExaSearchType::Auto)]
@@ -296,7 +296,7 @@ pub(super) enum ExaCommand {
     Similar {
         /// The page to find similar pages for.
         url: String,
-        /// Results to return, 1 to 100.
+        /// Results to return.
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
         num_results: u16,
         /// Deadline in seconds; defaults to `providers.exa.timeout`.

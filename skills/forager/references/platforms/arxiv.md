@@ -2,7 +2,7 @@
 
 arXiv holds preprints in physics, mathematics, computer science, quantitative finance and nearby
 fields, with full text. It needs no key. Read [`shared.md`](shared.md) for what every platform
-shares.
+shares, and Failures below after a non-zero exit.
 
 - **Papers on a topic**: `forager platform arxiv search 'QUERY'`. arXiv matches literal words,
   not meaning, and every term must match: use a few distinctive keywords and quote multi-word

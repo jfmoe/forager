@@ -1,7 +1,8 @@
 # Reddit
 
-Reddit holds community discussion: user experience, recommendations and troubleshooting, ranked
-by votes. Read [`shared.md`](shared.md) for what every platform shares.
+Reddit holds community discussion: user experience, recommendations and troubleshooting, ranked by
+votes. Read [`shared.md`](shared.md) for what every platform shares, and Failures below after a
+non-zero exit.
 
 - **Opt-in**: Reddit's only route, `reddit_browser`, is off until the user enables it. It reads
   Reddit in forager's headless browser, logged into the user's own Reddit account.
@@ -19,9 +20,9 @@ by votes. Read [`shared.md`](shared.md) for what every platform shares.
 - **A post and its discussion**: `forager platform reddit fetch 'REF_OR_URL'` writes the post and
   the comments its page loaded (about the first 100, in top order) to a file; read it as
   [`shared.md`](shared.md) says.
-- **Pace**: one browser command every 10 seconds. A search reads up to 25 posts by scrolling and
-  cannot continue later: when stderr says Reddit has more, narrow the query, subreddit or time
-  window rather than paging. Keep the number of commands small.
+- **Pace**: one browser command every 10 seconds. A search reads one screenful of posts,
+  scrolling for more, and cannot continue later: when stderr says Reddit has more, narrow the
+  query, subreddit or time window rather than paging. Keep the number of commands small.
 - **Evidence**: cite the ref (`reddit:17snc7d`) with the subreddit, and give the user the
   `permalink`. A post or comment is one user's statement: attribute it and report it as an
   opinion, never as a fact about the subject. Say how many comments you read.

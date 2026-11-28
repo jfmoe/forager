@@ -29,11 +29,10 @@ The step is done when the problem has exactly one class. Only a defect goes on.
   `--verbose`. Rerun only a route that costs no quota and risks no account; for any other, ask the
   user first.
 - The affected provider's entry from `forager doctor --health --format json`.
-- Where the records are, for the maintainer to ask about: a search's `journal_ref` (the Search
-  Result Journal, under `~/.local/state/forager/journal` unless `journal.dir` says otherwise) and
-  the Invocation Telemetry in `~/.local/state/forager/telemetry` (under `$XDG_STATE_HOME/forager`
-  when that is set). Name the paths only: the journal holds queries and answers, and telemetry
-  names the hosts fetched.
+- Where the records are, for the maintainer to ask about: a search's `journal_ref` in the Search
+  Result Journal, and the Invocation Telemetry in the `telemetry` directory of the state
+  directory; `forager doctor --offline` lists both directories under `state_directories`. Name the
+  paths only: the journal holds queries and answers, and telemetry names the hosts fetched.
 
 The step is done when every item is collected or noted as unavailable.
 

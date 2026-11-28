@@ -1,8 +1,9 @@
 # X
 
-X (Twitter) is where accounts post news, announcements and reactions as they happen. forager
-reads it through a model that searches X with the xAI key of main search, so no other setup is
-needed. Read [`shared.md`](shared.md) for what every platform shares.
+X (Twitter) is where accounts post news, announcements and reactions as they happen. forager reads
+it through a model that searches X with the xAI key of main search, so no other setup is needed.
+Read [`shared.md`](shared.md) for what every platform shares, and Failures below after a non-zero
+exit.
 
 - **Every X text is relayed**: the model reports what it read, and xAI never returns the posts
   themselves, so `text`, `author_handle` and an `ask` answer may be reworded, translated or cut.
@@ -11,8 +12,8 @@ needed. Read [`shared.md`](shared.md) for what every platform shares.
   text verbatim, or tell the user to open the post.
 - **What X says, or what given accounts or days say**: `forager platform x ask 'QUESTION'`. Prefer
   one `ask` over many searches when the user wants an answer.
-- **Posts to list or cite**: `forager platform x search 'QUERY'`, at most 20 posts and no further
-  page; rewrite the query or narrow the filters for others.
+- **Posts to list or cite**: `forager platform x search 'QUERY'`, one page of posts and no
+  further page; rewrite the query or narrow the filters for others.
 - **One post with its replies**: `forager platform x fetch 'REF_OR_URL'`.
 - **An X article** (`/article/` in the URL): `forager fetch 'URL'`, which returns its text.
 - **A general question X may inform**: keep `forager search`; main search already reads X.
