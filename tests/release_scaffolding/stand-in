@@ -1,0 +1,12 @@
+#!/bin/bash
+# A stand-in for the program it is linked as: records its name and arguments, each NUL-terminated
+# and the call ended by a record separator, in FAKE_LOG, then runs the shell code in
+# FAKE_<name>. One file serves every test, because macOS checks each new executable on its first
+# run, which would cost every test that wrote its own.
+name=${0##*/}
+{
+  printf '%s\0' "$name" "$@"
+  printf '\036'
+} >>"$FAKE_LOG"
+behaviour="FAKE_$name"
+eval "${!behaviour:-}"
