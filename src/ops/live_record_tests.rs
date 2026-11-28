@@ -114,6 +114,7 @@ fn record_results(
         },
         &mut results,
     )
+    .record
     .expect("record the run");
     let reported = serde_json::to_value(&results[0]).expect("serialize the result");
     json!({
@@ -192,6 +193,7 @@ fn a_run_record_holds_the_run_and_each_check_without_a_message_query_url_key_or_
         },
         &mut results,
     )
+    .record
     .expect("record the run");
 
     let (_, text) = only_record(&records);
@@ -259,6 +261,7 @@ fn a_run_record_and_its_directory_are_private() {
         },
         &mut results,
     )
+    .record
     .expect("record the run");
 
     let (file, _) = only_record(&records);
@@ -297,6 +300,7 @@ fn records_older_than_90_days_are_removed_and_a_damaged_record_is_skipped() {
         },
         &mut results,
     )
+    .record
     .expect("record the run");
 
     let mut names = fs::read_dir(&records)
@@ -398,7 +402,7 @@ fn an_expired_record_is_no_baseline_even_before_it_is_removed() {
         (
             serde_json::to_value(&results[0]).expect("serialize")["transition"].clone(),
             records.join(&expired_name).exists(),
-            matches!(concluded, Err(super::RecordError::RemoveExpired(_))),
+            matches!(concluded.record, Err(super::RecordError::RemoveExpired(_))),
         ),
         (Value::Null, false, true)
     );
@@ -422,6 +426,7 @@ fn each_tier_s_last_scheduled_run_counts_a_run_left_unconfirmed_and_no_run_by_ha
             },
             &mut results,
         )
+        .record
         .expect("record the run");
     };
     run(day(1), &["free", "metered"], true, results(vec![passed()]));
@@ -441,5 +446,70 @@ fn each_tier_s_last_scheduled_run_counts_a_run_left_unconfirmed_and_no_run_by_ha
     assert_eq!(
         last_scheduled_runs(&store, day(5)),
         BTreeMap::from([(LiveTier::Free, day(3)), (LiveTier::Metered, day(1))])
+    );
+}
+
+/// A failure whose own words carry a configured key, a private endpoint and a usage figure, and
+/// whose error kind is `error_kind`.
+fn failed_quoting_the_configuration(error_kind: &str) -> Execution {
+    Execution::Exited {
+        code: Some(4),
+        stdout: json!({
+            "error_kind": error_kind,
+            "message": format!("{SECRET} at https://gateway.internal.example/v1: searches_left 4183"),
+            "provider_attempts": [{"provider": "exa", "error_kind": "network", "http_status": 502}],
+        })
+        .to_string()
+        .into_bytes(),
+    }
+}
+
+#[test]
+fn an_unattended_runs_issue_text_holds_only_check_identifiers_error_kinds_and_http_statuses() {
+    let markers = [SECRET, "gateway.internal.example", "4183"];
+    let notice = |error_kind: &str| {
+        let directory = tempfile::tempdir().expect("create the record directory");
+        // A network failure is retried once in each observation, and the rerun is the second.
+        let (mut results, summary) = results_within(
+            (0..4)
+                .map(|_| failed_quoting_the_configuration(error_kind))
+                .collect(),
+            Deadline::new(Duration::from_mins(10)),
+            true,
+        );
+        let conclusion = conclude(
+            &Store::new(directory.path().join("live_runs")),
+            day(10),
+            &Run {
+                tiers: &["metered"],
+                scheduled: true,
+                summary: &summary,
+            },
+            &mut results,
+        );
+        serde_json::to_value(&conclusion.notifications).expect("serialize the notifications")
+    };
+
+    let network = notice("network");
+    // The error kind comes from the command's output, so one forager does not name is not shown.
+    let unnamed = notice("https://gateway.internal.example/v1");
+
+    let text = format!("{network}{unnamed}");
+    assert_eq!(
+        (
+            &network[0]["label"],
+            network[0]["body"]
+                .as_str()
+                .is_some_and(|body| body.contains("- `exa:docs_search`: `network`, HTTP 502\n")),
+            unnamed[0]["body"].as_str().is_some_and(
+                |body| body.contains("- `exa:docs_search`: `unrecognised`, HTTP 502\n")
+            ),
+            markers
+                .into_iter()
+                .filter(|marker| text.contains(marker))
+                .collect::<Vec<_>>(),
+        ),
+        (&json!("live-check:exa"), true, true, Vec::<&str>::new(),),
+        "{text}"
     );
 }

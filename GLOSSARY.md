@@ -397,3 +397,11 @@ carries no account or egress risk; `metered` needs a credential or spends quota,
 check's tier is the highest of the routes it can reach (ADR-0039). A tier is not a priority, and
 the expensive and manual-only flags sit beside it, not inside it.
 _Avoid_: level, risk class, opt-in flag
+
+**Monitoring Issue**:
+A long-lived issue in the public repository that a schedule keeps, found by its label, never by
+triage. A provider's issue opens when a scheduled run confirms one of its checks failing, is
+updated when the failing checks or their error kinds change, and closes when they pass in a later
+scheduled run; its text holds only check identifiers, error kinds and HTTP statuses. Each GitHub
+scheduled workflow keeps one too, opened on a failed run and closed on a successful one.
+_Avoid_: alert, incident, ticket

@@ -253,6 +253,17 @@ fn live_markdown(value: &Value) -> String {
         }
         output.push('\n');
     }
+    if let Some(notifications) = value["notifications"].as_array() {
+        let _ = writeln!(output, "\nnotifications: {}", notifications.len());
+        for notification in notifications {
+            let _ = writeln!(
+                output,
+                "- {} the issue labelled {}",
+                notification["action"].as_str().unwrap_or_default(),
+                notification["label"].as_str().unwrap_or_default()
+            );
+        }
+    }
     if let Some(warning) = value["record_warning"].as_str() {
         let _ = writeln!(output, "\nrecord_warning: {warning}");
     }
@@ -561,6 +572,27 @@ mod tests {
              - exa:docs_search (metered): unconfigured \
              (providers.exa.keys has no configured credentials)\n\n\
              record_warning: cannot write the run record: disk full\n"
+        );
+    }
+
+    #[test]
+    fn live_doctor_markdown_names_each_notification_by_its_action_and_label() {
+        let report = json!({
+            "mode": "live",
+            "checks": [{"id": "exa:docs_search", "tier": "metered", "status": "failed"}],
+            "notifications": [
+                {"provider": "exa", "action": "open", "label": "live-check:exa", "title": "t", "body": "b"},
+                {"provider": "jina", "action": "close", "label": "live-check:jina", "title": "t", "body": "b"},
+            ],
+        });
+
+        assert_eq!(
+            live_markdown(&report),
+            "# forager doctor --live\n\n\
+             - exa:docs_search (metered): failed\n\n\
+             notifications: 2\n\
+             - open the issue labelled live-check:exa\n\
+             - close the issue labelled live-check:jina\n"
         );
     }
 }

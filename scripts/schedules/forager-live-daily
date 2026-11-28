@@ -1,0 +1,8 @@
+#!/bin/bash
+# The daily job: the free tier, then its notification decision.
+logs="$HOME/Library/Logs/forager"
+mkdir -p "$logs"
+report="$logs/live-free.json"
+forager doctor --live --unattended --tier free --timeout 900 >"$report"
+status=$?
+"$(dirname "$0")/forager-live-issues" "$report" "$status"

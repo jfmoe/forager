@@ -1503,15 +1503,14 @@ Selection:
 spends a notable share of a quota in one run. A `manual_only` check uses a service in a way not
 confirmed to comply with the provider's terms, so only a person starts it.
 
-A run prints `{mode: "live", ok, unattended, tiers, summary, checks}`, plus `record_warning` when
-the run record could not be written. `tiers` lists the tiers the selection used. `summary` counts
-`passed`, `failed`, `unconfigured`, `not_started`, and `unselected`, the declared checks this
-selection does not run. `checks` has one entry per selected check with `id`, `provider`,
-`operation`, `platform`, `tier`, `status`, `attempts` (every command the check started), and, when
-they apply, `cause`, `duration_ms` (how long its last run took), `rerun`, `confirmed`,
-`error_kind`,
-`http_status` (from the last provider attempt that reported one), `detail`, `message`,
-`transition`, and `failing_since`. `status` is one of:
+A run prints `{mode: "live", ok, unattended, tiers, summary, checks}`, plus `notifications` in an
+unattended run and `record_warning` when the run record could not be written. `tiers` lists the
+tiers the selection used. `summary` counts `passed`, `failed`, `unconfigured`, `not_started`, and
+`unselected`, the declared checks this selection does not run. `checks` has one entry per selected
+check with `id`, `provider`, `operation`, `platform`, `tier`, `status`, `attempts` (every command
+the check started), and, when they apply, `cause`, `duration_ms` (how long its last run took),
+`rerun`, `confirmed`, `error_kind`, `http_status` (from the last provider attempt that reported
+one), `detail`, `message`, `transition`, and `failing_since`. `status` is one of:
 
 - `passed`: the command succeeded and its output met the check's contract.
 - `failed`: the command failed, with the command's own `error_kind` and `message`, or its output
@@ -1575,6 +1574,22 @@ recent scheduled record in which it reached one: `newly_failed` when it failed a
 failure, have no `transition`, and an unconfirmed failure is never a baseline. A run that is not
 scheduled reports its transitions but never serves as a baseline, so a run by hand
 changes no later transition.
+
+An unattended run's `notifications` says, for each provider whose monitoring issue the run
+changes, what happens to that issue; a provider it does not list keeps its issue as it is.
+A provider's failing set is its checks whose latest scheduled result, passed or a failure not left
+`confirmed: false`, is a failure; a run that is not scheduled changes no issue. Each entry has
+`provider` (`pipeline` for the pipeline check), `action`, `label` (`live-check:<provider>`, which
+identifies the issue), `title` and `body`:
+
+- `open`: the failing set became non-empty.
+- `update`: the set's checks or their error kinds changed.
+- `close`: every check in the set passed.
+
+`body` lists each failing check by `id` with its `error_kind` and `http_status`, and holds no
+message, configuration value, endpoint or usage figure, because the issue is public. An error kind
+forager does not name is shown as `unrecognised`. Unconfigured, unselected and not-started checks
+change no set, and a failure left `confirmed: false` neither opens nor closes an issue.
 
 A live run exits `0` when at least one check ran and every check that ran passed, so unconfigured
 and unselected checks do not fail it; `ok` is true exactly then. It exits `4` when a check failed,
