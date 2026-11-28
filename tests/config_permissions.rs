@@ -28,10 +28,12 @@ fn record_one_invocation(root: &Path) -> (PathBuf, PathBuf) {
     let directory = root.join("state").join("forager").join("telemetry");
     let record = std::fs::read_dir(&directory)
         .expect("read telemetry directory")
-        .next()
-        .expect("a telemetry record")
-        .expect("a telemetry entry")
-        .path();
+        .map(|entry| entry.expect("a telemetry entry").path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .expect("a telemetry record");
     (directory, record)
 }
 

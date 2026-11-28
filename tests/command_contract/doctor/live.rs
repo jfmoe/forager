@@ -7,7 +7,9 @@ use serde_json::{Value, json};
 
 use crate::support::samples::{sample, sample_json};
 use crate::support::web_samples::jina;
-use crate::support::{Fixture, Response, RunEnvironment, gemini_api, header, payload, stderr};
+use crate::support::{
+    Fixture, Response, RunEnvironment, gemini_api, header, payload, record_files, stderr,
+};
 
 const JINA_KEY: &str = "jina-live-marker-key";
 
@@ -252,13 +254,12 @@ fn every_live_run_is_recorded_and_only_an_unattended_one_is_marked_scheduled() {
     let attended = environment.run(&arguments);
     let unattended = environment.run(&[&arguments[..], &["--unattended"]].concat());
     fixture.finish_all();
-    let mut records = std::fs::read_dir(environment.state_dir.join("forager/live_runs"))
-        .expect("read the run records")
-        .map(|entry| {
-            let record: Value = serde_json::from_slice(
-                &std::fs::read(entry.expect("a record").path()).expect("read a record"),
-            )
-            .expect("parse a record");
+    let mut records = record_files(&environment.state_dir.join("forager/live_runs"))
+        .into_iter()
+        .map(|path| {
+            let record: Value =
+                serde_json::from_slice(&std::fs::read(path).expect("read a record"))
+                    .expect("parse a record");
             (
                 record["recorded_at"]
                     .as_str()

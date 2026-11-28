@@ -207,7 +207,7 @@ pub(super) fn conclude(
         .and_then(|_| {
             store
                 .records
-                .remove_expired(now)
+                .remove_expired_when_due(now)
                 .map_err(RecordError::RemoveExpired)
         });
     Conclusion {

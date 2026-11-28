@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::support::{RunEnvironment, stderr};
+use crate::support::{RunEnvironment, record_files, stderr};
 
 #[test]
 fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
@@ -123,9 +123,7 @@ fn recordable_search_preflight_failure_is_journaled_once() {
             output.status.code(),
             &payload["error_kind"],
             &payload["journal_status"],
-            std::fs::read_dir(&journal_dir)
-                .expect("read journal directory")
-                .count(),
+            record_files(&journal_dir).len(),
             &journal["result"]["status"],
             &journal["result"]["error_kind"],
             &journal["result"]["query"],

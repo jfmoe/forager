@@ -1,10 +1,12 @@
 //! A directory of timestamped records. Each record is its own private, exclusively created JSON
 //! file, named by when it was written, by the process that wrote it and by that process's write
-//! sequence, so no two writes share a file. A reader skips a file it cannot parse or does not own,
-//! and a write's cleanup removes the records older than the kind's retention. A directory may be
-//! shared with other data, so only a regular file whose name fully matches the kind's naming is
-//! owned: its prefix, then fields of digits for the time, the process and, optionally, the
-//! sequence.
+//! sequence, so no two writes share a file. A reader skips a file it cannot parse or does not own.
+//! A write's cleanup removes the records older than the kind's retention, at most once a sweep
+//! period, because listing the directory on every write costs more as records accumulate; a
+//! reader applies its own window, so a record left until the next sweep is never read as current.
+//! A directory may be shared with other data, so only a regular file whose name fully matches the
+//! kind's naming is owned: its prefix, then fields of digits for the time, the process and,
+//! optionally, the sequence.
 
 use std::ffi::OsStr;
 use std::fs;
@@ -16,7 +18,10 @@ use chrono::{DateTime, TimeDelta, Utc};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::secure_fs::{create_new_private_file, ensure_private_directory};
+use crate::secure_fs::{create_new_private_file, create_private_file, ensure_private_directory};
+
+/// How long after one sweep for expired records the next is due.
+const SWEEP_PERIOD: TimeDelta = TimeDelta::hours(1);
 
 /// What sets one kind of record apart in its directory.
 #[derive(Clone, Copy, Debug)]
@@ -90,13 +95,34 @@ impl RecordDirectory {
         Ok(path)
     }
 
-    /// Removes every record written more than the retention before `now`, going on past a file
-    /// it cannot remove and returning the first such error. A record another process removed
-    /// first is no error.
-    pub(crate) fn remove_expired(&self, now: DateTime<Utc>) -> io::Result<()> {
-        if self.kind.retention.is_none() {
+    /// Removes every record written more than the retention before `now`, when no sweep ran in
+    /// the sweep period before `now` or the last one is recorded after it, as when the clock went
+    /// back. The sweep goes on past a file it cannot remove and returns the first error; a record
+    /// another process removed first is no error.
+    pub(crate) fn remove_expired_when_due(&self, now: DateTime<Utc>) -> io::Result<()> {
+        if self.kind.retention.is_none() || !self.sweep_due(now) {
             return Ok(());
         }
+        let marked = create_private_file(&self.sweep_marker())
+            .and_then(|marker| marker.set_modified(now.into()));
+        self.remove_expired(now).and(marked)
+    }
+
+    fn sweep_due(&self, now: DateTime<Utc>) -> bool {
+        fs::metadata(self.sweep_marker())
+            .and_then(|marker| marker.modified())
+            .map_or(true, |swept| {
+                let swept = DateTime::<Utc>::from(swept);
+                swept > now || now - swept >= SWEEP_PERIOD
+            })
+    }
+
+    /// The file whose modification time records the kind's last sweep; no record name matches it.
+    fn sweep_marker(&self) -> PathBuf {
+        self.path.join(format!(".{}last_sweep", self.kind.prefix))
+    }
+
+    fn remove_expired(&self, now: DateTime<Utc>) -> io::Result<()> {
         let cutoff = nanos(self.retained_since(now));
         let mut first_error = None;
         for entry in fs::read_dir(&self.path)? {
@@ -253,15 +279,15 @@ mod tests {
         fs::write(directory.path().join("notes.json"), "{}").expect("write a foreign file");
 
         records
-            .remove_expired(now())
+            .remove_expired_when_due(now())
             .expect("remove the expired records");
 
         assert_eq!(
             (
                 records.read::<Value>(now() - TimeDelta::days(30)),
-                file_names(directory.path()).len(),
+                directory.path().join("notes.json").exists(),
             ),
-            (vec![json!({ "at": now() - TimeDelta::days(10) })], 2)
+            (vec![json!({ "at": now() - TimeDelta::days(10) })], true)
         );
     }
 
@@ -328,7 +354,7 @@ mod tests {
         let records = RecordDirectory::new(path.to_path_buf(), KIND);
 
         records
-            .remove_expired(now())
+            .remove_expired_when_due(now())
             .expect("remove the expired records");
 
         let remaining = file_names(path);
@@ -347,6 +373,50 @@ mod tests {
         assert!(symlink_named_as_a_record.symlink_metadata().is_ok());
     }
 
+    #[test]
+    fn a_sweep_within_an_hour_of_the_last_leaves_expired_records_and_the_next_removes_them() {
+        let directory = tempfile::tempdir().expect("create the record directory");
+        let records = RecordDirectory::new(directory.path().to_path_buf(), KIND);
+        records
+            .remove_expired_when_due(now())
+            .expect("sweep the empty directory");
+        written(&records, now() - TimeDelta::days(11));
+        let remaining = |at| {
+            records
+                .remove_expired_when_due(at)
+                .expect("remove the expired records");
+            records.read::<Value>(now() - TimeDelta::days(30)).len()
+        };
+
+        assert_eq!(
+            [
+                remaining(now() + TimeDelta::minutes(59)),
+                remaining(now() + TimeDelta::hours(1)),
+            ],
+            [1, 0]
+        );
+    }
+
+    #[test]
+    fn a_sweep_after_the_clock_went_back_past_the_last_removes_expired_records() {
+        let directory = tempfile::tempdir().expect("create the record directory");
+        let records = RecordDirectory::new(directory.path().to_path_buf(), KIND);
+        records
+            .remove_expired_when_due(now())
+            .expect("sweep the empty directory");
+        let earlier = now() - TimeDelta::days(1);
+        written(&records, earlier - TimeDelta::days(11));
+
+        records
+            .remove_expired_when_due(earlier)
+            .expect("remove the expired records");
+
+        assert_eq!(
+            records.read::<Value>(now() - TimeDelta::days(30)),
+            Vec::<Value>::new()
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn cleanup_returns_the_error_of_a_record_it_cannot_remove() {
@@ -356,16 +426,25 @@ mod tests {
         let path = directory.path().join("notes");
         let records = RecordDirectory::new(path.clone(), KIND);
         written(&records, now() - TimeDelta::days(11));
+        records
+            .remove_expired_when_due(now() - TimeDelta::days(12))
+            .expect("sweep before the record expired");
         // A record in a directory the user cannot write to cannot be removed.
         let set_mode = |mode| {
             fs::set_permissions(&path, fs::Permissions::from_mode(mode)).expect("set the mode");
         };
         set_mode(0o500);
 
-        let removed = records.remove_expired(now());
+        let removed = records.remove_expired_when_due(now());
 
         set_mode(0o700);
-        assert_eq!((removed.is_err(), file_names(&path).len()), (true, 1));
+        assert_eq!(
+            (
+                removed.is_err(),
+                records.read::<Value>(now() - TimeDelta::days(30)).len()
+            ),
+            (true, 1)
+        );
     }
 
     #[cfg(unix)]

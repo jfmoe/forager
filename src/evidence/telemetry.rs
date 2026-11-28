@@ -319,7 +319,7 @@ pub(crate) fn directory() -> Option<PathBuf> {
 }
 
 /// Writes the record of one invocation of `command` that ended with `exit_code` into
-/// `directory` at `now`, then removes the records that expired.
+/// `directory` at `now`, then removes the records that expired when a sweep is due.
 pub(crate) fn record(
     directory: &Path,
     command: RetrievalCommand,
@@ -333,7 +333,7 @@ pub(crate) fn record(
         .write(record.recorded_at, &record)
         .map_err(TelemetryError::Write)?;
     records
-        .remove_expired(now)
+        .remove_expired_when_due(now)
         .map_err(TelemetryError::RemoveExpired)
 }
 

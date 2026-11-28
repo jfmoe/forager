@@ -172,6 +172,10 @@ fn only_record(directory: &Path) -> (std::path::PathBuf, String) {
     let entries = fs::read_dir(directory)
         .expect("read the record directory")
         .map(|entry| entry.expect("a directory entry").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
         .collect::<Vec<_>>();
     assert_eq!(entries.len(), 1, "{entries:?}");
     let text = fs::read_to_string(&entries[0]).expect("read the record");

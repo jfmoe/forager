@@ -3,7 +3,7 @@ use std::fs;
 use serde_json::Value;
 
 use crate::support::main_search_samples::{answer_with, completed_events, failed_event};
-use crate::support::{Fixture, Response, RunEnvironment, request_json};
+use crate::support::{Fixture, Response, RunEnvironment, record_files, request_json};
 
 #[test]
 fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
@@ -153,17 +153,10 @@ fn search_journals_each_success_and_failure_terminal_once() {
         )
     );
     let journal_dir = environment.state_dir.join("forager/journal");
-    let mut records = fs::read_dir(&journal_dir)
-        .expect("read journal")
-        .filter_map(std::result::Result::ok)
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .is_some_and(|value| value == "json")
-        })
-        .map(|entry| {
-            serde_json::from_slice::<Value>(&fs::read(entry.path()).expect("read journal record"))
+    let mut records = record_files(&journal_dir)
+        .into_iter()
+        .map(|path| {
+            serde_json::from_slice::<Value>(&fs::read(path).expect("read journal record"))
                 .expect("parse journal record")
         })
         .collect::<Vec<_>>();
@@ -241,9 +234,7 @@ fn search_resolves_relative_journal_directories_from_the_config_directory() {
         (Some(0), &Value::String("written".into()))
     );
     assert_eq!(
-        fs::read_dir(environment.config_dir.join("records"))
-            .expect("relative journal directory")
-            .count(),
+        record_files(&environment.config_dir.join("records")).len(),
         1
     );
     fixture.finish();
@@ -288,12 +279,10 @@ fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
             Some(1),
         )
     );
-    let journal: Value = fs::read_dir(environment.state_dir.join("forager/journal"))
-        .expect("read journal")
-        .find_map(std::result::Result::ok)
-        .map(|entry| {
-            serde_json::from_slice(&fs::read(entry.path()).expect("read journal"))
-                .expect("parse journal")
+    let journal: Value = record_files(&environment.state_dir.join("forager/journal"))
+        .first()
+        .map(|path| {
+            serde_json::from_slice(&fs::read(path).expect("read journal")).expect("parse journal")
         })
         .expect("journal record");
 

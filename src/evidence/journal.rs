@@ -105,7 +105,7 @@ fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<Wr
     Ok(WrittenRecord {
         reference: path.display().to_string(),
         cleanup_warning: records
-            .remove_expired(now)
+            .remove_expired_when_due(now)
             .err()
             .and_then(|error| cleanup_warning(&error)),
     })
