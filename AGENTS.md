@@ -32,6 +32,7 @@ Each fact has one owner. When something changes, update the owner and nothing el
 | What no single file shows and daily changes do not move | `docs/architecture.md` |
 | What a term means and where its boundary is | `GLOSSARY.md` |
 | How to do a job in this repository | `docs/agents/` |
+| What a review must judge because no test can: the mistakes reviews caught more than once | `CODING_STANDARDS.md` |
 | A constraint with none of these homes | A test named after the rule, or a type that makes the violation unwritable |
 | Research, live-test records, design drafts, captured source material | `.local/`, untracked |
 
