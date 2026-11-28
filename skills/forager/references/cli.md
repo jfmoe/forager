@@ -1384,8 +1384,8 @@ the shallow report marks the provider unreachable and the account check fails wi
 neither sends a request.
 
 The shallow and the offline report add `health`, one line naming each finding of the health
-summary over its default 7 days that is overdue or degraded and pointing to `doctor --health`; it
-is absent when there is none, and it never changes `ok` or the exit code.
+summary over its default 7 days that is failing, degraded or overdue and pointing to
+`doctor --health`; it is absent when there is none, and it never changes `ok` or the exit code.
 
 `--offline` sends no request. Its report has `mode: "offline"` and the same `config`,
 `permission_warnings` and `state_directories`; its provider entries report configuration and key
@@ -1426,6 +1426,9 @@ record. A missing or malformed workflow record is one entry with `subject: "work
 `findings` lists what the summary flags, the providers' findings before the schedules'; each
 finding names its subject with the same fields as its entry and has a `finding`:
 
+- `failing`: a provider with at least 20 calls in the period of which fewer than half succeeded,
+  with `success_rate` and `calls`, whatever the period before said, so a provider that a fallback
+  has hidden for weeks is still named.
 - `degraded`: a provider's `metric` (`success_rate`, `empty_rate` or `short_content_rate`) moved
   for the worse by at least 0.2 against the period before, with `current` and `previous`. Only a
   provider with at least 20 calls in both periods is compared.
@@ -1434,8 +1437,10 @@ finding names its subject with the same fields as its entry and has a `finding`:
   and `previous_calls`, so it could not be compared.
 - `overdue`, with `age_hours` and `interval_days`, and `not_recorded`, for a schedule.
 
-`ok` is false, and the command exits `4`, when a finding is `overdue` or `degraded`; it exits `0`
-otherwise, and `3` when the configuration cannot be loaded.
+`ok` is false, and the command exits `4`, when a finding is `failing`, `degraded` or `overdue`; it
+exits `0` otherwise, and `3` when the configuration cannot be loaded. A provider counts as having
+run in every call where it made an attempt, so one that fails after another provider answered,
+such as a Web Fetch provider reading a paper's full text, still lowers its own `success_rate`.
 
 The record of the GitHub scheduled workflows is `github_workflows.json` in the state directory,
 written by the maintainer's weekly job from `gh`:
