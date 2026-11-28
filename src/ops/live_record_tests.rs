@@ -9,7 +9,10 @@ use super::{Run, Store, conclude};
 use crate::catalog::{
     Field, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveTier, ProviderId, RoutePin,
 };
-use crate::live::{CheckResult, Declared, Execution, Prepared, Summary, run_checks, summarize};
+use crate::live::{
+    CONFIRMATION_DELAY, CheckResult, Confirmation, Declared, Execution, Prepared, Summary,
+    run_checks, summarize,
+};
 use crate::redact::Secret;
 use crate::types::Deadline;
 
@@ -60,6 +63,15 @@ fn failed() -> Execution {
 
 /// The check's result when each of its commands ends as `executions` says in turn.
 fn results(executions: Vec<Execution>) -> (Vec<CheckResult>, Summary) {
+    results_within(executions, Deadline::new(Duration::from_mins(10)), false)
+}
+
+/// As [`results`], within `deadline`, and unattended when `confirming`.
+fn results_within(
+    executions: Vec<Execution>,
+    deadline: Deadline,
+    confirming: bool,
+) -> (Vec<CheckResult>, Summary) {
     let declared = declared();
     let mut executions = executions.into_iter();
     let mut execute =
@@ -68,10 +80,13 @@ fn results(executions: Vec<Execution>) -> (Vec<CheckResult>, Summary) {
         &declared,
         &[true],
         &[None],
-        Deadline::new(Duration::from_mins(10)),
+        deadline,
         &[Secret::from(SECRET)],
         &mut execute,
-        None,
+        confirming.then_some(Confirmation {
+            delay: CONFIRMATION_DELAY,
+            wait: &mut |_| {},
+        }),
     );
     let summary = summarize(&results, declared.len());
     (results, summary)
@@ -79,7 +94,15 @@ fn results(executions: Vec<Execution>) -> (Vec<CheckResult>, Summary) {
 
 /// Records a run of the check at `now` and returns its transition as the report shows it.
 fn record(store: &Store, now: DateTime<Utc>, scheduled: bool, executions: Vec<Execution>) -> Value {
-    let (mut results, summary) = results(executions);
+    record_results(store, now, scheduled, results(executions))
+}
+
+fn record_results(
+    store: &Store,
+    now: DateTime<Utc>,
+    scheduled: bool,
+    (mut results, summary): (Vec<CheckResult>, Summary),
+) -> Value {
     conclude(
         store,
         now,
@@ -295,5 +318,87 @@ fn records_older_than_90_days_are_removed_and_a_damaged_record_is_skipped() {
             serde_json::to_value(&results[0]).expect("serialize")["transition"].clone(),
         ),
         (false, true, true, 4, json!("recovered"))
+    );
+}
+
+#[test]
+fn a_failure_left_unconfirmed_has_no_transition_and_is_no_baseline() {
+    let directory = tempfile::tempdir().expect("create the record directory");
+    let store = Store::new(directory.path().join("live_runs"));
+    // An unattended run with no room for the rerun leaves its failure unconfirmed.
+    let unconfirmed = || {
+        results_within(
+            vec![failed(), failed()],
+            Deadline::new(CONFIRMATION_DELAY),
+            true,
+        )
+    };
+
+    let sequence = [
+        record(&store, day(1), true, vec![passed()]),
+        record_results(&store, day(2), true, unconfirmed()),
+        record(&store, day(3), true, vec![passed()]),
+        record(&store, day(4), true, vec![failed(), failed()]),
+        record_results(&store, day(5), true, unconfirmed()),
+        record(&store, day(6), true, vec![failed(), failed()]),
+    ];
+
+    let none = json!({"transition": null, "failing_since": null});
+    assert_eq!(
+        sequence,
+        [
+            none.clone(),
+            none.clone(),
+            none.clone(),
+            transition("newly_failed"),
+            none,
+            json!({"transition": "still_failing", "failing_since": "2026-11-04T06:00:00Z"}),
+        ]
+    );
+}
+
+#[test]
+fn an_expired_record_is_no_baseline_even_before_it_is_removed() {
+    let directory = tempfile::tempdir().expect("create the record directory");
+    let records = directory.path().join("live_runs");
+    fs::create_dir_all(&records).expect("create the records");
+    let now = day(20);
+    let expired = now - TimeDelta::days(91);
+    // A directory with a record's name cannot be removed as a file, so the expired record
+    // beside it stays until the run's cleanup reaches it.
+    let blocking = now - TimeDelta::days(92);
+    fs::create_dir(records.join(format!("live_run_{}_1.json", blocking.timestamp_millis())))
+        .expect("create a directory named as a record");
+    let expired_name = format!("live_run_{}_1.json", expired.timestamp_millis());
+    fs::write(
+        records.join(&expired_name),
+        json!({
+            "recorded_at": expired,
+            "scheduled": true,
+            "checks": [{"id": "exa:docs_search", "status": "failed"}],
+        })
+        .to_string(),
+    )
+    .expect("write the expired record");
+    let (mut results, summary) = results(vec![passed()]);
+
+    let concluded = conclude(
+        &Store::new(records.clone()),
+        now,
+        &Run {
+            tiers: &["metered"],
+            scheduled: true,
+            summary: &summary,
+        },
+        &mut results,
+    );
+
+    assert_eq!(
+        (
+            serde_json::to_value(&results[0]).expect("serialize")["transition"].clone(),
+            records.join(&expired_name).exists(),
+            matches!(concluded, Err(super::RecordError::RemoveExpired(_))),
+        ),
+        (Value::Null, false, true)
     );
 }

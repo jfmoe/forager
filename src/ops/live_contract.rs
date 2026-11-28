@@ -133,7 +133,7 @@ pub(super) fn violation(contract: &LiveContract, payload: &Value) -> Option<Deta
 /// another route then succeeded.
 fn runtime_attempt(payload: &Value) -> Option<Detail> {
     const PATH: &str = "provider_attempts[].error_kind";
-    locate(payload, PATH)
+    values(payload, PATH)
         .into_iter()
         .find(|(_, value)| value.and_then(Value::as_str) == Some("runtime"))
         .map(|(at, value)| Detail::at(Rule::NoRuntimeAttempt, PATH, &at, value))
@@ -144,7 +144,7 @@ fn broken(field: &Field, payload: &Value) -> Option<Detail> {
     if field.in_some_items {
         let with_field = located
             .iter()
-            .filter(|(_, value)| shape_rule(field.shape, *value).is_none())
+            .filter(|(_, reach)| matches!(reach, Reach::Field(value) if shape_rule(field.shape, *value).is_none()))
             .count();
         return (with_field == 0).then_some(Detail {
             rule: Rule::InSomeItems,
@@ -156,8 +156,18 @@ fn broken(field: &Field, payload: &Value) -> Option<Detail> {
             }),
         });
     }
-    located.iter().find_map(|(at, value)| {
-        shape_rule(field.shape, *value).map(|rule| Detail::at(rule, field.path, at, *value))
+    located.iter().find_map(|(at, reach)| match *reach {
+        Reach::Field(value) => {
+            shape_rule(field.shape, value).map(|rule| Detail::at(rule, field.path, at, value))
+        }
+        Reach::Stuck(value) => {
+            let rule = if value.is_none_or(Value::is_null) {
+                Rule::Present
+            } else {
+                Rule::Type
+            };
+            Some(Detail::at(rule, field.path, at, value))
+        }
     })
 }
 
@@ -198,40 +208,70 @@ fn shape_rule(shape: Shape, value: Option<&Value>) -> Option<Rule> {
     }
 }
 
-/// Every place `path` reaches, with its concrete location and what is there. A `name[]` step
-/// goes into each item of the list at `name`; a step into something that is not a list or an
-/// object reaches nothing, because the field that holds it has its own rule.
-fn locate<'a>(payload: &'a Value, path: &str) -> Vec<(String, Option<&'a Value>)> {
-    let mut reached = vec![(String::new(), Some(payload))];
-    for step in path.split('.') {
+/// What a path found at one place.
+enum Reach<'a> {
+    /// The field itself, `None` when it is absent.
+    Field(Option<&'a Value>),
+    /// The path could not go on, because what it found here, if anything, is not an object.
+    Stuck(Option<&'a Value>),
+}
+
+/// Every place `path` reaches, with its concrete location. A `name[]` step goes into each item
+/// of the list at `name`; a list that is absent or empty reaches nothing, because the list has
+/// its own rule.
+fn locate<'a>(payload: &'a Value, path: &str) -> Vec<(String, Reach<'a>)> {
+    let steps = path.split('.').collect::<Vec<_>>();
+    let mut objects = vec![(String::new(), payload)];
+    let mut reached = Vec::new();
+    for (position, step) in steps.iter().enumerate() {
+        let last = position + 1 == steps.len();
         let (key, into_items) = step
             .strip_suffix("[]")
-            .map_or((step, false), |key| (key, true));
-        reached = reached
-            .into_iter()
-            .filter_map(|(at, value)| Some((at, value?.as_object()?)))
-            .flat_map(|(at, object)| {
-                let at = if at.is_empty() {
-                    key.to_owned()
-                } else {
-                    format!("{at}.{key}")
-                };
-                let value = object.get(key);
-                if into_items {
-                    value
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                        .enumerate()
-                        .map(|(index, item)| (format!("{at}[{index}]"), Some(item)))
-                        .collect::<Vec<_>>()
-                } else {
-                    vec![(at, value)]
+            .map_or((*step, false), |key| (key, true));
+        let mut next = Vec::new();
+        for (at, value) in objects {
+            let Some(object) = value.as_object() else {
+                reached.push((at, Reach::Stuck(Some(value))));
+                continue;
+            };
+            let at = if at.is_empty() {
+                key.to_owned()
+            } else {
+                format!("{at}.{key}")
+            };
+            let field = object.get(key);
+            if into_items {
+                let items = field.and_then(Value::as_array).into_iter().flatten();
+                for (index, item) in items.enumerate() {
+                    let at = format!("{at}[{index}]");
+                    if last {
+                        reached.push((at, Reach::Field(Some(item))));
+                    } else {
+                        next.push((at, item));
+                    }
                 }
-            })
-            .collect();
+            } else if last {
+                reached.push((at, Reach::Field(field)));
+            } else if let Some(field) = field {
+                next.push((at, field));
+            } else {
+                reached.push((at, Reach::Stuck(None)));
+            }
+        }
+        objects = next;
     }
     reached
+}
+
+/// The values of the field `path` names, wherever the path reaches it.
+fn values<'a>(payload: &'a Value, path: &str) -> Vec<(String, Option<&'a Value>)> {
+    locate(payload, path)
+        .into_iter()
+        .filter_map(|(at, reach)| match reach {
+            Reach::Field(value) => Some((at, value)),
+            Reach::Stuck(_) => None,
+        })
+        .collect()
 }
 
 fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
@@ -243,7 +283,7 @@ fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
             } else {
                 Rule::KeyedRead
             };
-            let attempts = locate(payload, PATH);
+            let attempts = values(payload, PATH);
             if attempts.is_empty() {
                 return Some(Detail::at(
                     name,
@@ -259,7 +299,7 @@ fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
         }
         SampleRule::ResolvedByPayout { winner } => resolved_by_payout(payload, winner),
         SampleRule::LiveQuotes => {
-            let open = locate(payload, "markets[].status")
+            let open = values(payload, "markets[].status")
                 .iter()
                 .any(|(_, status)| status.and_then(Value::as_str) == Some("open"));
             let source = payload.get("price_source");

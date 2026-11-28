@@ -73,6 +73,14 @@ struct PastRun {
 struct PastCheck {
     id: String,
     status: Status,
+    #[serde(default)]
+    confirmed: Option<bool>,
+}
+
+/// Whether a check that ended as `status` reached a result: it passed, or it failed without the
+/// run leaving its failure unconfirmed.
+fn concluded(status: Status, confirmed: Option<bool>) -> bool {
+    status == Status::Passed || (status == Status::Failed && confirmed != Some(false))
 }
 
 /// How a check that ran moved since the most recent scheduled run in which it ran.
@@ -93,14 +101,18 @@ impl Store {
         Self { directory }
     }
 
-    /// Every readable record, oldest first; a damaged or foreign file is skipped.
-    fn history(&self) -> Vec<PastRun> {
+    /// Every readable record still within the retention at `now`, oldest first; a damaged or
+    /// foreign file is skipped.
+    fn history(&self, now: DateTime<Utc>) -> Vec<PastRun> {
         let Ok(entries) = fs::read_dir(&self.directory) else {
             return Vec::new();
         };
+        let cutoff = expiry(now);
         let mut runs = entries
             .filter_map(Result::ok)
-            .filter(|entry| recorded_millis(&entry.file_name()).is_some())
+            .filter(|entry| {
+                recorded_millis(&entry.file_name()).is_some_and(|millis| millis >= cutoff)
+            })
             .filter_map(|entry| fs::read(entry.path()).ok())
             .filter_map(|bytes| serde_json::from_slice::<PastRun>(&bytes).ok())
             .collect::<Vec<_>>();
@@ -120,17 +132,34 @@ impl Store {
         file.sync_all()
     }
 
-    /// Removes every record written more than the retention before `now`.
+    /// Removes every record written more than the retention before `now`, going on past a file
+    /// it cannot remove and returning the first such error. A record another run removed first is
+    /// no error.
     fn remove_expired(&self, now: DateTime<Utc>) -> io::Result<()> {
-        let cutoff = (now - RETENTION).timestamp_millis();
+        let cutoff = expiry(now);
+        let mut first_error = None;
         for entry in fs::read_dir(&self.directory)? {
-            let entry = entry?;
-            if recorded_millis(&entry.file_name()).is_some_and(|millis| millis < cutoff) {
-                fs::remove_file(entry.path())?;
+            let removed = entry.and_then(|entry| {
+                if recorded_millis(&entry.file_name()).is_some_and(|millis| millis < cutoff) {
+                    fs::remove_file(entry.path())
+                } else {
+                    Ok(())
+                }
+            });
+            match removed {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                    first_error.get_or_insert(error);
+                }
+                _ => {}
             }
         }
-        Ok(())
+        first_error.map_or(Ok(()), Err)
     }
+}
+
+/// The time, in milliseconds, before which a record has expired at `now`.
+fn expiry(now: DateTime<Utc>) -> i64 {
+    (now - RETENTION).timestamp_millis()
 }
 
 /// When a record file was written, from its name; `None` for a file the store does not own.
@@ -153,9 +182,12 @@ pub(super) fn conclude(
     run: &Run<'_>,
     results: &mut [CheckResult],
 ) -> Result<(), RecordError> {
-    let history = store.history();
+    let history = store.history(now);
     for result in results.iter_mut() {
-        result.transition = transition(&history, result.identity.id, result.outcome.status);
+        let outcome = &result.outcome;
+        result.transition = concluded(outcome.status, outcome.confirmed)
+            .then(|| transition(&history, result.identity.id, outcome.status))
+            .flatten();
     }
     let millis = now.timestamp_millis();
     let run_id = format!("{millis}-{}", std::process::id());
@@ -182,7 +214,7 @@ pub(super) fn conclude(
 }
 
 /// The transition of check `id`, which ended as `status`, against the scheduled runs in
-/// `history` in which it ran; `None` when it did not run, or passed as it did before.
+/// `history` in which it reached a result; `None` when it passed as it did before.
 fn transition(history: &[PastRun], id: &str, status: Status) -> Option<Transition> {
     let mut ran = history
         .iter()
@@ -192,7 +224,7 @@ fn transition(history: &[PastRun], id: &str, status: Status) -> Option<Transitio
             run.checks
                 .iter()
                 .find(|check| check.id == id)
-                .filter(|check| matches!(check.status, Status::Passed | Status::Failed))
+                .filter(|check| concluded(check.status, check.confirmed))
                 .map(|check| (run.recorded_at, check.status))
         })
         .peekable();

@@ -307,6 +307,11 @@ struct Outcome {
     /// Whether the check ran once more to confirm a failure; its status is the rerun's.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     rerun: bool,
+    /// In an unattended run, whether a failure is confirmed: both observations failed, or the
+    /// first was final. A failure the run's time limit left without its second observation is
+    /// not.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confirmed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -324,6 +329,7 @@ impl Outcome {
             attempts: 0,
             duration_ms: None,
             rerun: false,
+            confirmed: None,
             error_kind: None,
             http_status: None,
             detail: None,
@@ -536,6 +542,8 @@ struct Failure {
     detail: Box<Detail>,
     /// The status of the last provider attempt that reported one.
     http_status: Option<u16>,
+    /// The run's time limit, not the check's own, killed the command.
+    cut_by_run_deadline: bool,
 }
 
 impl Failure {
@@ -551,6 +559,7 @@ impl Failure {
             message: Cow::Borrowed(message),
             detail: Box::new(Detail::rule(rule)),
             http_status: None,
+            cut_by_run_deadline: false,
         }
     }
 }
@@ -701,49 +710,91 @@ fn run_checks(
                 entry.stop_signals(),
             );
         }
-        match &observation.outcome {
+        // A browser check is never run twice in a run, so a rerun cannot open more pages on a
+        // site that has started to refuse them; its one observation, like a rejected key or
+        // request, is final.
+        let rerun = match &observation.outcome {
             Ok(payload) => {
                 outputs.insert(check.id, payload.clone());
+                false
             }
-            // A browser check is never run twice in a run, so a rerun cannot open more pages on
-            // a site that has started to refuse them.
-            Err(failure)
-                if failure.kind.needs_confirmation()
-                    && entry.transport() == ProviderTransport::Http =>
-            {
+            Err(failure) => {
+                failure.kind.needs_confirmation() && entry.transport() == ProviderTransport::Http
+            }
+        };
+        let mut result = CheckResult::observed(entry, observation);
+        if confirmation.is_some() && result.outcome.status == Status::Failed {
+            result.outcome.confirmed = Some(!rerun);
+            if rerun {
                 unconfirmed.push((results.len(), index));
             }
-            Err(_) => {}
         }
-        results.push(CheckResult::observed(entry, observation));
+        results.push(result);
     }
-    if let Some(Confirmation { delay, wait }) = confirmation
-        && !unconfirmed.is_empty()
-        && deadline
-            .remaining()
-            .is_some_and(|remaining| remaining > delay)
-    {
-        wait(delay);
-        for (position, index) in unconfirmed {
-            let entry = &declared[index];
-            let Ok(input) = input(&entry.check, &outputs) else {
-                continue;
-            };
-            if deadline.remaining().is_none() {
-                break;
+    if let Some(Confirmation { delay, wait }) = confirmation {
+        // A rerun starts only when the check's own time limit fits in what is left of the run, so
+        // the run's time limit never cuts it short.
+        let fits = |entry: &Declared, after: Duration| {
+            deadline
+                .remaining()
+                .is_some_and(|remaining| remaining > after + command_limit(&entry.check))
+        };
+        if unconfirmed
+            .iter()
+            .any(|(_, index)| fits(&declared[*index], delay))
+        {
+            wait(delay);
+            for (position, index) in unconfirmed {
+                let entry = &declared[index];
+                if fits(entry, Duration::ZERO) {
+                    rerun(
+                        entry,
+                        &mut results[position],
+                        &mut outputs,
+                        deadline,
+                        credentials,
+                        execute,
+                    );
+                }
             }
-            let observation = observe(entry, input.as_deref(), deadline, credentials, execute);
-            if let Ok(payload) = &observation.outcome {
-                outputs.insert(entry.check.id, payload.clone());
-            }
-            let earlier = results[position].outcome.attempts;
-            let mut result = CheckResult::observed(entry, observation);
-            result.outcome.attempts += earlier;
-            result.outcome.rerun = true;
-            results[position] = result;
         }
     }
     results
+}
+
+/// Runs a failed check once more and puts the second observation in `result`: confirmed when it
+/// fails again, unless the run's time limit cut it short.
+fn rerun<'a>(
+    entry: &'a Declared,
+    result: &mut CheckResult,
+    outputs: &mut BTreeMap<&'a str, Value>,
+    deadline: Deadline,
+    credentials: &[Secret],
+    execute: &mut dyn FnMut(&Prepared, Duration) -> Execution,
+) {
+    let Ok(input) = input(&entry.check, outputs) else {
+        return;
+    };
+    let observation = observe(entry, input.as_deref(), deadline, credentials, execute);
+    let cut_short = match &observation.outcome {
+        Ok(payload) => {
+            outputs.insert(entry.check.id, payload.clone());
+            false
+        }
+        Err(failure) => failure.cut_by_run_deadline,
+    };
+    let earlier = result.outcome.attempts;
+    *result = CheckResult::observed(entry, observation);
+    result.outcome.attempts += earlier;
+    result.outcome.rerun = true;
+    if result.outcome.status == Status::Failed {
+        result.outcome.confirmed = Some(!cut_short);
+    }
+}
+
+/// How long one command of `check` may run before it is killed.
+fn command_limit(check: &LiveCheck) -> Duration {
+    check.time_limit + KILL_GRACE
 }
 
 /// The value a dependent check reads from its dependency's output, or why it has none.
@@ -857,16 +908,19 @@ fn attempt(
         })?;
     let prepared = prepare(check, input, scratch.as_ref().map(tempfile::TempDir::path));
     let limit = deadline.remaining().map_or(Duration::ZERO, |remaining| {
-        remaining.min(check.time_limit + KILL_GRACE)
+        remaining.min(command_limit(check))
     });
     let (code, stdout) = match execute(&prepared, limit) {
         Execution::Exited { code, stdout } => (code, stdout),
         Execution::TimedOut => {
-            return Err(Failure::of_run(
-                FailureKind::Timeout,
-                Rule::TimeLimit,
-                "the command ran past its time limit and was killed",
-            ));
+            return Err(Failure {
+                cut_by_run_deadline: limit < command_limit(check),
+                ..Failure::of_run(
+                    FailureKind::Timeout,
+                    Rule::TimeLimit,
+                    "the command ran past its time limit and was killed",
+                )
+            });
         }
         Execution::Broken(message) => {
             return Err(Failure::of_run(
@@ -894,6 +948,7 @@ fn attempt(
             message: Cow::Owned(detail.describe()),
             http_status: http_status(&payload),
             detail: Box::new(detail),
+            cut_by_run_deadline: false,
         }),
         None => Ok(payload),
     }
@@ -928,6 +983,7 @@ fn nonzero_terminal(payload: Option<&Value>, credentials: &[Secret]) -> Failure 
             )),
             detail: Box::new(Detail::rule(Rule::CommandSucceeds)),
             http_status: payload.and_then(http_status),
+            cut_by_run_deadline: false,
         },
         None => Failure::of_run(
             FailureKind::Other,

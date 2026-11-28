@@ -563,7 +563,7 @@ fn a_dependent_check_reads_the_value_its_dependency_returned() {
     let search = Execution::Exited {
         code: Some(0),
         stdout: json!({
-            "results": [1],
+            "results": [{"url": "https://example.com/"}],
             "items": [
                 {"ref": "reddit:post/nsfw", "nsfw": true},
                 {"ref": "reddit:post/unflagged"},
@@ -852,6 +852,7 @@ fn an_unattended_run_reruns_a_failed_check_once_after_the_delay_and_the_rerun_de
         (
             results[0]["status"].clone(),
             results[0]["rerun"].clone(),
+            results[0]["confirmed"].clone(),
             started.len(),
             exit,
             waited,
@@ -864,8 +865,22 @@ fn an_unattended_run_reruns_a_failed_check_once_after_the_delay_and_the_rerun_de
             outcome(vec![broke_contract(), broke_contract()]),
         ),
         (
-            (json!("passed"), json!(true), 2, 0, vec![CONFIRMATION_DELAY]),
-            (json!("failed"), json!(true), 2, 4, vec![CONFIRMATION_DELAY]),
+            (
+                json!("passed"),
+                json!(true),
+                Value::Null,
+                2,
+                0,
+                vec![CONFIRMATION_DELAY]
+            ),
+            (
+                json!("failed"),
+                json!(true),
+                json!(true),
+                2,
+                4,
+                vec![CONFIRMATION_DELAY]
+            ),
         )
     );
 }
@@ -923,11 +938,12 @@ fn an_authentication_or_parameter_failure_is_confirmed_without_a_rerun() {
             (
                 results[0]["status"].as_str(),
                 results[0].get("rerun"),
+                results[0]["confirmed"].as_bool(),
                 started.len(),
                 exit,
                 waited
             ),
-            (Some("failed"), None, 1, 4, Vec::new()),
+            (Some("failed"), None, Some(true), 1, 4, Vec::new()),
             "{error_kind}"
         );
     }
@@ -944,8 +960,14 @@ fn a_run_that_is_not_unattended_reruns_nothing() {
         run_with(&declared, vec![broke_contract()], long(), false);
 
     assert_eq!(
-        (results[0].get("rerun"), started.len(), exit, waited),
-        (None, 1, 4, Vec::new())
+        (
+            results[0].get("rerun"),
+            results[0].get("confirmed"),
+            started.len(),
+            exit,
+            waited
+        ),
+        (None, None, 1, 4, Vec::new())
     );
 }
 
@@ -966,21 +988,68 @@ fn a_browser_check_is_not_rerun_in_an_unattended_run() {
 }
 
 #[test]
-fn a_failure_stands_without_a_rerun_when_the_time_limit_leaves_no_room_for_the_delay() {
+fn a_failure_the_time_limit_leaves_no_room_to_rerun_fails_unconfirmed_without_waiting() {
     let declared = [on(
         ProviderId::Exa,
         check("exa:docs_search", LiveTier::Metered),
     )];
+    // Room for the delay, but not for the check's own time limit after it.
+    let deadline = Deadline::new(CONFIRMATION_DELAY + declared[0].check.time_limit / 2);
 
-    let (results, started, exit, waited) = run_with(
-        &declared,
-        vec![broke_contract()],
-        Deadline::new(CONFIRMATION_DELAY / 2),
-        true,
-    );
+    let (results, started, exit, waited) =
+        run_with(&declared, vec![broke_contract()], deadline, true);
 
     assert_eq!(
-        (results[0].get("rerun"), started.len(), exit, waited),
-        (None, 1, 4, Vec::new())
+        (
+            results[0]["status"].as_str(),
+            results[0].get("rerun"),
+            results[0]["confirmed"].as_bool(),
+            started.len(),
+            exit,
+            waited
+        ),
+        (Some("failed"), None, Some(false), 1, 4, Vec::new())
+    );
+}
+
+#[test]
+fn a_check_whose_dependency_passed_only_on_its_rerun_is_not_started() {
+    let dependent = LiveCheck {
+        command: LiveCommand {
+            arguments: &[
+                LiveArgument::Text("fetch"),
+                LiveArgument::Input(LiveInput::FirstItem("ref")),
+            ],
+            routes: RoutePin::Configured,
+        },
+        ..check("polymarket_api:fetch:live", LiveTier::Free).depends_on("polymarket_api:search")
+    };
+    let declared = [
+        on(
+            ProviderId::PolymarketApi,
+            check("polymarket_api:search", LiveTier::Free),
+        ),
+        on(ProviderId::PolymarketApi, dependent),
+    ];
+    let found = Execution::Exited {
+        code: Some(0),
+        stdout: json!({"results": [{"url": "https://example.com/"}], "items": [{"ref": "polymarket:event"}]})
+            .to_string()
+            .into_bytes(),
+    };
+
+    let (results, started, exit, _) =
+        run_with(&declared, vec![broke_contract(), found], long(), true);
+
+    assert_eq!(
+        (statuses(&results), started.len(), exit),
+        (
+            vec![
+                ("polymarket_api:search", "passed", None),
+                ("polymarket_api:fetch:live", "not_started", Some("no_input")),
+            ],
+            2,
+            0
+        )
     );
 }
