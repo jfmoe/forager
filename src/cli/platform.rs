@@ -63,52 +63,56 @@ const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
 pub(super) enum PlatformCommand {
-    /// Retrieve papers from arXiv.
+    /// Preprints in physics, maths, computer science and quantitative finance, with full text;
+    /// needs no key.
     Arxiv {
         #[command(subcommand)]
         command: ArxivCommand,
     },
-    /// Retrieve SSRN papers.
+    /// Working papers in finance, economics and law, with their abstracts; needs no key.
     Ssrn {
         #[command(subcommand)]
         command: SsrnCommand,
     },
-    /// Find papers across publishers through Google Scholar; needs a SerpApi key.
+    /// Papers across publishers on Google Scholar, their citation counts, and the papers citing
+    /// a paper; each request spends your SerpApi quota.
     Scholar {
         #[command(subcommand)]
         command: ScholarCommand,
     },
-    /// Search Xiaohongshu (小红书) notes in a headless browser logged into your account; disabled
-    /// until you enable its browser route.
+    /// Chinese consumer reviews and lifestyle notes on Xiaohongshu (小红书), read in a browser
+    /// logged into your account; off until you enable its route.
     Xiaohongshu {
         #[command(subcommand)]
         command: XiaohongshuCommand,
     },
-    /// Search X (formerly Twitter) posts through xAI's `x_search` tool; uses the xAI key of main
-    /// search. Post text is relayed by the model and may differ from the original.
+    /// What accounts post on X (formerly Twitter) now, read by a model with main search's xAI
+    /// key; post text is relayed and may differ from the original.
     X {
         #[command(subcommand)]
         command: XCommand,
     },
-    /// Search Hacker News, read whole discussions, and list the front page; needs no key.
+    /// What practitioners say on Hacker News: searches, whole discussions and the front page;
+    /// needs no key.
     Hn {
         #[command(subcommand)]
         command: HnCommand,
     },
-    /// Search YouTube videos and read their metadata, captions, comments, and playlists; needs
-    /// your own YouTube Data API key. Ask and transcribe need your own Gemini key.
+    /// Talks, lectures and tutorials on YouTube: videos, comments and playlists with your YouTube
+    /// Data API key, captions through an opt-in route, and what a video shows with your Gemini
+    /// key.
     Youtube {
         #[command(subcommand)]
         command: YoutubeCommand,
     },
-    /// Search Polymarket prediction markets and read each outcome's market-implied probability
-    /// from the live order book; needs no key.
+    /// How likely an event is: Polymarket's live market probabilities for each outcome; needs no
+    /// key.
     Polymarket {
         #[command(subcommand)]
         command: PolymarketCommand,
     },
-    /// Search Reddit posts and read their discussions in a headless browser logged into your
-    /// account; disabled until you enable its browser route.
+    /// User experience and community discussion on Reddit, read in a browser logged into your
+    /// account; off until you enable its route.
     Reddit {
         #[command(subcommand)]
         command: RedditCommand,

@@ -72,6 +72,20 @@ impl Capability {
             Self::WebFetch => "web_fetch",
         }
     }
+
+    /// When a caller declares the capability, as `forager search --help` states it.
+    #[must_use]
+    pub fn select_when(self) -> &'static str {
+        match self {
+            Self::DocsSearch => {
+                "official documentation of a library, SDK, API or framework: references, configuration, integration steps"
+            }
+            Self::WebSearch => {
+                "recent or live information, a locale, current policy, news, market data, or extra sources to cross-check"
+            }
+            Self::WebFetch => "the contents of a URL or PDF the request already gives",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

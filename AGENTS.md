@@ -10,7 +10,7 @@ A change to code is done only after the quick and full checks pass; a change to 
 
 - Quick: `cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings`.
 - Full: `cargo nextest run --all-targets --all-features --locked` (install with `brew install cargo-nextest`).
-- Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`.
+- Documents only: `cargo nextest run --locked --test repository_rules`.
 - One provider or one platform: `cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/)'`, with `IDS` as `docs/agents/testing.md` gives it.
 - Real-browser tests: the `real-browser` profile, run as `docs/agents/browser-routes.md` describes.
 - Test runs use the profiles in `.config/nextest.toml`; without `--profile`, that is `default`.
@@ -27,7 +27,9 @@ Each fact has one owner. When something changes, update the owner and nothing el
 | Kind of fact | Owner |
 | --- | --- |
 | How it works: constants, limits, algorithms, message text, what a module does | The code |
-| What a CLI user can observe: commands, options, output, exit codes, configuration keys | The product skill, `skills/forager/` |
+| What an end user's agent needs to finish a task with forager: when to use each command and platform, the result fields it acts on, how to recover | The product skill, `skills/forager/` |
+| Option syntax, values and defaults | The command definition, which `--help` prints |
+| Observable detail only a maintainer uses, such as how Live Checks select, rerun and report | The procedure in `docs/agents/` that uses it |
 | Why it is this way, and which paths were tried and rejected | An ADR in `docs/adr/` |
 | What no single file shows and daily changes do not move | `docs/architecture.md` |
 | What a term means and where its boundary is | `GLOSSARY.md` |
@@ -36,7 +38,7 @@ Each fact has one owner. When something changes, update the owner and nothing el
 | A constraint with none of these homes | A test named after the rule, or a type that makes the violation unwritable |
 | Research, live-test records, design drafts, captured source material | `.local/`, untracked |
 
-- **The product skill** ships alone to end users' agents, so it is self-contained. `tests/skill_contract.rs` binds its headings and vocabularies to the CLI definition.
+- **The product skill** ships alone to end users' agents, so it is self-contained and links only to its own files. Repository rules hold each file to a size budget and to links from the entry, and the platform checklist requires a file for every built-in platform; no test reads its wording.
 - **`docs/architecture.md`** stops at module groups and names no file, constant or type. A change that adds or removes a module group, or changes a group's job or the dependency direction, updates it in the same commit; review is the only check.
 - **`GLOSSARY.md`** holds meanings and boundaries, not module names or values. "Spec" means only the per-change spec in a GitHub issue. An issue is never the source of a current fact: when it ships, each fact it settled lands with its owner above.
 - **ADRs** contain only decisions in force:

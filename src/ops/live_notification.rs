@@ -24,11 +24,6 @@ pub(super) enum Action {
     Close,
 }
 
-impl Action {
-    /// Every action, in the order the product skill lists them.
-    pub(super) const VOCABULARY: [Self; 3] = [Self::Open, Self::Update, Self::Close];
-}
-
 /// One provider's decision with the text the job posts: the issue is found by `label`, opened
 /// with `title` and `body`, or commented on or closed with `body`.
 #[derive(Debug, Serialize)]

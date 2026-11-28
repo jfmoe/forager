@@ -31,6 +31,11 @@ pub const RETIRED: &[&str] = &[
     "smoke --live",
     "smoke --probe",
     "outage-evidence",
+    "skill_contract",
+    "platform-vocabulary.json",
+    "capability-vocabulary.json",
+    "references/cli.md",
+    "references/platforms.md",
 ];
 
 /// Paths where a retired identifier legitimately appears, each with its reason. A `*` matches

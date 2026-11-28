@@ -1,55 +1,55 @@
 # Ordinary search
 
-Read [`capability-vocabulary.json`](capability-vocabulary.json), then declare the complete
-supplemental capability set. Preserve the vocabulary order and use `none` when main search alone is
-sufficient.
+Declare the supplemental capabilities the task needs on every search; forager adds none you leave
+out, and omitting `--capabilities` runs main search alone.
 
-Declare `web_fetch` only when the request already supplies or identifies a concrete HTTP(S) URL or
-PDF for this search command. Intending to fetch URLs discovered after search does not add
-`web_fetch` to the initial declaration; run those later fetches explicitly.
+| Value | Declare when the answer needs |
+| --- | --- |
+| `docs_search` | Official documentation of a library, SDK, API or framework: references, configuration, integration steps |
+| `web_search` | Recent or live information, a locale, current policy, news, market data, or extra sources to cross-check |
+| `web_fetch` | The contents of a URL or PDF the request already gives |
+| `none` | Nothing beyond main search's own answer |
+
+Join several values with commas, such as `docs_search,web_search`. `web_fetch` covers only a URL
+already in the request; fetch the URLs a search returns with `forager fetch` afterwards. Main
+search already reads X; for X posts as items, use the X platform.
 
 ```console
 forager search "QUERY" --capabilities CAPABILITIES --format json
 ```
 
-Set `--extra-sources` only to control supplemental breadth. Its public range is `0..=20`: `0` uses
-the selected branch's local default, where Web Search uses 3 and Documentation Search uses 1. An
-explicit value from `1..=20` is the exact target.
+`--extra-sources N` changes how many supplemental candidates are gathered; leave it out unless the
+task needs more or fewer.
 
-## Consume the result
+This step is done when the command has exited with a declaration chosen from the table.
 
-- `answer` is the main-search answer.
-- `sources` contains only Primary Search Sources attributed to the main answer. An empty `sources`
-  marks an uncited answer: treat each of its claims as unverified until fetched content supports
-  it.
-- `extra_sources` contains every non-primary Search Candidate. Each candidate has stable
-  `provider`, `capability`, `title`, `url`, `summary`, and `provider_data` fields; `title` and
-  `summary` can be null, while `provider_data` carries provider-specific selection data. A
-  provider-native summary is not verified evidence.
-- Fetch a candidate's HTTP(S) `url` before using it as evidence.
-- Disclose every `capability_gaps` entry and its effect on coverage.
+## Read the result
 
-For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to
-their content. To keep a long result out of context, add `--output FILE --receipt` and read the
-file in parts; `--output` alone still prints the full result.
+- `answer` is main search's answer; `sources` are the sources it cites. Empty `sources` mark an
+  uncited answer: treat each of its claims as unverified until fetched content supports it.
+- `extra_sources` are further candidates, each with `provider`, `capability`, `title`, `url`,
+  `summary`; a summary is the provider's text, not evidence. Fetch a candidate's `url` before you
+  cite it.
+- Tell the user about every `capability_gaps` entry and what it leaves uncovered.
+- For a high-risk, time-sensitive or source-backed claim, fetch the key URLs and answer from their
+  content.
+- To keep a long result out of context, add `--output FILE --receipt` and read the file in parts.
 
-## Bounded recovery
+## Recover
 
-Only a terminal `timeout` or `network` error enters this recovery chain. An authentication,
-configuration, or quota error goes directly to Diagnose or configure in `SKILL.md`.
+A `timeout` or `network` failure enters this chain; an `auth`, configuration or quota failure goes
+to [`diagnostics.md`](diagnostics.md) instead.
 
-1. Retry at most once with the same query and capability declaration. Use `--timeout 300` for a
-   timeout; retain the normal timeout for a network error. Skip this retry when the user explicitly
-   prioritizes speed.
-2. If search remains unavailable, take candidates from the failure's `extra_sources` when it lists
-   any; otherwise run `forager exa search` at most once. Restrict Exa to known authoritative
-   domains with `--include-domains CSV` rather than `site:` in the query.
-3. Fetch at most two URLs from the strongest candidates with `forager fetch 'URL' --format json`.
+1. Retry once with the same query and declaration, with `--timeout 300` after a timeout. Skip the
+   retry when the user puts speed first.
+2. Still failing: take candidates from the failure's `extra_sources`, kept without their
+   summaries; when it has none, run `forager exa search QUERY --include-domains CSV` once,
+   restricted to known authoritative domains.
+3. Fetch at most two of the strongest candidates with `forager fetch 'URL' --format json`.
 
-Each step runs only after the preceding step produces its continue signal. An answer from this
-chain cites only fetched content and discloses `source_mode: fallback` plus the actual rounds used.
-When the chain stops without evidence, report the steps completed and the observed failure.
+Run each step only when the previous one failed. Answer from fetched content alone and say it came
+from this fallback chain and how many rounds it took; when the chain ends without evidence, report
+the steps taken and the failure.
 
-Complete ordinary search when the command has reached terminal success, every capability gap is
-disclosed, and every claim requiring source evidence is supported by fetched content or marked
-unverified.
+Ordinary search is complete when the search has exited successfully, every capability gap is
+disclosed, and every claim that needs a source is backed by fetched content or marked unverified.

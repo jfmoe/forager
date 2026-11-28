@@ -12,12 +12,21 @@ pub fn broken_links(
     directory: &Path,
     exists: impl Fn(&Path) -> bool,
 ) -> Vec<String> {
+    relative_links(markdown)
+        .into_iter()
+        .filter(|(_, path)| !exists(&directory.join(path)))
+        .map(|(target, _)| target)
+        .collect()
+}
+
+/// Each relative link target in `markdown`, as written, with its path: the target without its
+/// `#fragment`. The scope is that of [`broken_links`].
+pub fn relative_links(markdown: &str) -> Vec<(String, String)> {
     link_targets(&prose(markdown))
         .into_iter()
         .filter_map(|target| {
-            let path = target.split('#').next().unwrap_or_default();
-            let checked = !path.is_empty() && !has_scheme(path);
-            (checked && !exists(&directory.join(path))).then_some(target)
+            let path = target.split('#').next().unwrap_or_default().to_owned();
+            (!path.is_empty() && !has_scheme(&path)).then_some((target, path))
         })
         .collect()
 }

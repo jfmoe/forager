@@ -1,6 +1,6 @@
 # Running Live Checks and their schedules
 
-Live Checks are the only layer that reaches the real services. This procedure covers where each Live Tier runs, how the maintainer installs the scheduled jobs, how to read the issues they keep, and what an agent runs after changing an adapter, adding a check or fixing an upstream change. The product skill defines the command, its statuses and its exit codes; ADR-0039 holds the reasons behind the tiers and the schedules.
+Live Checks are the only layer that reaches the real services. This procedure covers where each Live Tier runs, how the maintainer installs the scheduled jobs, how to read the issues they keep, and what an agent runs after changing an adapter, adding a check or fixing an upstream change. It also defines what a live run selects, reports and records; `forager doctor --help` gives the options, and ADR-0039 holds the reasons behind the tiers and the schedules.
 
 ## Where each tier runs
 
@@ -36,6 +36,45 @@ After a change to these files, copy them again; for a plist, `launchctl bootout`
 The weekly job starts on Monday evening, local time, after the GitHub scheduled workflows have run early on Monday (UTC), so the record it writes holds this week's runs. A record written before them would hold last week's, and the health summary would report both workflows overdue within days. Keep that order when moving either schedule.
 
 The jobs give each run a longer `--timeout` than the default: a failed check is confirmed only by a rerun after a delay, and only while the run has room for the check's own time limit, so a shorter run leaves more failures unconfirmed.
+
+## What a live run selects
+
+Each check has an `id` of the form `<provider>:<operation>`, with `:<variant>` for a second check of one operation; the pipeline check, `pipeline:search`, belongs to no provider. A check runs its route even when the platform's order leaves the route out.
+
+| Tier | A check in it |
+| --- | --- |
+| `free` | needs no credential and carries no account or egress risk |
+| `metered` | needs a credential or spends quota, billed or not |
+| `attended` | puts an account or the egress address at risk, such as a browser route on a logged-in site |
+
+- Without `--tier`, a run selects `free` and `metered`; naming a provider with `--provider` selects all three of its tiers. Selecting `attended`, or naming a provider that has attended checks, is the user's consent to run them; `--platform` alone is not consent and runs none of the platform's attended checks.
+- `--provider` and `--platform` narrow the selection, and a check that reads another check's output (`depends_on`) brings that check along.
+- `--unattended`, or a `CI` variable set to anything but empty or `false`, refuses the `attended` tier with exit 2 before any request and leaves out every `expensive` check (one that spends a notable share of a quota) and every `manual_only` check (one whose use of the service is not confirmed to comply with the provider's terms).
+- `--list` prints each check with its tier, `depends_on`, time limit, `expensive`, `manual_only`, `hard_sample` (why its sample is hard for the route) and `selected`, and runs nothing.
+
+## Reading a live run
+
+A check's `status` is one of:
+
+- `passed`: the command succeeded and its output met the check's contract.
+- `failed`: the command failed, with its own `error_kind` and `message`, or its output broke the contract, with `error_kind: "contract"` and a `detail` that gives the `rule`, the `path` as the contract names it, `at` (the item or the object it could not step into) and `observed`, which holds only the type, length or count of what was there, never a value.
+- `unconfigured`: a prerequisite this machine lacks (the Managed Browser, a logged-in Browser Profile, keys); its `message` names it and how to meet it. Neither a pass nor a failure.
+- `not_started`, with `cause`:
+  - `deadline`: the run's `--timeout` ended first; it counts as a failure.
+  - `site_stop`: an earlier check on the same site met a stop signal, so the run opened no more pages there; [`browser-routes.md`](browser-routes.md) gives the signals and what to do.
+  - `no_input`: the check it depends on did not pass or left nothing to read; a check whose dependency passed only on its rerun stays `no_input` in that run.
+
+Each check runs forager as its own process, without that command's retries and without writing the Search Result Journal or Invocation Telemetry. A check on an HTTP route that fails with `network` or `timeout` runs once more at once. In an unattended run, every HTTP check still failing with anything but `auth` or `parameter` runs again after a shared one-minute delay, and its second result stands, with `rerun: true`. An unattended failure is `confirmed: true` when both runs failed or the first failure was final (`auth`, `parameter`, or any browser route's failure, which is never rerun), and `confirmed: false` when the run's time left no room for the rerun. A run that is not unattended reruns nothing and reports no `confirmed`.
+
+A live run exits 0 when at least one check ran and every check that ran passed; 4 when a check failed, confirmed or not, or the time limit left one unstarted; 3 when none of the selected checks ran or the configuration cannot be loaded; 2 for the refusal of `attended` above.
+
+## What a live run records
+
+Every live run writes one private record in `live_runs/` under forager's state directory, kept 90 days: its time, version, tiers, whether it was `scheduled` (exactly when it was unattended), the summary, every declared check, and per check its outcome fields without any `message`, so no key, query, URL or content reaches it.
+
+- **Transitions**: a check that reached a result (passed, or failed without `confirmed: false`) reports `transition` against the latest scheduled record in which it reached one: `newly_failed`, `still_failing` with `failing_since`, or `recovered`. An unconfirmed failure is never a baseline, and a run by hand reports transitions but never serves as one.
+- **Notifications**: an unattended run's `notifications` lists, per provider whose failing set it changes, an `action` on the issue labelled `live-check:<provider>`: `open` when the set becomes non-empty, `update` when its checks or their error kinds change, `close` when every check in it passed or is no longer declared. The `body` lists each failing check with its error kind and HTTP status and the command that reruns it, and nothing else, because the issue is public. An error kind forager does not name shows as `unrecognised`.
+- **Workflow record**: the weekly job writes `github_workflows.json` in the state directory from `gh`, listing each scheduled GitHub workflow with `workflow`, a positive whole `interval_days` and `last_success` (an RFC 3339 time, or `null` when it never succeeded). `doctor --health` reads only the workflows it lists, so it lists every scheduled one.
 
 ## Monitoring issues
 
