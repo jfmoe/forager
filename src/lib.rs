@@ -70,6 +70,8 @@ mod polymarket_api_samples;
 mod providers;
 #[path = "capabilities/rate_limit.rs"]
 mod rate_limit;
+#[path = "infra/record_directory.rs"]
+mod record_directory;
 #[path = "infra/redact.rs"]
 mod redact;
 // The sample reader, shared with the command contract tests like the fixture server, as is each

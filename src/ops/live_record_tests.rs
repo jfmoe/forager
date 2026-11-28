@@ -242,90 +242,6 @@ fn a_run_record_holds_the_run_and_each_check_without_a_message_query_url_key_or_
     );
 }
 
-#[cfg(unix)]
-#[test]
-fn a_run_record_and_its_directory_are_private() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let directory = tempfile::tempdir().expect("create the record directory");
-    let records = directory.path().join("live_runs");
-    let (mut results, summary) = results(vec![passed()]);
-
-    conclude(
-        &Store::new(records.clone()),
-        day(10),
-        &Run {
-            tiers: &["free"],
-            scheduled: false,
-            summary: &summary,
-        },
-        &mut results,
-    )
-    .record
-    .expect("record the run");
-
-    let (file, _) = only_record(&records);
-    let mode = |path: &Path| fs::metadata(path).expect("stat").permissions().mode() & 0o777;
-    assert_eq!((mode(&records), mode(&file)), (0o700, 0o600));
-}
-
-#[test]
-fn records_older_than_90_days_are_removed_and_a_damaged_record_is_skipped() {
-    let directory = tempfile::tempdir().expect("create the record directory");
-    let records = directory.path().join("live_runs");
-    fs::create_dir_all(&records).expect("create the records");
-    let now = day(20);
-    let name = |at: DateTime<Utc>| format!("live_run_{}_1.json", at.timestamp_millis());
-    let failed_run = json!({
-        "recorded_at": now - TimeDelta::days(1),
-        "scheduled": true,
-        "checks": [{"id": "exa:docs_search", "status": "failed"}],
-    });
-    let expired = name(now - TimeDelta::days(91));
-    let kept = name(now - TimeDelta::days(1));
-    let damaged = name(now - TimeDelta::hours(1));
-    fs::write(records.join(&expired), failed_run.to_string()).expect("write the expired record");
-    fs::write(records.join(&kept), failed_run.to_string()).expect("write the kept record");
-    fs::write(records.join(&damaged), "{\"recorded_at\": ").expect("write the damaged record");
-    fs::write(records.join("notes.txt"), "not a record").expect("write a foreign file");
-    let (mut results, summary) = results(vec![passed()]);
-
-    conclude(
-        &Store::new(records.clone()),
-        now,
-        &Run {
-            tiers: &["metered"],
-            scheduled: true,
-            summary: &summary,
-        },
-        &mut results,
-    )
-    .record
-    .expect("record the run");
-
-    let mut names = fs::read_dir(&records)
-        .expect("read the records")
-        .map(|entry| {
-            entry
-                .expect("entry")
-                .file_name()
-                .into_string()
-                .expect("name")
-        })
-        .collect::<Vec<_>>();
-    names.sort();
-    assert_eq!(
-        (
-            names.contains(&expired),
-            names.contains(&kept),
-            names.contains(&damaged),
-            names.len(),
-            serde_json::to_value(&results[0]).expect("serialize")["transition"].clone(),
-        ),
-        (false, true, true, 4, json!("recovered"))
-    );
-}
-
 #[test]
 fn a_failure_left_unconfirmed_has_no_transition_and_is_no_baseline() {
     let directory = tempfile::tempdir().expect("create the record directory");
@@ -366,29 +282,37 @@ fn a_failure_left_unconfirmed_has_no_transition_and_is_no_baseline() {
 fn an_expired_record_is_no_baseline_even_before_it_is_removed() {
     let directory = tempfile::tempdir().expect("create the record directory");
     let records = directory.path().join("live_runs");
-    fs::create_dir_all(&records).expect("create the records");
+    let store = Store::new(records.clone());
     let now = day(20);
     let expired = now - TimeDelta::days(91);
-    // A directory with a record's name cannot be removed as a file, so the expired record
-    // beside it stays until the run's cleanup reaches it.
-    let blocking = now - TimeDelta::days(92);
-    fs::create_dir(records.join(format!("live_run_{}_1.json", blocking.timestamp_millis())))
-        .expect("create a directory named as a record");
-    let expired_name = format!("live_run_{}_1.json", expired.timestamp_millis());
-    fs::write(
-        records.join(&expired_name),
-        json!({
-            "recorded_at": expired,
-            "scheduled": true,
-            "checks": [{"id": "exa:docs_search", "status": "failed"}],
-        })
-        .to_string(),
-    )
-    .expect("write the expired record");
+    // A directory with a record's name cannot be removed as a file, so the run's cleanup fails.
+    store
+        .records
+        .write(now - TimeDelta::days(92), &json!({}))
+        .expect("write a record");
+    let (blocking, _) = only_record(&records);
+    fs::remove_file(&blocking).expect("remove the record");
+    fs::create_dir(&blocking).expect("create a directory named as a record");
+    store
+        .records
+        .write(
+            expired,
+            &json!({
+                "recorded_at": expired,
+                "scheduled": true,
+                "checks": [{"id": "exa:docs_search", "status": "failed"}],
+            }),
+        )
+        .expect("write the expired record");
+    let expired_path = fs::read_dir(&records)
+        .expect("read the records")
+        .map(|entry| entry.expect("a directory entry").path())
+        .find(|path| *path != blocking)
+        .expect("the expired record");
     let (mut results, summary) = results(vec![passed()]);
 
     let concluded = conclude(
-        &Store::new(records.clone()),
+        &store,
         now,
         &Run {
             tiers: &["metered"],
@@ -401,7 +325,7 @@ fn an_expired_record_is_no_baseline_even_before_it_is_removed() {
     assert_eq!(
         (
             serde_json::to_value(&results[0]).expect("serialize")["transition"].clone(),
-            records.join(&expired_name).exists(),
+            expired_path.exists(),
             matches!(concluded.record, Err(super::RecordError::RemoveExpired(_))),
         ),
         (Value::Null, false, true)

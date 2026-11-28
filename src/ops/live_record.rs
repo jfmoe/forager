@@ -5,8 +5,7 @@
 //! query, URL or content reaches it.
 
 use std::collections::BTreeMap;
-use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -15,16 +14,19 @@ use serde::{Deserialize, Serialize};
 use super::notification::{self, Notification};
 use super::{CheckResult, Outcome, Status, Summary};
 use crate::catalog::LiveTier;
-use crate::secure_fs::{create_new_private_file, ensure_private_directory};
+use crate::record_directory::{RecordDirectory, RecordKind};
 
 /// The run records' directory under the state directory.
 pub(super) const DIRECTORY: &str = "live_runs";
-const PREFIX: &str = "live_run_";
-const RETENTION: TimeDelta = TimeDelta::days(90);
+const RECORDS: RecordKind = RecordKind {
+    prefix: "live_run_",
+    retention: TimeDelta::days(90),
+    synced: true,
+};
 
 /// Where run records are kept.
 pub(super) struct Store {
-    directory: PathBuf,
+    records: RecordDirectory,
 }
 
 /// Why a run left no record, or left expired ones behind; the run's result does not depend on it.
@@ -117,79 +119,15 @@ pub(super) enum Transition {
 
 impl Store {
     pub(super) const fn new(directory: PathBuf) -> Self {
-        Self { directory }
-    }
-
-    /// Every readable record still within the retention at `now`, oldest first; a damaged or
-    /// foreign file is skipped.
-    fn history(&self, now: DateTime<Utc>) -> Vec<PastRun> {
-        let Ok(entries) = fs::read_dir(&self.directory) else {
-            return Vec::new();
-        };
-        let cutoff = expiry(now);
-        let mut runs = entries
-            .filter_map(Result::ok)
-            .filter(|entry| {
-                recorded_millis(&entry.file_name()).is_some_and(|millis| millis >= cutoff)
-            })
-            .filter_map(|entry| fs::read(entry.path()).ok())
-            .filter_map(|bytes| serde_json::from_slice::<PastRun>(&bytes).ok())
-            .collect::<Vec<_>>();
-        runs.sort_by_key(|run| run.recorded_at);
-        runs
-    }
-
-    fn write(&self, record: &Record<'_>, millis: i64) -> io::Result<()> {
-        ensure_private_directory(&self.directory)?;
-        let path = self
-            .directory
-            .join(format!("{PREFIX}{millis}_{}.json", std::process::id()));
-        let encoded = serde_json::to_vec(record).map_err(io::Error::other)?;
-        let mut file = create_new_private_file(&path)?;
-        file.write_all(&encoded)?;
-        file.write_all(b"\n")?;
-        file.sync_all()
-    }
-
-    /// Removes every record written more than the retention before `now`, going on past a file
-    /// it cannot remove and returning the first such error. A record another run removed first is
-    /// no error.
-    fn remove_expired(&self, now: DateTime<Utc>) -> io::Result<()> {
-        let cutoff = expiry(now);
-        let mut first_error = None;
-        for entry in fs::read_dir(&self.directory)? {
-            let removed = entry.and_then(|entry| {
-                if recorded_millis(&entry.file_name()).is_some_and(|millis| millis < cutoff) {
-                    fs::remove_file(entry.path())
-                } else {
-                    Ok(())
-                }
-            });
-            match removed {
-                Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                    first_error.get_or_insert(error);
-                }
-                _ => {}
-            }
+        Self {
+            records: RecordDirectory::new(directory, RECORDS),
         }
-        first_error.map_or(Ok(()), Err)
     }
-}
 
-/// The time, in milliseconds, before which a record has expired at `now`.
-fn expiry(now: DateTime<Utc>) -> i64 {
-    (now - RETENTION).timestamp_millis()
-}
-
-/// When a record file was written, from its name; `None` for a file the store does not own.
-fn recorded_millis(name: &std::ffi::OsStr) -> Option<i64> {
-    let (millis, pid) = name
-        .to_str()?
-        .strip_prefix(PREFIX)?
-        .strip_suffix(".json")?
-        .split_once('_')?;
-    pid.parse::<u32>().ok()?;
-    millis.parse().ok()
+    /// Every readable record still within the retention at `now`, oldest first.
+    fn history(&self, now: DateTime<Utc>) -> Vec<PastRun> {
+        self.records.read(self.records.retained_since(now))
+    }
 }
 
 /// What concluding a run gives besides each result's transition.
@@ -255,10 +193,12 @@ pub(super) fn conclude(
             .collect(),
     };
     let record = store
-        .write(&record, millis)
+        .records
+        .write(now, &record)
         .map_err(RecordError::Write)
         .and_then(|()| {
             store
+                .records
                 .remove_expired(now)
                 .map_err(RecordError::RemoveExpired)
         });
