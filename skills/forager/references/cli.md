@@ -1406,19 +1406,23 @@ Selection:
 `--list` prints `{mode: "live_list", checks}` and runs nothing. Each entry has `id`, `provider`
 (absent for the pipeline check), `operation`, `platform` (for a platform operation), `tier`,
 `depends_on` (when it reads another check's output), `time_limit_seconds`, `expensive`,
-`manual_only`, and `selected`, which says whether this selection would run it. An `expensive` check
+`manual_only`, `hard_sample`, which says why the check's sample is hard for its route, and
+`selected`, which says whether this selection would run it. An `expensive` check
 spends a notable share of a quota in one run. A `manual_only` check uses a service in a way not
 confirmed to comply with the provider's terms, so only a person starts it.
 
-A run prints `{mode: "live", ok, unattended, tiers, summary, checks}`. `tiers` lists the tiers the
-selection used. `summary` counts `passed`, `failed`, `unconfigured`, `not_started`, and
-`unselected`, the declared checks this selection does not run. `checks` has one entry per selected
-check with `id`, `provider`, `operation`, `platform`, `tier`, `status`, `attempts`, and, when they
-apply, `cause`, `error_kind`, and `message`. `status` is one of:
+A run prints `{mode: "live", ok, unattended, tiers, summary, checks}`, plus `record_warning` when
+the run record could not be written. `tiers` lists the tiers the selection used. `summary` counts
+`passed`, `failed`, `unconfigured`, `not_started`, and `unselected`, the declared checks this
+selection does not run. `checks` has one entry per selected check with `id`, `provider`,
+`operation`, `platform`, `tier`, `status`, `attempts` (every command the check started), and, when
+they apply, `cause`, `duration_ms` (how long its last run took), `rerun`, `error_kind`,
+`http_status` (from the last provider attempt that reported one), `detail`, `message`,
+`transition`, and `failing_since`. `status` is one of:
 
 - `passed`: the command succeeded and its output met the check's contract.
 - `failed`: the command failed, with the command's own `error_kind` and `message`, or its output
-  broke the contract, with `error_kind: "contract"` and a `message` naming the rule it broke.
+  broke the contract, with `error_kind: "contract"`.
 - `unconfigured`: a prerequisite is missing, as above. It is neither a pass nor a failure.
 - `not_started`: the check did not begin, and `cause` says why:
   - `deadline`: the run's `--timeout` ended first. This counts as a failure; rerun with a larger
@@ -1432,14 +1436,46 @@ apply, `cause`, `error_kind`, and `message`. `status` is one of:
   - `no_input`: the check it depends on did not pass or returned nothing it can read, such as a
     search that found nothing to fetch. Look at that check; a larger `--timeout` does not help.
 
+A check's contract names every field its route decodes from the upstream response, with its type
+and a lower bound (a non-blank string, a count or number of at least some value, a list of at
+least some items), and never an exact value; a field that the upstream gives only some items must
+appear in at least one. Some checks add a rule about their sample, such as a resolved market priced
+by its payout. A failed check's `detail` says what broke: `rule`, and for a contract failure
+`path` (the field as the contract names it), `at` (the item, such as `items[2].title`, when the
+path steps into a list), and `observed`, which holds only the type of what was there with its
+`length`, `count` or `fields`, or how many items had the field (`with_field` of `count`), never a
+value of the output. The contract rules are `present`, `type`, `nonblank`, `at_least`,
+`min_items`, `in_some_items`, `no_runtime_attempt`, `keyed_read`, `anonymous_read`,
+`resolved_by_payout`, and `live_quotes`; a failure of the command itself is `command_succeeds`,
+`time_limit`, `valid_json`, or `command_runs`. `message` says the same in words and, for a failed
+command, quotes its error; only the report shows it.
+
 Each check runs forager as a separate process with its own time limit, without that command's own
 retries and without writing the Search Result Journal. A check on an HTTP route that fails with
 `network` or `timeout` is run once more; any other failure, and any failure of a browser route's
-check, is final.
+check, is final. In an unattended run, every check that still failed, except with `auth` or
+`parameter`, runs once more after a delay of one minute, shared by all of them; its result is the
+second run's, with `rerun: true`, so a check that passes its rerun is `passed` and a failure counts
+only when both runs failed. An `auth` or `parameter` failure is confirmed without a rerun, and a
+run that is not unattended reruns nothing.
+
+Every live run, attended or not, is recorded in `live_runs/` under forager's state directory
+(`$XDG_STATE_HOME/forager` or `~/.local/state/forager`), one private file per run, and records older
+than 90 days are removed. A record holds the run's identifier, time, forager version, tiers,
+whether it was `scheduled` (true exactly when the run was unattended), the summary, and per check
+its `status`, `cause`, `attempts`, `rerun`, `duration_ms`, `error_kind`, `http_status`, and
+`detail`; it never holds a `message`, so no key, query, URL or content reaches it. A check that ran
+(passed or failed) reports its `transition` against the most recent scheduled record in which it
+ran: `newly_failed` when it failed after a pass or with no earlier run, `still_failing` with
+`failing_since`, the time of the first scheduled failure in its unbroken run of failures, or
+`recovered` when it passed after a failure. A check that passed as before has no `transition`. A
+run that is not scheduled reports its transitions but never serves as a baseline, so a run by hand
+changes no later transition.
 
 A live run exits `0` when at least one check ran and every check that ran passed, so unconfigured
 and unselected checks do not fail it; `ok` is true exactly then. It exits `4` when a check failed
-or the time limit left a check unstarted, `3` when none of the selected checks ran or the
+(in an unattended run, failed its rerun too, or failed with `auth` or `parameter`) or the time
+limit left a check unstarted, `3` when none of the selected checks ran or the
 configuration cannot be loaded, and `2` when an unattended or CI run asks for the `attended` tier.
 `--list` exits `0`, or `2` for that same refusal.
 

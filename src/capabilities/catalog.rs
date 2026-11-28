@@ -50,8 +50,8 @@ mod platform_catalog;
 
 use live_check::LiveArgument::{ContentDir, Input, Text, Timeout};
 pub(crate) use live_check::{
-    BROWSER_LIMIT, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveInput, LiveTier,
-    MODEL_LIMIT, RoutePin, StopSignal,
+    BROWSER_LIMIT, Field, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveInput, LiveTier,
+    MODEL_LIMIT, RoutePin, SampleRule, Shape, StopSignal,
 };
 
 pub(crate) use platform_catalog::{
@@ -202,7 +202,12 @@ const YOUTUBE_CANARY_VIDEO: &str = "youtube:jNQXAC9IVRw";
 // empty.
 const SCHOLAR_CANARY: &str = "scholar:18208131694456651388";
 
-const fn main_search(id: &'static str, provider: ProviderId) -> LiveCheck {
+const fn main_search(
+    id: &'static str,
+    provider: ProviderId,
+    contract: LiveContract,
+    hard_sample: &'static str,
+) -> LiveCheck {
     LiveCheck::new(
         id,
         LiveTier::Metered,
@@ -217,10 +222,21 @@ const fn main_search(id: &'static str, provider: ProviderId) -> LiveCheck {
             ],
             routes: RoutePin::MainSearch(provider),
         },
-        LiveContract::Answer,
+        contract,
+        hard_sample,
     )
     .time_limit(MODEL_LIMIT)
 }
+
+const MAIN_SEARCH_HARD: &str = "the newest release changes every six weeks, so the answer has to come \
+     from a web search the backend cites, and an answer from the model's memory carries no sources";
+
+const SUPPLEMENTAL_CONTRACT: LiveContract = LiveContract::fields(&[
+    Field::list("results", 1),
+    Field::text("results[].url"),
+    Field::text("results[].title").in_some_items(),
+    Field::text("results[].text").in_some_items(),
+]);
 
 /// A supplemental web search, which only the hidden `doctor` entry runs on its own; `arguments`
 /// name the provider.
@@ -232,10 +248,17 @@ const fn supplemental_search(id: &'static str, arguments: &'static [LiveArgument
             arguments,
             routes: RoutePin::Configured,
         },
-        LiveContract::Results,
+        SUPPLEMENTAL_CONTRACT,
+        "a question about this week's release, which the index answers with fresh pages whose \
+         titles and summaries the route must carry",
     )
     .time_limit(MODEL_LIMIT)
 }
+
+const KEYED_FETCH_CONTRACT: LiveContract = LiveContract::fields(&[Field::text("content")])
+    .with_sample(&[SampleRule::Credentials { anonymous: false }]);
+const ANONYMOUS_FETCH_CONTRACT: LiveContract = LiveContract::fields(&[Field::text("content")])
+    .with_sample(&[SampleRule::Credentials { anonymous: true }]);
 
 const fn web_fetch(id: &'static str, tier: LiveTier, routes: RoutePin) -> LiveCheck {
     LiveCheck::new(
@@ -250,9 +273,13 @@ const fn web_fetch(id: &'static str, tier: LiveTier, routes: RoutePin) -> LiveCh
             ],
             routes,
         },
-        LiveContract::Fetch {
-            anonymous: matches!(routes, RoutePin::AnonymousWebFetch(_)),
+        if matches!(routes, RoutePin::AnonymousWebFetch(_)) {
+            ANONYMOUS_FETCH_CONTRACT
+        } else {
+            KEYED_FETCH_CONTRACT
         },
+        "the Rust home page is mostly navigation and links, so a reader that returns only its \
+         chrome falls below the content gate",
     )
 }
 
@@ -264,6 +291,7 @@ const fn platform_check(
     routes: &'static [ProviderId],
     arguments: &'static [LiveArgument],
     contract: LiveContract,
+    hard_sample: &'static str,
 ) -> LiveCheck {
     LiveCheck::new(
         id,
@@ -273,11 +301,23 @@ const fn platform_check(
             routes: RoutePin::Platform(platform, routes),
         },
         contract,
+        hard_sample,
     )
 }
 
 const XAI_LIVE: &[LiveCheck] = &[
-    main_search("xai:main_search", ProviderId::Xai),
+    // xAI numbers its citation titles, and forager clears a numeric title, so a source may have
+    // none.
+    main_search(
+        "xai:main_search",
+        ProviderId::Xai,
+        LiveContract::fields(&[
+            Field::text("answer"),
+            Field::list("sources", 1),
+            Field::text("sources[].url"),
+        ]),
+        MAIN_SEARCH_HARD,
+    ),
     platform_check(
         "xai:search",
         LiveTier::Metered,
@@ -293,7 +333,14 @@ const XAI_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].author_handle"),
+            Field::text("items[].text"),
+        ]),
+        "a topic many accounts post about, so every result must be a post the response cites, \
+         and a post the model only recalled is dropped",
     )
     .time_limit(MODEL_LIMIT),
     platform_check(
@@ -311,7 +358,9 @@ const XAI_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItem,
+        LiveContract::fields(&[Field::text("author_handle"), Field::text("text")]),
+        "a support account's reply inside a conversation, so the read must single out the \
+         requested post among the thread's posts instead of taking the first",
     )
     .time_limit(MODEL_LIMIT),
     // SpaceX posts about Starship every week, so the answer always has posts to cite.
@@ -328,12 +377,29 @@ const XAI_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::Answer,
+        LiveContract::fields(&[
+            Field::text("answer"),
+            Field::list("sources", 1),
+            Field::text("sources[].url"),
+            Field::text("sources[].ref").in_some_items(),
+        ]),
+        "one account's recent posts, so the answer must cite posts found today, and an answer \
+         from the model's memory cites none",
     )
     .time_limit(MODEL_LIMIT),
 ];
 
-const OPENAI_LIVE: &[LiveCheck] = &[main_search("openai:main_search", ProviderId::Openai)];
+const OPENAI_LIVE: &[LiveCheck] = &[main_search(
+    "openai:main_search",
+    ProviderId::Openai,
+    LiveContract::fields(&[
+        Field::text("answer"),
+        Field::list("sources", 1),
+        Field::text("sources[].url"),
+        Field::text("sources[].title").in_some_items(),
+    ]),
+    MAIN_SEARCH_HARD,
+)];
 
 const TAVILY_LIVE: &[LiveCheck] = &[
     supplemental_search(
@@ -368,7 +434,14 @@ const TAVILY_LIVE: &[LiveCheck] = &[
             ],
             routes: RoutePin::Configured,
         },
-        LiveContract::Results,
+        LiveContract::fields(&[
+            Field::text("base_url"),
+            Field::list("results", 2),
+            Field::text("results[]"),
+            Field::number("response_time", 0.0),
+        ]),
+        "a site with many sections on its own domain, so the map must follow links beyond the \
+         page it was given",
     )
     .time_limit(Duration::from_secs(150)),
 ];
@@ -423,7 +496,14 @@ const EXA_LIVE: &[LiveCheck] = &[
             ],
             routes: RoutePin::Configured,
         },
-        LiveContract::Results,
+        LiveContract::fields(&[
+            Field::list("results", 1),
+            Field::text("results[].url"),
+            Field::text("results[].title").in_some_items(),
+            Field::text("results[].published_date").in_some_items(),
+        ]),
+        "a proposal discussed across RFCs, blog posts and issue trackers, so the results come \
+         from several kinds of page with different metadata",
     ),
     LiveCheck::new(
         "exa:similar",
@@ -440,7 +520,13 @@ const EXA_LIVE: &[LiveCheck] = &[
             ],
             routes: RoutePin::Configured,
         },
-        LiveContract::Results,
+        LiveContract::fields(&[
+            Field::list("results", 1),
+            Field::text("results[].url"),
+            Field::text("results[].title").in_some_items(),
+        ]),
+        "a home page gives no query text to match, so only the page's own content finds its \
+         neighbours",
     ),
 ];
 
@@ -460,7 +546,21 @@ const ARXIV_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 3),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::list("items[].authors", 1),
+            Field::text("items[].published"),
+            Field::text("items[].updated"),
+            Field::text("items[].abstract"),
+            Field::text("items[].primary_category"),
+            Field::list("items[].categories", 1),
+            Field::text("items[].pdf_url"),
+            Field::text("items[].comment").in_some_items(),
+        ]),
+        "a busy topic whose results are recent submissions with several authors, cross-listed \
+         categories and author comments, which a single old paper would not all carry",
     ),
     platform_check(
         "arxiv_api:fetch",
@@ -477,7 +577,20 @@ const ARXIV_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItem,
+        LiveContract::fields(&[
+            Field::text("ref"),
+            Field::text("title"),
+            Field::list("authors", 2),
+            Field::text("published"),
+            Field::text("updated"),
+            Field::text("abstract"),
+            Field::text("primary_category"),
+            Field::list("categories", 2),
+            Field::text("comment"),
+            Field::text("pdf_url"),
+        ]),
+        "a paper revised several times and cross-listed, so an unversioned ref must resolve to \
+         its latest version with all eight authors and every category",
     ),
 ];
 
@@ -497,7 +610,19 @@ const SSRN_CROSSREF_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::list("items[].authors", 1).in_some_items(),
+            Field::text("items[].published"),
+            Field::text("items[].doi"),
+            Field::text("items[].crossref_type"),
+            Field::text("items[].crossref_created"),
+            Field::text("items[].abstract").in_some_items(),
+        ]),
+        "Crossref files SSRN preprints beside every other publisher's works, so the search must \
+         keep only SSRN records, some with an abstract and some without",
     ),
     platform_check(
         "ssrn_crossref:fetch",
@@ -514,7 +639,17 @@ const SSRN_CROSSREF_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItem,
+        LiveContract::fields(&[
+            Field::text("ref"),
+            Field::text("title"),
+            Field::list("authors", 1),
+            Field::text("published"),
+            Field::text("doi"),
+            Field::text("crossref_type"),
+            Field::text("crossref_created"),
+        ]),
+        "a paper whose Crossref record is reached only through its SSRN DOI, so the work must be \
+         matched to the requested ref and its authors read from Crossref's name parts",
     ),
 ];
 
@@ -534,7 +669,22 @@ const SERPAPI_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::list("items[].authors", 1).in_some_items(),
+            Field::text("items[].published").in_some_items(),
+            Field::text("items[].snippet").in_some_items(),
+            Field::text("items[].link").in_some_items(),
+            Field::text("items[].source").in_some_items(),
+            Field::count("items[].cited_by", 1).in_some_items(),
+            Field::count("items[].version_count", 1).in_some_items(),
+            Field::list("items[].resources", 1).in_some_items(),
+            Field::text("items[].resources[].url"),
+        ]),
+        "a broad topic whose top results mix papers with and without links, PDF resources and \
+         citation counts, so every optional part of a result is decoded",
     ),
     platform_check(
         "serpapi:fetch",
@@ -551,7 +701,16 @@ const SERPAPI_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItem,
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::list("authors", 1),
+            Field::list("versions", 1),
+            Field::text("versions[].title"),
+            Field::text("versions[].source").in_some_items(),
+            Field::text("versions[].link").in_some_items(),
+        ]),
+        "a much-cited paper with several versions, so the cluster page must be read as one paper \
+         with its versions listed",
     ),
     platform_check(
         "serpapi:cited_by",
@@ -568,14 +727,23 @@ const SERPAPI_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::text("items[].snippet").in_some_items(),
+            Field::text("items[].published").in_some_items(),
+            Field::text("items[].source").in_some_items(),
+        ]),
+        "an unknown paper and an uncited one both answer empty, so only a paper with thousands of \
+         citing works proves the cited-by query was read",
     ),
 ];
 
 // A note opens only with an access token, which expires, so the fetch reads the first search
 // result and the comments check the most-commented one.
 const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
-    // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
+    // Search pages hold 20 notes, so 25 needs the second page.
     platform_check(
         "xiaohongshu_browser:search",
         LiveTier::Attended,
@@ -595,7 +763,22 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 21),
+            Field::text("items[].ref"),
+            Field::text("items[].access_url"),
+            Field::text("items[].note_type"),
+            Field::text("items[].title").in_some_items(),
+            Field::list("items[].authors", 1).in_some_items(),
+            Field::text("items[].author_id").in_some_items(),
+            Field::text("items[].likes").in_some_items(),
+            Field::text("items[].collects").in_some_items(),
+            Field::text("items[].comments").in_some_items(),
+            Field::text("items[].shares").in_some_items(),
+            Field::text("items[].published_text").in_some_items(),
+        ]),
+        "new coffee notes appear every week, so the newest notes of the week fill a second page \
+         under both filters",
     )
     .time_limit(BROWSER_LIMIT),
     platform_check(
@@ -615,11 +798,26 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformFullText,
+        LiveContract::fields(&[
+            Field::text("ref"),
+            Field::text("note_type"),
+            Field::list("authors", 1),
+            Field::text("author_id"),
+            Field::text("published"),
+            Field::text("updated"),
+            Field::text("likes"),
+            Field::text("collects"),
+            Field::text("comments"),
+            Field::text("shares"),
+            Field::count("content_len", 1),
+        ]),
+        "the newest note of the week, which no cache holds, so the page must open with the \
+         access token the search just returned",
     )
     .depends_on("xiaohongshu_browser:search")
     .time_limit(BROWSER_LIMIT),
-    // One comment page holds 10 top-level comments, so 15 needs the second page.
+    // One comment page holds 10 top-level comments, so 15 needs the second page, and a comment
+    // carries one reply before it is expanded.
     platform_check(
         "xiaohongshu_browser:comments",
         LiveTier::Attended,
@@ -637,14 +835,24 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::XiaohongshuComments,
+        LiveContract::fields(&[
+            Field::list("comments", 11),
+            Field::text("comments[].id"),
+            Field::text("comments[].text").in_some_items(),
+            Field::text("comments[].author").in_some_items(),
+            Field::text("comments[].published").in_some_items(),
+            Field::list("comments[].replies", 2).in_some_items(),
+            Field::text("comments[].replies[].id"),
+            Field::text("comments[].replies[].reply_to"),
+        ]),
+        "the week's most-commented note, so the read reaches the second comment page and \
+         expands a reply thread",
     )
     .depends_on("xiaohongshu_browser:search")
     .time_limit(BROWSER_LIMIT),
 ];
 
 const HN_API_LIVE: &[LiveCheck] = &[
-    // Hacker News discusses Rust every day, so the search is never empty.
     platform_check(
         "hn_api:search",
         LiveTier::Free,
@@ -660,7 +868,19 @@ const HN_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 5),
+            Field::text("items[].ref"),
+            Field::text("items[].item_type"),
+            Field::text("items[].published"),
+            Field::text("items[].title").in_some_items(),
+            Field::list("items[].authors", 1).in_some_items(),
+            Field::text("items[].link_url").in_some_items(),
+            Field::count("items[].points", 1).in_some_items(),
+            Field::count("items[].comments", 1).in_some_items(),
+        ]),
+        "Hacker News discusses Rust every day, so a page is always full of stories with links, \
+         points and comment counts",
     ),
     // The 2007 Dropbox launch discussion: about 70 comments that no longer change.
     platform_check(
@@ -680,7 +900,20 @@ const HN_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformFullText,
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::list("authors", 1),
+            Field::text("published"),
+            Field::text("item_type"),
+            Field::text("link_url"),
+            Field::count("points", 1),
+            Field::count("comments", 1),
+            Field::count("comments_delivered", 2),
+            Field::text("order"),
+            Field::count("content_len", 1),
+        ]),
+        "a closed discussion of about 70 comments nested several levels deep, so the thread \
+         must be read from the tree and ranked by the Firebase item",
     ),
     platform_check(
         "hn_api:stories",
@@ -697,7 +930,20 @@ const HN_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 10),
+            Field::count("items[].rank", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::text("items[].item_type"),
+            Field::text("items[].published"),
+            Field::list("items[].authors", 1).in_some_items(),
+            Field::text("items[].link_url").in_some_items(),
+            Field::count("items[].points", 1).in_some_items(),
+            Field::count("items[].comments", 1).in_some_items(),
+        ]),
+        "the live front page, which mixes link stories, text posts and job ads, so items with \
+         and without links, points and comments are ranked together",
     ),
 ];
 
@@ -708,7 +954,6 @@ const POLYMARKET_CANARY_WINNER: &str =
     "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election";
 
 const POLYMARKET_API_LIVE: &[LiveCheck] = &[
-    // Markets on the Fed's rate decisions are always open, so the search is never empty.
     platform_check(
         "polymarket_api:search",
         LiveTier::Free,
@@ -724,7 +969,23 @@ const POLYMARKET_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::text("items[].event_id"),
+            Field::text("items[].status"),
+            Field::count("items[].market_count", 1),
+            Field::text("items[].end_date").in_some_items(),
+            Field::number("items[].volume", 0.0).in_some_items(),
+            Field::number("items[].liquidity", 0.0).in_some_items(),
+            Field::list("items[].top_markets", 1).in_some_items(),
+            Field::text("items[].top_markets[].ref"),
+            Field::text("items[].top_markets[].label").in_some_items(),
+            Field::number("items[].top_markets[].probability", 0.0).in_some_items(),
+        ]),
+        "markets on the Fed's rate decisions are always open and come in multi-market events, \
+         so the results carry live markets ranked by probability",
     ),
     platform_check(
         "polymarket_api:fetch:resolved",
@@ -741,11 +1002,28 @@ const POLYMARKET_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PolymarketResolved {
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::text("event_id"),
+            Field::text("status"),
+            Field::number("volume", 0.0),
+            Field::list("markets", 2),
+            Field::text("markets[].ref"),
+            Field::text("markets[].market_id"),
+            Field::text("markets[].status"),
+            Field::text("markets[].question").in_some_items(),
+            Field::text("markets[].condition_id").in_some_items(),
+            Field::list("markets[].outcomes", 2),
+            Field::text("markets[].outcomes[].name"),
+            Field::text("markets[].outcomes[].basis"),
+            Field::number("markets[].outcomes[].price", 0.0).in_some_items(),
+        ])
+        .with_sample(&[SampleRule::ResolvedByPayout {
             winner: POLYMARKET_CANARY_WINNER,
-        },
+        }]),
+        "a resolved event of many markets, priced by their payouts, so the fetch must not ask \
+         the CLOB for quotes that no longer exist",
     ),
-    // The open event the search found proves the live CLOB quotes.
     platform_check(
         "polymarket_api:fetch:live",
         LiveTier::Free,
@@ -759,7 +1037,23 @@ const POLYMARKET_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PolymarketLive,
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::text("event_id"),
+            Field::text("status"),
+            Field::list("markets", 1),
+            Field::text("markets[].ref"),
+            Field::text("markets[].status"),
+            Field::list("markets[].outcomes", 1),
+            Field::text("markets[].outcomes[].name"),
+            Field::text("markets[].outcomes[].basis"),
+            Field::number("markets[].outcomes[].price", 0.0).in_some_items(),
+            Field::number("markets[].outcomes[].best_bid", 0.0).in_some_items(),
+            Field::number("markets[].outcomes[].best_ask", 0.0).in_some_items(),
+        ])
+        .with_sample(&[SampleRule::LiveQuotes]),
+        "the open event the search just found, so its prices must come from the CLOB order \
+         book, not from Gamma's cache",
     )
     .depends_on("polymarket_api:search"),
     platform_check(
@@ -777,14 +1071,25 @@ const POLYMARKET_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PolymarketSettlement,
+        LiveContract::fields(&[
+            Field::text("market.ref"),
+            Field::text("market.question"),
+            Field::text("market.status"),
+            Field::text("outcome"),
+            Field::list("points", 2),
+            Field::text("points[].t"),
+            Field::number("points[].price", 0.0),
+            Field::text("settlement.t"),
+            Field::number("settlement.price", 1.0),
+        ]),
+        "a market that resolved Yes, so its whole history ends in a payout of 1 that must be \
+         kept out of the price series",
     ),
 ];
 
 // The fetch reads a post the search found, never one chosen from memory, and never one not
 // marked as safe.
 const REDDIT_BROWSER_LIVE: &[LiveCheck] = &[
-    // Reddit discusses Rust every day, so the search is never empty.
     platform_check(
         "reddit_browser:search",
         LiveTier::Attended,
@@ -800,7 +1105,20 @@ const REDDIT_BROWSER_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::text("items[].subreddit"),
+            Field::text("items[].permalink"),
+            Field::text("items[].published").in_some_items(),
+            Field::list("items[].authors", 1).in_some_items(),
+            Field::number("items[].score", f64::MIN).in_some_items(),
+            Field::count("items[].comments", 0).in_some_items(),
+            Field::boolean("items[].nsfw").in_some_items(),
+        ]),
+        "the word names both a language and a game, so results come from several subreddits \
+         and the fetch must pick one marked safe",
     )
     .time_limit(BROWSER_LIMIT),
     platform_check(
@@ -820,7 +1138,19 @@ const REDDIT_BROWSER_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformFullText,
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::text("permalink"),
+            Field::text("subreddit"),
+            Field::number("score", f64::MIN),
+            Field::count("comments", 0),
+            Field::count("comments_delivered", 0),
+            Field::boolean("has_more_comments"),
+            Field::text("order"),
+            Field::count("content_len", 1),
+        ]),
+        "a post the search found today rather than a fixed one, so the thread page is whatever \
+         Reddit serves now, with its comment tree",
     )
     .depends_on("reddit_browser:search")
     .time_limit(BROWSER_LIMIT),
@@ -828,7 +1158,6 @@ const REDDIT_BROWSER_LIVE: &[LiveCheck] = &[
 
 const YOUTUBE_API_LIVE: &[LiveCheck] = &[
     // A search costs 100 units of the daily quota of 10,000.
-    // Many channels lecture on attention and transformers, so the search is never empty.
     platform_check(
         "youtube_api:search",
         LiveTier::Metered,
@@ -844,7 +1173,23 @@ const YOUTUBE_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 1),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::list("items[].authors", 1),
+            Field::text("items[].published"),
+            Field::text("items[].channel_ref"),
+            Field::text("items[].live_status"),
+            Field::count("items[].duration_seconds", 1),
+            Field::count("items[].views", 0),
+            Field::boolean("items[].has_captions"),
+            Field::text("items[].snippet").in_some_items(),
+            Field::count("items[].likes", 0).in_some_items(),
+            Field::count("items[].comments", 0).in_some_items(),
+        ]),
+        "many channels lecture on the topic, so every result needs the second request that adds \
+         its duration and statistics",
     )
     .expensive(),
     platform_check(
@@ -862,9 +1207,21 @@ const YOUTUBE_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItem,
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::list("authors", 1),
+            Field::text("published"),
+            Field::text("channel_ref"),
+            Field::text("live_status"),
+            Field::count("duration_seconds", 1),
+            Field::count("views", 1),
+            Field::count("likes", 1),
+            Field::count("comments", 1),
+            Field::boolean("has_captions"),
+        ]),
+        "the first YouTube upload, whose statistics run to hundreds of millions and whose \
+         metadata never changes",
     ),
-    // The canary video has millions of comments.
     platform_check(
         "youtube_api:comments",
         LiveTier::Metered,
@@ -880,9 +1237,19 @@ const YOUTUBE_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::Comments,
+        LiveContract::fields(&[
+            Field::list("comments", 1),
+            Field::text("comments[].id"),
+            Field::text("comments[].published"),
+            Field::count("comments[].reply_count", 0),
+            Field::text("comments[].text").in_some_items(),
+            Field::text("comments[].author").in_some_items(),
+            Field::count("comments[].likes", 0).in_some_items(),
+            Field::list("comments[].replies", 0),
+            Field::text("comments[].replies[].id"),
+        ]),
+        "the canary video has millions of comments, so an empty page means a broken read",
     ),
-    // "Essence of linear algebra": a finished public course of 16 videos.
     platform_check(
         "youtube_api:videos",
         LiveTier::Metered,
@@ -898,7 +1265,18 @@ const YOUTUBE_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformItems,
+        LiveContract::fields(&[
+            Field::list("items", 5),
+            Field::text("items[].ref"),
+            Field::text("items[].title"),
+            Field::count("items[].position", 0),
+            Field::text("items[].published"),
+            Field::text("items[].channel_ref"),
+            Field::list("items[].authors", 1),
+            Field::text("items[].snippet").in_some_items(),
+        ]),
+        "a finished public course of 16 videos, so a page of five is full and every item has \
+         its place in the playlist",
     ),
 ];
 
@@ -920,7 +1298,23 @@ const YOUTUBE_WEB_LIVE: &[LiveCheck] = &[platform_check(
         Text("--timeout"),
         Timeout,
     ],
-    LiveContract::PlatformFullText,
+    LiveContract::fields(&[
+        Field::text("title"),
+        Field::list("authors", 1),
+        Field::text("channel_ref"),
+        Field::count("duration_seconds", 1),
+        Field::count("views", 1),
+        Field::list("caption_tracks", 1),
+        Field::text("caption_tracks[].language"),
+        Field::text("caption_tracks[].source"),
+        Field::text("transcript.language"),
+        Field::text("transcript.source"),
+        Field::count("transcript.cues", 1),
+        Field::count("transcript.paragraphs", 1),
+        Field::count("content_len", 1),
+    ]),
+    "a video with only an automatic caption track, so the read must pick the speech \
+     recognition track and turn its cues into paragraphs",
 )];
 
 // A model operation reads its video through YouTube's fetch chain first, so the order pins that
@@ -941,7 +1335,14 @@ const GEMINI_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::Answer,
+        LiveContract::fields(&[
+            Field::text("video.title"),
+            Field::text("answer"),
+            Field::text("model"),
+            Field::count("usage.total_tokens", 1),
+        ]),
+        "the video's speech never names the animals' number or the speaker's clothes, so only \
+         a model that watched the picture can answer",
     )
     .time_limit(MODEL_LIMIT)
     .manual_only(),
@@ -960,7 +1361,17 @@ const GEMINI_API_LIVE: &[LiveCheck] = &[
             Text("--timeout"),
             Timeout,
         ],
-        LiveContract::PlatformFullText,
+        LiveContract::fields(&[
+            Field::text("title"),
+            Field::text("transcript.language"),
+            Field::count("transcript.cues", 1),
+            Field::count("transcript.paragraphs", 1),
+            Field::text("model"),
+            Field::count("usage.total_tokens", 1),
+            Field::count("content_len", 1),
+        ]),
+        "the clip's only captions are automatic, so the model, not a caption track, supplies the \
+         timed segments that must decode into cues and paragraphs",
     )
     .time_limit(MODEL_LIMIT)
     .manual_only(),

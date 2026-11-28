@@ -97,7 +97,7 @@ Only the real binary can prove these facts, and each is proven through the binar
 - The Search Result Journal being written when it is on and not written when it is off.
 - The file names and the default location of a content directory.
 - Environment isolation: the spawned binary reads only the configuration and state the test gives it, and a route its configuration missed fails instead of reaching a site.
-- The exit codes of a live run (`doctor --live`): 0, 2, 3 and 4.
+- The exit codes of a live run (`doctor --live`): 0, 2, 3 and 4, and the run record it writes, marked scheduled only when the run is unattended.
 
 Every command keeps at least one command contract test, and every platform keeps at least one successful path that its offline stand-in can produce. The browser platforms' stand-in does not speak the browser protocol, so for them the contract layer keeps the outermost path it can prove (preflight, launch arguments, refusal and timeout); their successful path is proven by the Page Logic tests in the crate and by the real-browser tests.
 

@@ -1,0 +1,207 @@
+//! Run records: one private file per `doctor --live` run in the state directory, kept 90 days,
+//! and each check's transition against the scheduled runs recorded before it. A record holds
+//! check identifiers, statuses, error kinds, HTTP statuses, durations and contract details,
+//! never a message, so no secret, query, URL or content reaches it.
+
+use std::fs;
+use std::io::{self, Write};
+use std::path::PathBuf;
+
+use chrono::{DateTime, TimeDelta, Utc};
+use serde::{Deserialize, Serialize};
+
+use super::{CheckResult, Outcome, Status, Summary};
+use crate::secure_fs::{create_new_private_file, ensure_private_directory};
+
+/// The run records' directory under the state directory.
+pub(super) const DIRECTORY: &str = "live_runs";
+const PREFIX: &str = "live_run_";
+const RETENTION: TimeDelta = TimeDelta::days(90);
+
+/// Where run records are kept.
+pub(super) struct Store {
+    directory: PathBuf,
+}
+
+/// What a run record says about the run as a whole.
+pub(super) struct Run<'a> {
+    pub(super) tiers: &'a [&'static str],
+    /// Whether the run was unattended; only such a run is a baseline for later transitions.
+    pub(super) scheduled: bool,
+    pub(super) summary: &'a Summary,
+}
+
+#[derive(Serialize)]
+struct Record<'a> {
+    schema_version: u32,
+    run_id: &'a str,
+    recorded_at: DateTime<Utc>,
+    forager_version: &'static str,
+    tiers: &'a [&'static str],
+    scheduled: bool,
+    summary: &'a Summary,
+    checks: Vec<RecordedCheck<'a>>,
+}
+
+#[derive(Serialize)]
+struct RecordedCheck<'a> {
+    id: &'static str,
+    #[serde(flatten)]
+    outcome: &'a Outcome,
+}
+
+/// What a transition needs from an earlier record; every other field is ignored.
+#[derive(Deserialize)]
+struct PastRun {
+    recorded_at: DateTime<Utc>,
+    scheduled: bool,
+    checks: Vec<PastCheck>,
+}
+
+#[derive(Deserialize)]
+struct PastCheck {
+    id: String,
+    status: Status,
+}
+
+/// How a check that ran moved since the most recent scheduled run in which it ran.
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "transition", rename_all = "snake_case")]
+pub(super) enum Transition {
+    /// It failed, and it passed or had not run before.
+    NewlyFailed,
+    /// It failed again; `failing_since` is the first scheduled failure in the unbroken run of
+    /// failures.
+    StillFailing { failing_since: DateTime<Utc> },
+    /// It passed after a failure.
+    Recovered,
+}
+
+impl Store {
+    pub(super) const fn new(directory: PathBuf) -> Self {
+        Self { directory }
+    }
+
+    /// Every readable record, oldest first; a damaged or foreign file is skipped.
+    fn history(&self) -> Vec<PastRun> {
+        let Ok(entries) = fs::read_dir(&self.directory) else {
+            return Vec::new();
+        };
+        let mut runs = entries
+            .filter_map(Result::ok)
+            .filter(|entry| recorded_millis(&entry.file_name()).is_some())
+            .filter_map(|entry| fs::read(entry.path()).ok())
+            .filter_map(|bytes| serde_json::from_slice::<PastRun>(&bytes).ok())
+            .collect::<Vec<_>>();
+        runs.sort_by_key(|run| run.recorded_at);
+        runs
+    }
+
+    fn write(&self, record: &Record<'_>, millis: i64) -> io::Result<()> {
+        ensure_private_directory(&self.directory)?;
+        let path = self
+            .directory
+            .join(format!("{PREFIX}{millis}_{}.json", std::process::id()));
+        let encoded = serde_json::to_vec(record).map_err(io::Error::other)?;
+        let mut file = create_new_private_file(&path)?;
+        file.write_all(&encoded)?;
+        file.write_all(b"\n")?;
+        file.sync_all()
+    }
+
+    /// Removes every record written more than the retention before `now`.
+    fn remove_expired(&self, now: DateTime<Utc>) -> io::Result<()> {
+        let cutoff = (now - RETENTION).timestamp_millis();
+        for entry in fs::read_dir(&self.directory)? {
+            let entry = entry?;
+            if recorded_millis(&entry.file_name()).is_some_and(|millis| millis < cutoff) {
+                fs::remove_file(entry.path())?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// When a record file was written, from its name; `None` for a file the store does not own.
+fn recorded_millis(name: &std::ffi::OsStr) -> Option<i64> {
+    let (millis, pid) = name
+        .to_str()?
+        .strip_prefix(PREFIX)?
+        .strip_suffix(".json")?
+        .split_once('_')?;
+    pid.parse::<u32>().ok()?;
+    millis.parse().ok()
+}
+
+/// Gives each result its transition against the recorded scheduled runs, then records this run
+/// at `now` and removes the expired records. Returns why the record could not be written or the
+/// old ones removed; the results keep their transitions either way.
+pub(super) fn conclude(
+    store: &Store,
+    now: DateTime<Utc>,
+    run: &Run<'_>,
+    results: &mut [CheckResult],
+) -> Result<(), String> {
+    let history = store.history();
+    for result in results.iter_mut() {
+        result.transition = transition(&history, result.identity.id, result.outcome.status);
+    }
+    let millis = now.timestamp_millis();
+    let run_id = format!("{millis}-{}", std::process::id());
+    let record = Record {
+        schema_version: 1,
+        run_id: &run_id,
+        recorded_at: now,
+        forager_version: env!("CARGO_PKG_VERSION"),
+        tiers: run.tiers,
+        scheduled: run.scheduled,
+        summary: run.summary,
+        checks: results
+            .iter()
+            .map(|result| RecordedCheck {
+                id: result.identity.id,
+                outcome: &result.outcome,
+            })
+            .collect(),
+    };
+    store
+        .write(&record, millis)
+        .map_err(|error| format!("cannot write the run record: {error}"))?;
+    store
+        .remove_expired(now)
+        .map_err(|error| format!("cannot remove expired run records: {error}"))
+}
+
+/// The transition of check `id`, which ended as `status`, against the scheduled runs in
+/// `history` in which it ran; `None` when it did not run, or passed as it did before.
+fn transition(history: &[PastRun], id: &str, status: Status) -> Option<Transition> {
+    let mut ran = history
+        .iter()
+        .rev()
+        .filter(|run| run.scheduled)
+        .filter_map(|run| {
+            run.checks
+                .iter()
+                .find(|check| check.id == id)
+                .filter(|check| matches!(check.status, Status::Passed | Status::Failed))
+                .map(|check| (run.recorded_at, check.status))
+        })
+        .peekable();
+    let failed_before = ran.peek().is_some_and(|(_, last)| *last == Status::Failed);
+    match status {
+        Status::Failed if failed_before => {
+            let failing_since = ran
+                .take_while(|(_, status)| *status == Status::Failed)
+                .last()
+                .map(|(recorded_at, _)| recorded_at)?;
+            Some(Transition::StillFailing { failing_since })
+        }
+        Status::Failed => Some(Transition::NewlyFailed),
+        Status::Passed if failed_before => Some(Transition::Recovered),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+#[path = "live_record_tests.rs"]
+mod tests;

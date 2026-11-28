@@ -17,7 +17,7 @@ The project is one crate with a binary and a library. The library exposes exactl
 - **`capabilities/`**: everything that reaches a provider. This covers the Capability Catalog and platform catalog, the HTTP boundary, credential pools, Access Policies, and the provider and route adapters, including the browser transport.
 - **`evidence/`**: what an invocation leaves behind: the Search Result Journal and the stderr attempt log.
 - **`infra/`**: shared foundations: configuration, the shared types, redaction, secure file writing and cross-process state files.
-- **`ops/`**: operator commands outside a search: doctor, the Live Check runner behind `doctor --live`, and browser install and login.
+- **`ops/`**: operator commands outside a search: doctor, the Live Check runner behind `doctor --live` with the run records it keeps in the state directory, and browser install and login.
 
 ## Dependency direction
 

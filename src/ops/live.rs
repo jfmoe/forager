@@ -9,15 +9,15 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use shared_child::SharedChild;
 
 use crate::catalog::{
-    self, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveInput, LiveTier, MODEL_LIMIT,
-    ProviderId, ProviderTransport, RoutePin, StopSignal,
+    self, Field, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveInput, LiveTier,
+    MODEL_LIMIT, ProviderId, ProviderTransport, RoutePin, StopSignal,
 };
 use crate::config::{self, RuntimeConfig};
 use crate::providers;
@@ -26,6 +26,10 @@ use crate::types::{Deadline, Platform};
 
 #[path = "live_contract.rs"]
 mod contract;
+#[path = "live_record.rs"]
+mod record;
+
+use contract::Detail;
 
 /// The one check outside any provider's registration: a main search with supplemental web
 /// search, which proves the pipeline that joins them.
@@ -45,7 +49,17 @@ const PIPELINE: LiveCheck = LiveCheck::new(
         ],
         routes: RoutePin::Configured,
     },
-    LiveContract::PipelineSearch,
+    LiveContract::fields(&[
+        Field::text("answer"),
+        Field::list("sources", 1),
+        Field::text("sources[].url"),
+        Field::list("extra_sources", 1),
+        Field::text("extra_sources[].url"),
+        Field::text("extra_sources[].title").in_some_items(),
+        Field::text("extra_sources[].summary").in_some_items(),
+    ]),
+    "official documentation shares its pages with the main search's sources, so supplemental \
+     sources must survive deduplication against them",
 )
 .time_limit(MODEL_LIMIT);
 
@@ -192,6 +206,8 @@ struct ListedCheck {
     time_limit_seconds: u64,
     expensive: bool,
     manual_only: bool,
+    /// Why the check's sample is hard for its route.
+    hard_sample: &'static str,
     /// Whether this selection runs the check.
     selected: bool,
 }
@@ -234,6 +250,7 @@ pub(crate) fn list(selection: &LiveSelection) -> Result<LiveListing, LiveError> 
                 time_limit_seconds: entry.check.time_limit.as_secs(),
                 expensive: entry.check.expensive,
                 manual_only: entry.check.manual_only,
+                hard_sample: entry.check.hard_sample,
                 selected,
             })
             .collect(),
@@ -248,6 +265,9 @@ pub(crate) struct LiveReport {
     tiers: Vec<&'static str>,
     summary: Summary,
     checks: Vec<CheckResult>,
+    /// Why the run record could not be written; the run's result does not depend on it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    record_warning: Option<String>,
 }
 
 #[derive(Debug, Default, PartialEq, Serialize)]
@@ -263,17 +283,104 @@ struct Summary {
 struct CheckResult {
     #[serde(flatten)]
     identity: CheckIdentity,
+    #[serde(flatten)]
+    outcome: Outcome,
+    /// What went wrong in words. It can quote the command's own error, so the run record never
+    /// holds it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(flatten)]
+    transition: Option<record::Transition>,
+}
+
+/// How a check ended, as both the report and the run record show it.
+#[derive(Debug, Serialize)]
+struct Outcome {
     status: Status,
     #[serde(skip_serializing_if = "Option::is_none")]
     cause: Option<NotStarted>,
+    /// Every command the check started, retries and the confirmation rerun included.
     attempts: usize,
+    /// How long the check's last observation took.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    duration_ms: Option<u64>,
+    /// Whether the check ran once more to confirm a failure; its status is the rerun's.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    rerun: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
+    http_status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<Detail>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+impl CheckResult {
+    /// A check that never started a command.
+    fn without_command(
+        entry: &Declared,
+        status: Status,
+        cause: Option<NotStarted>,
+        message: String,
+    ) -> Self {
+        Self {
+            identity: CheckIdentity::of(entry),
+            outcome: Outcome {
+                status,
+                cause,
+                attempts: 0,
+                duration_ms: None,
+                rerun: false,
+                error_kind: None,
+                http_status: None,
+                detail: None,
+            },
+            message: Some(message),
+            transition: None,
+        }
+    }
+
+    fn observed(entry: &Declared, observation: Observation) -> Self {
+        let duration_ms = Some(crate::net::duration_millis(observation.duration));
+        let identity = CheckIdentity::of(entry);
+        let (outcome, message) = match observation.outcome {
+            Ok(_) => (
+                Outcome {
+                    status: Status::Passed,
+                    cause: None,
+                    attempts: observation.attempts,
+                    duration_ms,
+                    rerun: false,
+                    error_kind: None,
+                    http_status: None,
+                    detail: None,
+                },
+                None,
+            ),
+            Err(failure) => (
+                Outcome {
+                    status: Status::Failed,
+                    cause: None,
+                    attempts: observation.attempts,
+                    duration_ms,
+                    rerun: false,
+                    error_kind: Some(failure.error_kind.into_owned()),
+                    http_status: failure.http_status,
+                    detail: Some(*failure.detail),
+                },
+                Some(failure.message.into_owned()),
+            ),
+        };
+        Self {
+            identity,
+            outcome,
+            message,
+            transition: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Status {
     Passed,
@@ -294,8 +401,18 @@ enum NotStarted {
     NoInput,
 }
 
-/// Runs the selected checks within `timeout_seconds` and reports each one. `selection` already
-/// carries whether the run is unattended.
+/// How long an unattended run waits before it runs its failed checks once more.
+const CONFIRMATION_DELAY: Duration = Duration::from_mins(1);
+
+/// In an unattended run, how a failed check gets its second, independent observation: after
+/// `delay`, spent by `wait`.
+struct Confirmation<'a> {
+    delay: Duration,
+    wait: &'a mut dyn FnMut(Duration),
+}
+
+/// Runs the selected checks within `timeout_seconds`, records the run and reports each check.
+/// `selection` already carries whether the run is unattended.
 pub(crate) fn run(
     selection: &LiveSelection,
     timeout_seconds: u64,
@@ -309,28 +426,49 @@ pub(crate) fn run(
         .collect::<Vec<_>>();
     let executable = std::env::current_exe().map_err(LiveError::Executable)?;
     let mut execute = |command: &Prepared, limit: Duration| execute(&executable, command, limit);
-    let results = run_checks(
+    let mut sleep = thread::sleep;
+    let mut results = run_checks(
         &declared,
         &selected,
         &unconfigured,
         Deadline::new(Duration::from_secs(timeout_seconds)),
         &runtime.journal.credentials,
         &mut execute,
+        selection.unattended.then_some(Confirmation {
+            delay: CONFIRMATION_DELAY,
+            wait: &mut sleep,
+        }),
     );
     let summary = summarize(&results, declared.len());
     let exit_code = exit_code(&results);
+    let tiers = selection
+        .tiers()
+        .into_iter()
+        .map(LiveTier::as_str)
+        .collect::<Vec<_>>();
+    let record_warning = match crate::state_file::state_directory() {
+        Some(state) => record::conclude(
+            &record::Store::new(state.join(record::DIRECTORY)),
+            chrono::Utc::now(),
+            &record::Run {
+                tiers: &tiers,
+                scheduled: selection.unattended,
+                summary: &summary,
+            },
+            &mut results,
+        )
+        .err(),
+        None => Some("no state directory, so the run was not recorded".into()),
+    };
     Ok((
         LiveReport {
             mode: "live",
             ok: exit_code == 0,
             unattended: selection.unattended,
-            tiers: selection
-                .tiers()
-                .into_iter()
-                .map(LiveTier::as_str)
-                .collect(),
+            tiers,
             summary,
             checks: results,
+            record_warning,
         },
         exit_code,
     ))
@@ -388,12 +526,34 @@ enum Execution {
     Broken(&'static str),
 }
 
-/// Why one attempt of a check did not pass.
+/// Why one observation of a check did not pass.
 #[derive(Debug)]
 struct Failure {
     kind: FailureKind,
     error_kind: Cow<'static, str>,
+    /// The command's own words, with every configured credential masked; only the report shows
+    /// it.
     message: Cow<'static, str>,
+    detail: Box<Detail>,
+    /// The status of the last provider attempt that reported one.
+    http_status: Option<u16>,
+}
+
+impl Failure {
+    /// A failure of the run itself rather than of the command's provider.
+    fn of_run(kind: FailureKind, rule: &'static str, message: &'static str) -> Self {
+        Self {
+            kind,
+            error_kind: Cow::Borrowed(match kind {
+                FailureKind::Contract => "contract",
+                FailureKind::Timeout => "timeout",
+                _ => "runtime",
+            }),
+            message: Cow::Borrowed(message),
+            detail: Box::new(Detail::rule(rule)),
+            http_status: None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -425,6 +585,20 @@ impl FailureKind {
     fn retryable(self) -> bool {
         matches!(self, Self::Network | Self::Timeout)
     }
+
+    /// A rejected key or request gets the same answer however long the run waits, so it is
+    /// confirmed without a rerun.
+    fn needs_confirmation(self) -> bool {
+        !matches!(self, Self::Auth | Self::Parameter)
+    }
+}
+
+/// One observation of a check: its command, run once more when the first run hit a network
+/// error or a timeout.
+struct Observation {
+    outcome: Result<Value, Failure>,
+    attempts: usize,
+    duration: Duration,
 }
 
 /// What a run tracks about one browser site between its checks, in memory only.
@@ -460,7 +634,9 @@ impl Site {
 }
 
 /// Runs each selected check in declaration order; `unconfigured` holds each check's reason not
-/// to run, and `execute` starts one command with a time limit.
+/// to run, and `execute` starts one command with a time limit. With a `confirmation`, every
+/// failure but a rejected key or request is observed once more after its delay, and the second
+/// observation decides.
 fn run_checks(
     declared: &[Declared],
     selected: &[bool],
@@ -468,32 +644,27 @@ fn run_checks(
     deadline: Deadline,
     credentials: &[Secret],
     execute: &mut dyn FnMut(&Prepared, Duration) -> Execution,
+    confirmation: Option<Confirmation<'_>>,
 ) -> Vec<CheckResult> {
     let mut outputs = BTreeMap::<&str, Value>::new();
     let mut sites = BTreeMap::<ProviderId, Site>::new();
     let mut results = Vec::new();
+    // Each failure to confirm: its position in `results` and in `declared`.
+    let mut unconfirmed = Vec::new();
     for (index, entry) in declared.iter().enumerate() {
         if !selected[index] {
             continue;
         }
         let check = &entry.check;
-        let result = |status, cause, attempts, failure: Option<Failure>, message| CheckResult {
-            identity: CheckIdentity::of(entry),
-            status,
-            cause,
-            attempts,
-            error_kind: failure
-                .as_ref()
-                .map(|failure: &Failure| failure.error_kind.to_string()),
-            message: failure.map_or(message, |failure| Some(failure.message.into_owned())),
+        let not_started = |cause, message| {
+            CheckResult::without_command(entry, Status::NotStarted, Some(cause), message)
         };
         if let Some(reason) = &unconfigured[index] {
-            results.push(result(
+            results.push(CheckResult::without_command(
+                entry,
                 Status::Unconfigured,
                 None,
-                0,
-                None,
-                Some(reason.clone()),
+                reason.clone(),
             ));
             continue;
         }
@@ -502,63 +673,70 @@ fn run_checks(
             .filter(|_| !entry.stop_signals().is_empty())
             .map(|provider| sites.entry(provider).or_default());
         if let Some(reason) = site.as_ref().and_then(|site| site.stopped.clone()) {
-            let message = format!("not started: {reason}");
-            results.push(result(
-                Status::NotStarted,
-                Some(NotStarted::SiteStop),
-                0,
-                None,
-                Some(message),
+            results.push(not_started(
+                NotStarted::SiteStop,
+                format!("not started: {reason}"),
             ));
             continue;
         }
         let input = match input(check, &outputs) {
             Ok(input) => input,
             Err(message) => {
-                results.push(result(
-                    Status::NotStarted,
-                    Some(NotStarted::NoInput),
-                    0,
-                    None,
-                    Some(message),
-                ));
+                results.push(not_started(NotStarted::NoInput, message));
                 continue;
             }
         };
         if deadline.remaining().is_none() {
-            let message = "not started: the run's time limit ended before this check began";
-            results.push(result(
-                Status::NotStarted,
-                Some(NotStarted::Deadline),
-                0,
-                None,
-                Some(message.into()),
+            results.push(not_started(
+                NotStarted::Deadline,
+                "not started: the run's time limit ended before this check began".into(),
             ));
             continue;
         }
-        let retries = usize::from(entry.transport() == ProviderTransport::Http);
-        let mut attempts = 0;
-        let outcome = loop {
-            attempts += 1;
-            let outcome = attempt(check, input.as_deref(), deadline, credentials, execute);
-            match &outcome {
-                Err(failure)
-                    if failure.kind.retryable()
-                        && attempts <= retries
-                        && deadline.remaining().is_some() => {}
-                _ => break outcome,
-            }
-        };
+        let observation = observe(entry, input.as_deref(), deadline, credentials, execute);
         if let Some(site) = site {
-            site.observe(check.id, outcome.as_ref().err(), entry.stop_signals());
+            site.observe(
+                check.id,
+                observation.outcome.as_ref().err(),
+                entry.stop_signals(),
+            );
         }
-        results.push(match outcome {
+        match &observation.outcome {
             Ok(payload) => {
-                outputs.insert(check.id, payload);
-                result(Status::Passed, None, attempts, None, None)
+                outputs.insert(check.id, payload.clone());
             }
-            Err(failure) => result(Status::Failed, None, attempts, Some(failure), None),
-        });
+            Err(failure) if failure.kind.needs_confirmation() => {
+                unconfirmed.push((results.len(), index));
+            }
+            Err(_) => {}
+        }
+        results.push(CheckResult::observed(entry, observation));
+    }
+    if let Some(Confirmation { delay, wait }) = confirmation
+        && !unconfirmed.is_empty()
+        && deadline
+            .remaining()
+            .is_some_and(|remaining| remaining > delay)
+    {
+        wait(delay);
+        for (position, index) in unconfirmed {
+            let entry = &declared[index];
+            let Ok(input) = input(&entry.check, &outputs) else {
+                continue;
+            };
+            if deadline.remaining().is_none() {
+                break;
+            }
+            let observation = observe(entry, input.as_deref(), deadline, credentials, execute);
+            if let Ok(payload) = &observation.outcome {
+                outputs.insert(entry.check.id, payload.clone());
+            }
+            let earlier = results[position].outcome.attempts;
+            let mut result = CheckResult::observed(entry, observation);
+            result.outcome.attempts += earlier;
+            result.outcome.rerun = true;
+            results[position] = result;
+        }
     }
     results
 }
@@ -619,6 +797,37 @@ fn most_commented(items: &[Value]) -> Option<&Value> {
         .map(|(item, _)| item)
 }
 
+/// Runs the check's command, once more after a network error or a timeout on an HTTP route,
+/// and times the observation.
+fn observe(
+    entry: &Declared,
+    input: Option<&str>,
+    deadline: Deadline,
+    credentials: &[Secret],
+    execute: &mut dyn FnMut(&Prepared, Duration) -> Execution,
+) -> Observation {
+    let retries = usize::from(entry.transport() == ProviderTransport::Http);
+    let started = Instant::now();
+    let mut attempts = 0;
+    loop {
+        attempts += 1;
+        let outcome = attempt(&entry.check, input, deadline, credentials, execute);
+        match &outcome {
+            Err(failure)
+                if failure.kind.retryable()
+                    && attempts <= retries
+                    && deadline.remaining().is_some() => {}
+            _ => {
+                return Observation {
+                    outcome,
+                    attempts,
+                    duration: started.elapsed(),
+                };
+            }
+        }
+    }
+}
+
 /// Runs the check's command once and judges its output.
 fn attempt(
     check: &LiveCheck,
@@ -627,15 +836,6 @@ fn attempt(
     credentials: &[Secret],
     execute: &mut dyn FnMut(&Prepared, Duration) -> Execution,
 ) -> Result<Value, Failure> {
-    let failure = |kind, message: &'static str| Failure {
-        kind,
-        error_kind: Cow::Borrowed(if kind == FailureKind::Contract {
-            "contract"
-        } else {
-            "runtime"
-        }),
-        message: Cow::Borrowed(message),
-    };
     let scratch = check
         .command
         .arguments
@@ -643,7 +843,13 @@ fn attempt(
         .any(|argument| matches!(argument, LiveArgument::ContentDir))
         .then(tempfile::tempdir)
         .transpose()
-        .map_err(|_| failure(FailureKind::Other, "cannot create a content directory"))?;
+        .map_err(|_| {
+            Failure::of_run(
+                FailureKind::Other,
+                "command_runs",
+                "cannot create a content directory",
+            )
+        })?;
     let prepared = prepare(check, input, scratch.as_ref().map(tempfile::TempDir::path));
     let limit = deadline.remaining().map_or(Duration::ZERO, |remaining| {
         remaining.min(check.time_limit + KILL_GRACE)
@@ -651,24 +857,47 @@ fn attempt(
     let (code, stdout) = match execute(&prepared, limit) {
         Execution::Exited { code, stdout } => (code, stdout),
         Execution::TimedOut => {
-            return Err(Failure {
-                kind: FailureKind::Timeout,
-                error_kind: Cow::Borrowed("timeout"),
-                message: Cow::Borrowed("the command ran past its time limit and was killed"),
-            });
+            return Err(Failure::of_run(
+                FailureKind::Timeout,
+                "time_limit",
+                "the command ran past its time limit and was killed",
+            ));
         }
-        Execution::Broken(message) => return Err(failure(FailureKind::Other, message)),
+        Execution::Broken(message) => {
+            return Err(Failure::of_run(FailureKind::Other, "command_runs", message));
+        }
     };
     let payload = serde_json::from_slice::<Value>(&stdout);
     if code != Some(0) {
         return Err(nonzero_terminal(payload.ok().as_ref(), credentials));
     }
-    let payload =
-        payload.map_err(|_| failure(FailureKind::Contract, "the command printed invalid JSON"))?;
-    match contract::violation(check.contract, &payload) {
-        Some(violation) => Err(failure(FailureKind::Contract, violation)),
+    let payload = payload.map_err(|_| {
+        Failure::of_run(
+            FailureKind::Contract,
+            "valid_json",
+            "the command printed invalid JSON",
+        )
+    })?;
+    match contract::violation(&check.contract, &payload) {
+        Some(detail) => Err(Failure {
+            kind: FailureKind::Contract,
+            error_kind: Cow::Borrowed("contract"),
+            message: Cow::Owned(detail.describe()),
+            http_status: http_status(&payload),
+            detail: Box::new(detail),
+        }),
         None => Ok(payload),
     }
+}
+
+/// The status of the last provider attempt that reported one.
+fn http_status(payload: &Value) -> Option<u16> {
+    payload["provider_attempts"]
+        .as_array()?
+        .iter()
+        .rev()
+        .find_map(|attempt| attempt["http_status"].as_u64())
+        .and_then(|status| u16::try_from(status).ok())
 }
 
 /// Says why a command exited nonzero: the error kind and message its stdout reports, with every
@@ -688,12 +917,14 @@ fn nonzero_terminal(payload: Option<&Value>, credentials: &[Secret]) -> Failure 
                 &format!("the command failed with {kind}: {message}"),
                 credentials,
             )),
+            detail: Box::new(Detail::rule("command_succeeds")),
+            http_status: payload.and_then(http_status),
         },
-        None => Failure {
-            kind: FailureKind::Other,
-            error_kind: Cow::Borrowed("runtime"),
-            message: Cow::Borrowed("the command exited nonzero without an error kind and message"),
-        },
+        None => Failure::of_run(
+            FailureKind::Other,
+            "command_succeeds",
+            "the command exited nonzero without an error kind and message",
+        ),
     }
 }
 
@@ -824,7 +1055,7 @@ fn summarize(results: &[CheckResult], declared: usize) -> Summary {
         ..Summary::default()
     };
     for result in results {
-        *match result.status {
+        *match result.outcome.status {
             Status::Passed => &mut summary.passed,
             Status::Failed => &mut summary.failed,
             Status::Unconfigured => &mut summary.unconfigured,
@@ -838,11 +1069,12 @@ fn summarize(results: &[CheckResult], declared: usize) -> Summary {
 /// otherwise.
 fn exit_code(results: &[CheckResult]) -> u8 {
     let failed = results.iter().any(|result| {
-        result.status == Status::Failed || result.cause == Some(NotStarted::Deadline)
+        result.outcome.status == Status::Failed
+            || result.outcome.cause == Some(NotStarted::Deadline)
     });
     let ran = results
         .iter()
-        .any(|result| matches!(result.status, Status::Passed | Status::Failed));
+        .any(|result| matches!(result.outcome.status, Status::Passed | Status::Failed));
     if failed {
         4
     } else if ran {

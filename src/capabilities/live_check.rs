@@ -49,6 +49,8 @@ pub(crate) struct LiveCheck {
     pub(crate) manual_only: bool,
     pub(crate) command: LiveCommand,
     pub(crate) contract: LiveContract,
+    /// Why the sample is hard for the route: what an easy sample would let a broken read pass.
+    pub(crate) hard_sample: &'static str,
 }
 
 /// The time limit of a check whose command makes a few plain HTTP requests.
@@ -64,6 +66,7 @@ impl LiveCheck {
         tier: LiveTier,
         command: LiveCommand,
         contract: LiveContract,
+        hard_sample: &'static str,
     ) -> Self {
         Self {
             id,
@@ -74,6 +77,7 @@ impl LiveCheck {
             manual_only: false,
             command,
             contract,
+            hard_sample,
         }
     }
 
@@ -174,34 +178,102 @@ impl RoutePin {
     }
 }
 
-/// What the command's output must show for the check to pass.
+/// What the command's output must show for the check to pass: every field the route decodes from
+/// the upstream response, and what the check's sample must show beyond them.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum LiveContract {
-    /// A non-empty `answer`, such as a main search or a platform ask.
-    Answer,
-    /// An answer with supplemental sources.
-    PipelineSearch,
-    /// Non-empty `results`.
-    Results,
-    /// Non-empty `content`, read with keys or, when `anonymous`, without any.
-    Fetch { anonymous: bool },
-    /// Non-empty `items`.
-    PlatformItems,
-    /// A `ref` and a `title` or `text`.
-    PlatformItem,
-    /// A `ref` and a body written to the content directory.
-    PlatformFullText,
-    /// A non-empty `comments` page.
-    Comments,
-    /// A Xiaohongshu note whose comments span a second page and include an expanded reply
-    /// thread.
-    XiaohongshuComments,
-    /// A resolved event priced by its payouts without the CLOB: `winner` resolved Yes at 1.
-    PolymarketResolved { winner: &'static str },
-    /// An event priced live by the CLOB, unless none of its markets is open.
-    PolymarketLive,
-    /// A price history that ends in a settlement at 1, kept out of the series.
-    PolymarketSettlement,
+pub(crate) struct LiveContract {
+    /// In the order they are judged; a list comes before the fields of its items.
+    pub(crate) fields: &'static [Field],
+    pub(crate) sample: &'static [SampleRule],
+}
+
+impl LiveContract {
+    pub(crate) const fn fields(fields: &'static [Field]) -> Self {
+        Self {
+            fields,
+            sample: &[],
+        }
+    }
+
+    pub(crate) const fn with_sample(self, sample: &'static [SampleRule]) -> Self {
+        Self { sample, ..self }
+    }
+}
+
+/// One field of the output: where it is, the shape its value must have and, inside a list,
+/// whether every item or only some must have it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Field {
+    /// Dot-separated keys from the top of the output; `name[]` steps into each item of a list.
+    pub(crate) path: &'static str,
+    pub(crate) shape: Shape,
+    /// Only some items carry the field, because the upstream leaves it out of others; at least
+    /// one must.
+    pub(crate) in_some_items: bool,
+}
+
+impl Field {
+    const fn new(path: &'static str, shape: Shape) -> Self {
+        Self {
+            path,
+            shape,
+            in_some_items: false,
+        }
+    }
+
+    /// A string with a character other than whitespace.
+    pub(crate) const fn text(path: &'static str) -> Self {
+        Self::new(path, Shape::Text)
+    }
+
+    /// A whole number of at least `min`.
+    pub(crate) const fn count(path: &'static str, min: u64) -> Self {
+        Self::new(path, Shape::Count { min })
+    }
+
+    /// A number of at least `min`.
+    pub(crate) const fn number(path: &'static str, min: f64) -> Self {
+        Self::new(path, Shape::Number { min })
+    }
+
+    pub(crate) const fn boolean(path: &'static str) -> Self {
+        Self::new(path, Shape::Bool)
+    }
+
+    /// A list of at least `min` items.
+    pub(crate) const fn list(path: &'static str, min: usize) -> Self {
+        Self::new(path, Shape::List { min })
+    }
+
+    pub(crate) const fn in_some_items(self) -> Self {
+        Self {
+            in_some_items: true,
+            ..self
+        }
+    }
+}
+
+/// The type and lower bound a field's value must meet; a contract never names an exact value.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Shape {
+    Text,
+    Count { min: u64 },
+    Number { min: f64 },
+    Bool,
+    List { min: usize },
+}
+
+/// What a check's sample was chosen to show, beyond the fields its route decodes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum SampleRule {
+    /// Every provider attempt ran with keys or, when `anonymous`, without any: a read after the
+    /// keys failed proves the Anonymous Fallback, not the keys.
+    Credentials { anonymous: bool },
+    /// The market `winner` of a resolved event is priced by its payout, so the fetch reads it in
+    /// one attempt without the CLOB.
+    ResolvedByPayout { winner: &'static str },
+    /// An event with an open market is priced by live CLOB quotes, not Gamma's cached prices.
+    LiveQuotes,
 }
 
 /// A result on a browser route that ends every remaining check on its site in the run, because
