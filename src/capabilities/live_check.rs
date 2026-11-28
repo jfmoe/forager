@@ -32,6 +32,16 @@ impl LiveTier {
     pub(crate) fn parse(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|tier| tier.as_str() == value)
     }
+
+    /// How many days apart the maintainer's schedule runs the tier; `None` for a tier that no
+    /// schedule may run.
+    pub(crate) const fn schedule_days(self) -> Option<u32> {
+        match self {
+            Self::Free => Some(1),
+            Self::Metered => Some(7),
+            Self::Attended => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

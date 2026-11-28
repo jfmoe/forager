@@ -4,12 +4,14 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use chrono::Utc;
 use futures_util::future::join_all;
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::catalog::{self, AccountCheck, ProviderId, ProviderRegistration, ProviderTransport};
 use crate::config::{self, RuntimeConfig};
+use crate::health::{self, HealthReport};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{self, KeyAccount, KeyQuota};
 use crate::rate_limit::RateLimiter;
@@ -28,6 +30,9 @@ pub(crate) struct DoctorReport {
     state_directories: StateDirectories,
     permission_warnings: Vec<String>,
     config: Value,
+    /// What the health summary found overdue or degraded, when it found anything.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    health: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -164,6 +169,12 @@ fn report(
             state_directories,
             permission_warnings: permission_warnings()?,
             config: effective,
+            health: health::report(
+                health::DEFAULT_DAYS,
+                Utc::now(),
+                config::telemetry_enabled()?,
+            )
+            .attention(),
         },
         if ok { 0 } else { 4 },
     ))
@@ -210,6 +221,14 @@ pub(crate) fn offline() -> Result<(DoctorReport, u8), config::ConfigError> {
         })
         .collect();
     report("offline", providers, true, &runtime_config, effective)
+}
+
+/// The health summary of the `days` before now. It exits 4 when something is overdue or
+/// degraded, so a scheduled job can act on its exit code.
+pub(crate) fn health(days: u32) -> Result<(HealthReport, u8), config::ConfigError> {
+    let report = health::report(days, Utc::now(), config::telemetry_enabled()?);
+    let exit_code = if report.ok() { 0 } else { 4 };
+    Ok((report, exit_code))
 }
 
 pub(crate) fn one_provider(

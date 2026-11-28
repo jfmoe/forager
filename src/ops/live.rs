@@ -414,6 +414,14 @@ struct Confirmation<'a> {
     wait: &'a mut dyn FnMut(Duration),
 }
 
+/// When the latest scheduled run of each tier was recorded under the state directory `state`.
+pub(crate) fn last_scheduled_runs(
+    state: &std::path::Path,
+    now: chrono::DateTime<chrono::Utc>,
+) -> BTreeMap<LiveTier, chrono::DateTime<chrono::Utc>> {
+    record::last_scheduled_runs(&record::Store::new(state.join(record::DIRECTORY)), now)
+}
+
 /// Runs the selected checks within `timeout_seconds`, records the run and reports each check.
 /// `selection` already carries whether the run is unattended.
 pub(crate) fn run(

@@ -203,7 +203,7 @@ pub(crate) struct Record {
 }
 
 /// The command of a record, without its platform and operation.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum CommandName {
     Search,
@@ -261,7 +261,7 @@ impl RecordedAttempt {
 }
 
 impl Record {
-    fn new(
+    pub(crate) fn new(
         command: RetrievalCommand,
         invocation: Invocation,
         exit_code: u8,
@@ -291,6 +291,14 @@ impl Record {
             host: invocation.host,
             attempts: invocation.attempts,
         }
+    }
+
+    /// The providers whose attempts failed before the provider that answered, a failure the
+    /// fallback hid; none when the invocation did not answer.
+    pub(crate) fn hidden_failures(&self) -> impl Iterator<Item = &str> {
+        self.succeeded.iter().flat_map(|provider| {
+            failed_before_answer(&self.attempts, provider).map(|attempt| attempt.provider.as_ref())
+        })
     }
 }
 
@@ -339,13 +347,6 @@ fn write(directory: &Path, record: &Record) -> io::Result<()> {
 
 /// Every readable record in `directory` written at or after `since`, oldest first; a damaged or
 /// foreign file is skipped.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "only tests read the records until doctor summarises them"
-    )
-)]
 pub(crate) fn read(directory: &Path, since: DateTime<Utc>) -> Vec<Record> {
     let Ok(entries) = fs::read_dir(directory) else {
         return Vec::new();

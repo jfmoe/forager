@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -5,7 +6,7 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde_json::{Value, json};
 
-use super::{Run, Store, conclude};
+use super::{Run, Store, conclude, last_scheduled_runs};
 use crate::catalog::{
     Field, LiveArgument, LiveCheck, LiveCommand, LiveContract, LiveTier, ProviderId, RoutePin,
 };
@@ -400,5 +401,45 @@ fn an_expired_record_is_no_baseline_even_before_it_is_removed() {
             matches!(concluded, Err(super::RecordError::RemoveExpired(_))),
         ),
         (Value::Null, false, true)
+    );
+}
+
+#[test]
+fn each_tier_s_last_scheduled_run_counts_a_run_left_unconfirmed_and_no_run_by_hand() {
+    let directory = tempfile::tempdir().expect("create the record directory");
+    let store = Store::new(directory.path().join("live_runs"));
+    let run = |at,
+               tiers: &[&'static str],
+               scheduled,
+               (mut results, summary): (Vec<CheckResult>, Summary)| {
+        conclude(
+            &store,
+            at,
+            &Run {
+                tiers,
+                scheduled,
+                summary: &summary,
+            },
+            &mut results,
+        )
+        .expect("record the run");
+    };
+    run(day(1), &["free", "metered"], true, results(vec![passed()]));
+    // An unattended run with no room for the rerun leaves its failure unconfirmed.
+    run(
+        day(3),
+        &["free"],
+        true,
+        results_within(
+            vec![failed(), failed()],
+            Deadline::new(CONFIRMATION_DELAY),
+            true,
+        ),
+    );
+    run(day(4), &["free", "metered"], false, results(vec![passed()]));
+
+    assert_eq!(
+        last_scheduled_runs(&store, day(5)),
+        BTreeMap::from([(LiveTier::Free, day(3)), (LiveTier::Metered, day(1))])
     );
 }
