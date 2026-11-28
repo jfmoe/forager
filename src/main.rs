@@ -7,8 +7,8 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use forager::app::{
-    self, AppError, Cli, CommandOutput, ContentOutputFormat, ExaOutcome, OutputFormat,
-    OutputTarget, ProviderError, SearchFailure, bounded_attempt_summary,
+    self, AppError, Cli, CommandKind, CommandOutput, ContentOutputFormat, ExaOutcome, Invocation,
+    OutputFormat, OutputTarget, ProviderError, SearchFailure, bounded_attempt_summary,
 };
 use forager::types::{
     AttemptErrorKind, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome, MapOutcome,
@@ -22,19 +22,45 @@ mod platform_render;
 
 const FAILURE_PAYLOAD_TARGET_BYTES: usize = 4096;
 
-// One arm per typed command output; each arm only hands its fields to that output's renderer.
-#[expect(clippy::too_many_lines)]
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    let command = cli.kind();
     let json_preflight_errors = cli.uses_json_preflight_errors();
     let json_preflight_output = cli.json_preflight_output();
-    match app::run(cli) {
-        Ok(CommandOutput::Text {
+    let (exit_code, invocation) = match app::run(cli) {
+        Ok(output) => {
+            let invocation = output.invocation();
+            (emit_output(output), invocation)
+        }
+        Err(error) => (
+            emit_error(&error, json_preflight_errors, json_preflight_output),
+            error.invocation(),
+        ),
+    };
+    finish(command, invocation, exit_code)
+}
+
+/// The terminal function: every command passes through it once its exit code and its
+/// `--output` copy are settled. Its kind alone decides whether it writes a telemetry record.
+fn finish(command: CommandKind, invocation: Invocation, exit_code: u8) -> ExitCode {
+    match command {
+        CommandKind::Retrieval(command) => app::record_invocation(command, invocation, exit_code),
+        CommandKind::Config | CommandKind::Doctor | CommandKind::Setup | CommandKind::Browser => {}
+    }
+    ExitCode::from(exit_code)
+}
+
+/// Prints a command's output and returns its exit code.
+// One arm per typed command output; each arm only hands its fields to that output's renderer.
+#[expect(clippy::too_many_lines)]
+fn emit_output(output: CommandOutput) -> u8 {
+    match output {
+        CommandOutput::Text {
             stdout,
             stderr,
             exit_code,
-        }) => emit(stdout, stderr, exit_code),
-        Ok(CommandOutput::Failure { kind, message }) => emit(
+        } => emit(stdout, stderr, exit_code),
+        CommandOutput::Failure { kind, message } => emit(
             json!({
                 "error_kind": kind.as_str(),
                 "message": message.chars().take(500).collect::<String>(),
@@ -43,125 +69,125 @@ fn main() -> ExitCode {
             None,
             postflight_exit_code(kind),
         ),
-        Ok(CommandOutput::SearchPreflight {
+        CommandOutput::SearchPreflight {
             error,
             journal,
             format,
             output,
-        }) => emit_search_preflight(&error, &journal, format, output),
-        Ok(CommandOutput::Search {
+        } => emit_search_preflight(&error, &journal, format, output),
+        CommandOutput::Search {
             result,
             journal,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             render_search(result, &journal, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::Exa {
+        CommandOutput::Exa {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(render_exa(result, format, output, verbose), attempt_log),
-        Ok(CommandOutput::Fetch {
+        } => emit_logged(render_exa(result, format, output, verbose), attempt_log),
+        CommandOutput::Fetch {
+            result,
+            host: _,
+            format,
+            output,
+            verbose,
+            attempt_log,
+        } => emit_logged(render_fetch(result, format, output, verbose), attempt_log),
+        CommandOutput::Map {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(render_fetch(result, format, output, verbose), attempt_log),
-        Ok(CommandOutput::Map {
+        } => emit_logged(render_map(result, format, output, verbose), attempt_log),
+        CommandOutput::PlatformSearch {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(render_map(result, format, output, verbose), attempt_log),
-        Ok(CommandOutput::PlatformSearch {
-            result,
-            format,
-            output,
-            verbose,
-            attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_search(result, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::PlatformFetch {
+        CommandOutput::PlatformFetch {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_fetch(*result, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::PlatformComments {
+        CommandOutput::PlatformComments {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_comments(result, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::PlatformAsk {
+        CommandOutput::PlatformAsk {
             platform,
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_ask(platform, result, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::PlatformTranscribe {
+        CommandOutput::PlatformTranscribe {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_transcribe(*result, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::HnStories {
+        CommandOutput::HnStories {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_stories(result, format, output, verbose),
             attempt_log,
         ),
-        Ok(CommandOutput::PolymarketHistory {
+        CommandOutput::PolymarketHistory {
             result,
             format,
             output,
             verbose,
             attempt_log,
-        }) => emit_logged(
+        } => emit_logged(
             platform_render::render_history(result, format, output, verbose),
             attempt_log,
         ),
-        Err(error) => emit_error(&error, json_preflight_errors, json_preflight_output),
     }
 }
 
 /// Emits a failure that ended the command before a rendered result: as the JSON preflight
 /// payload when JSON was selected, else as one stderr line.
-fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> ExitCode {
+fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> u8 {
     if !json {
         eprintln!("{}: {error}", error.category());
-        return ExitCode::from(error.exit_code());
+        return error.exit_code();
     }
     emit_rendered(apply_tee(
         error.json_preflight_payload().to_string(),
@@ -305,21 +331,21 @@ fn emit_search_preflight(
     journal: &JournalOutcome,
     format: ContentOutputFormat,
     output: Option<OutputTarget>,
-) -> ExitCode {
+) -> u8 {
     emit_rendered(render_search_preflight(error, journal, format, output))
 }
 
-fn emit_rendered(rendered: Result<RenderedOutput, String>) -> ExitCode {
+fn emit_rendered(rendered: Result<RenderedOutput, String>) -> u8 {
     match rendered {
         Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
         Err(error) => {
             eprintln!("runtime_error: {error}");
-            ExitCode::from(4)
+            4
         }
     }
 }
 
-fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> ExitCode {
+fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> u8 {
     emit_rendered(with_attempt_log(rendered, attempt_log))
 }
 
@@ -515,14 +541,14 @@ fn render_fetch(
 
 // Rendering transfers the completed stdout buffer to the terminal as a final output value.
 #[expect(clippy::needless_pass_by_value)]
-fn emit(stdout: String, stderr: Option<String>, exit_code: u8) -> ExitCode {
+fn emit(stdout: String, stderr: Option<String>, exit_code: u8) -> u8 {
     if !stdout.is_empty() {
         println!("{stdout}");
     }
     if let Some(diagnostic) = stderr {
         eprintln!("{diagnostic}");
     }
-    ExitCode::from(exit_code)
+    exit_code
 }
 
 struct RenderedOutput {

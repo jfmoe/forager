@@ -95,6 +95,7 @@ Only the real binary can prove these facts, and each is proven through the binar
 - Environment variable overrides of configuration.
 - The preflight output of a configuration error.
 - The Search Result Journal being written when it is on and not written when it is off.
+- Invocation Telemetry written at the terminal state, with the exit code the `--output` copy settled, and not written when it is turned off.
 - The file names and the default location of a content directory.
 - Environment isolation: the spawned binary reads only the configuration and state the test gives it, and a route its configuration missed fails instead of reaching a site.
 - The exit codes of a live run (`doctor --live`): 0, 2, 3 and 4, and the run record it writes, marked scheduled only when the run is unattended.

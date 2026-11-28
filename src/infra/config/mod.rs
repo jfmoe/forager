@@ -23,6 +23,7 @@ pub(crate) use route_config::{
 pub(crate) use runtime::{
     JournalRuntimeConfig, LogLevel, PlatformRouteConfig, PlatformRoutesRuntimeConfig,
     PlatformRuntimeConfig, RuntimeConfig, platform_route_config, provider_keys_key, runtime_config,
+    telemetry_enabled,
 };
 #[cfg(test)]
 pub(crate) use runtime::{default_platform_routes, platform_order_key, runtime_config_from_toml};

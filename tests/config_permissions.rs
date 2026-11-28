@@ -1,3 +1,36 @@
+#[path = "support/process.rs"]
+mod process;
+
+use std::path::{Path, PathBuf};
+
+/// Runs one retrieval command that ends before any request, isolated under `root`, and returns
+/// the telemetry directory and the record it wrote.
+fn record_one_invocation(root: &Path) -> (PathBuf, PathBuf) {
+    let config_dir = root.join("config");
+    std::fs::create_dir_all(&config_dir).expect("create config directory");
+    let mut command = process::command_behind_closed_proxy(env!("CARGO_BIN_EXE_forager"));
+    command.env_clear();
+    process::proxy_through(&mut command, process::CLOSED_PROXY);
+    command
+        .env("HOME", root)
+        .env("FORAGER_CONFIG_DIR", &config_dir)
+        .env("XDG_STATE_HOME", root.join("state"))
+        .args(["map", "https://example.test"]);
+    if let Some(system_root) = std::env::var_os("SystemRoot") {
+        command.env("SystemRoot", system_root);
+    }
+    let output = process::run_command(&mut command, None);
+    assert_eq!(output.status.code(), Some(3), "{output:?}");
+    let directory = root.join("state").join("forager").join("telemetry");
+    let record = std::fs::read_dir(&directory)
+        .expect("read telemetry directory")
+        .next()
+        .expect("a telemetry record")
+        .expect("a telemetry entry")
+        .path();
+    (directory, record)
+}
+
 #[cfg(unix)]
 mod unix {
     use std::fs;
@@ -30,6 +63,15 @@ mod unix {
         assert_eq!(modes, [0o700, 0o600, 0o600]);
     }
 
+    #[test]
+    fn telemetry_records_are_private() {
+        let root = tempfile::tempdir().expect("create temporary root");
+
+        let (directory, record) = super::record_one_invocation(root.path());
+
+        assert_eq!([mode(&directory), mode(&record)], [0o700, 0o600]);
+    }
+
     fn mode(path: &std::path::Path) -> u32 {
         path.metadata().expect("read metadata").permissions().mode() & 0o777
     }
@@ -59,6 +101,15 @@ mod windows {
             .into_iter()
             .all(|path| acl_is_owner_only(path));
         assert!(owner_only);
+    }
+
+    #[test]
+    fn telemetry_records_are_restricted_to_the_windows_owner() {
+        let root = tempfile::tempdir().expect("create temporary root");
+
+        let (directory, record) = super::record_one_invocation(root.path());
+
+        assert!(acl_is_owner_only(&directory) && acl_is_owner_only(&record));
     }
 
     // `doctor` reads the configuration through this check.

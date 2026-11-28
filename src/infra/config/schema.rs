@@ -21,6 +21,7 @@ pub(super) struct Config {
     pub(super) platforms: Platforms,
     pub(super) log: Log,
     pub(super) journal: Journal,
+    pub(super) telemetry: Telemetry,
     pub(super) retry: Retry,
     pub(super) http: Http,
     pub(super) browser: Browser,
@@ -152,6 +153,18 @@ impl Default for Journal {
             dir: "~/.local/state/forager/journal".into(),
             retention_days: 30,
         }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct Telemetry {
+    pub(super) enabled: bool,
+}
+
+impl Default for Telemetry {
+    fn default() -> Self {
+        Self { enabled: true }
     }
 }
 
@@ -394,6 +407,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
     leaf!("journal.retention_days", journal.retention_days: U64, Rule::Any, View::Plain, "journal retention in days; zero keeps entries indefinitely"),
+    leaf!("telemetry.enabled", telemetry.enabled: Bool, Rule::Any, View::Plain, "record one Invocation Telemetry entry of health signals per retrieval command in the state directory"),
     leaf!("retry.max_attempts", retry.max_attempts: U64, Rule::Positive, View::Plain, "maximum attempts per request"),
     leaf!("retry.multiplier", retry.multiplier: F64, Rule::PositiveFinite, View::Plain, "retry backoff multiplier"),
     leaf!("retry.max_wait", retry.max_wait: U64, Rule::Any, View::Plain, "maximum retry wait in seconds"),

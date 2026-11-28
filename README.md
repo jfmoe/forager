@@ -101,6 +101,7 @@ When the skill names a command or option the installed forager lacks, upgrade fo
 - forager does not orchestrate investigations: the calling agent splits the question, chooses the commands and judges the evidence.
 - `fetch`, `map` and the `exa` subcommands are explicit direct entry points.
 - Credentials are kept in the local configuration; command output and the persisted journal redact sensitive URL parameters.
+- Every retrieval command writes a local Invocation Telemetry record of health signals, which names the providers tried and, for `fetch`, the host fetched from, but never a query, a full URL, content, a key or an error message. Nothing leaves the machine, and the configuration can turn it off.
 - When a capability is temporarily unavailable, the result reports it in `capability_gaps` instead of passing the missing capability off as covered.
 
 Domain terms are in [GLOSSARY.md](GLOSSARY.md), the architecture in [docs/architecture.md](docs/architecture.md).
