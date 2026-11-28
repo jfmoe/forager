@@ -185,11 +185,17 @@ impl RunEnvironment {
     }
 
     pub(crate) fn run_with_env(&self, arguments: &[&str], variables: &[(&str, &str)]) -> Output {
-        let mut command = isolated_command(self.root.path(), &self.config_dir, &self.state_dir);
-        command.args(arguments);
+        let mut command = self.command(arguments);
         for (name, value) in variables {
             command.env(name, value);
         }
         run_command(&mut command, None)
+    }
+
+    /// The binary isolated to this environment with `arguments`, for a test that starts it itself.
+    pub(crate) fn command(&self, arguments: &[&str]) -> Command {
+        let mut command = isolated_command(self.root.path(), &self.config_dir, &self.state_dir);
+        command.args(arguments);
+        command
     }
 }

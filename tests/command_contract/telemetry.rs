@@ -3,13 +3,17 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::process::Stdio;
 
 use serde_json::{Value, json};
 
 use crate::support::hn::config as hn_config;
 use crate::support::samples::{sample, sample_json};
 use crate::support::web_samples::jina;
-use crate::support::{Fixture, Response, RunEnvironment, payload, stderr};
+use crate::support::{
+    Fixture, Response, RunEnvironment, command_deadline, payload, spawn_command_reading_stdout,
+    stderr, wait_for_child,
+};
 
 const TOKEN_MARKER: &str = "token-marker-key";
 
@@ -161,6 +165,40 @@ fn the_record_keeps_the_exit_code_the_output_copy_settled() {
                 .collect::<Vec<_>>(),
         ),
         (Some(3), vec![(json!(3), json!("output"), json!("jina"))])
+    );
+}
+
+#[test]
+fn a_reader_that_closes_the_pipe_early_leaves_the_exit_code_and_the_record() {
+    // Far larger than a pipe buffer, so the binary is still writing when the reader leaves.
+    let content = page(&"an article ".repeat(20_000));
+    let fixture = Fixture::start_sequence(vec![jina(&content)]);
+    let environment = RunEnvironment::new(&jina_config(&fixture.url));
+    let mut command = environment.command(&[
+        "fetch",
+        "https://example.test/article",
+        "--format",
+        "content",
+    ]);
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let child = spawn_command_reading_stdout(&mut command, 1).expect("start the fetch");
+    let output = wait_for_child(child, "fetch read by `head -c 1`", command_deadline());
+    fixture.finish();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            stderr(&output),
+            records(&environment)
+                .iter()
+                .map(|(_, record)| record["exit_code"].clone())
+                .collect::<Vec<_>>(),
+        ),
+        (Some(0), String::new(), vec![json!(0)])
     );
 }
 

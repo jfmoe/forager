@@ -2,6 +2,7 @@
 
 use std::fmt::Write as _;
 use std::fs;
+use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -208,7 +209,7 @@ fn emit_output(output: CommandOutput) -> Settled {
 /// payload when JSON was selected, else as one stderr line.
 fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> Settled {
     if !json {
-        eprintln!("{}: {error}", error.category());
+        write_line(io::stderr(), &format!("{}: {error}", error.category()));
         return Settled::exit(error.exit_code());
     }
     emit_rendered(apply_tee(
@@ -364,7 +365,7 @@ fn emit_rendered(rendered: Result<RenderedOutput, String>) -> Settled {
             output_unwritten: rendered.output_unwritten,
         },
         Err(error) => {
-            eprintln!("runtime_error: {error}");
+            write_line(io::stderr(), &format!("runtime_error: {error}"));
             Settled::exit(4)
         }
     }
@@ -568,12 +569,24 @@ fn render_fetch(
 #[expect(clippy::needless_pass_by_value)]
 fn emit(stdout: String, stderr: Option<String>, exit_code: u8) -> u8 {
     if !stdout.is_empty() {
-        println!("{stdout}");
+        write_line(io::stdout().lock(), &stdout);
     }
     if let Some(diagnostic) = stderr {
-        eprintln!("{diagnostic}");
+        write_line(io::stderr().lock(), &diagnostic);
     }
     exit_code
+}
+
+/// Writes `text` and a line break to `stream`, as `println!` would. A reader that closed the pipe
+/// early, as `forager … | head` does, wants no more output, so that write is dropped instead of
+/// panicking: the command keeps its settled exit code and still reaches the terminal function.
+fn write_line(mut stream: impl io::Write, text: &str) {
+    if let Err(error) = writeln!(stream, "{text}").and_then(|()| stream.flush()) {
+        assert!(
+            error.kind() == io::ErrorKind::BrokenPipe,
+            "failed printing a command's output: {error}"
+        );
+    }
 }
 
 struct RenderedOutput {
