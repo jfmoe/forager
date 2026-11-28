@@ -2,59 +2,11 @@
 //! An observation holds only types, counts and lengths, so a failure never carries a title, a
 //! text or any other value of the output.
 
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::catalog::{Field, LiveContract, SampleRule, Shape};
-
-/// A rule a check can break: a shape rule of a contract's field, a rule of its sample, or a
-/// rule of the run itself.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Rule {
-    Present,
-    Type,
-    Nonblank,
-    AtLeast,
-    MinItems,
-    InSomeItems,
-    NoRuntimeAttempt,
-    KeyedRead,
-    AnonymousRead,
-    ResolvedByPayout,
-    LiveQuotes,
-    CommandSucceeds,
-    TimeLimit,
-    ValidJson,
-    CommandRuns,
-}
-
-impl Rule {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Present => "present",
-            Self::Type => "type",
-            Self::Nonblank => "nonblank",
-            Self::AtLeast => "at_least",
-            Self::MinItems => "min_items",
-            Self::InSomeItems => "in_some_items",
-            Self::NoRuntimeAttempt => "no_runtime_attempt",
-            Self::KeyedRead => "keyed_read",
-            Self::AnonymousRead => "anonymous_read",
-            Self::ResolvedByPayout => "resolved_by_payout",
-            Self::LiveQuotes => "live_quotes",
-            Self::CommandSucceeds => "command_succeeds",
-            Self::TimeLimit => "time_limit",
-            Self::ValidJson => "valid_json",
-            Self::CommandRuns => "command_runs",
-        }
-    }
-}
-
-impl Serialize for Rule {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.as_str())
-    }
-}
+pub(super) use crate::types::LiveCheckRule as Rule;
 
 /// Which rule a check broke, where, and what was there.
 #[derive(Debug, PartialEq, Serialize)]

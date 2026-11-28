@@ -4,6 +4,7 @@ mod attempt;
 mod capability;
 mod deadline;
 mod error;
+mod live_check_rule;
 mod outcome;
 mod platform;
 mod platform_arxiv;
@@ -28,6 +29,7 @@ pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 pub use capability::{Capability, CapabilitySet, FallbackPolicy};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
+pub use live_check_rule::LiveCheckRule;
 pub(crate) use outcome::{DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, MIN_FETCH_CONTENT_CHARS};
 pub use outcome::{ExaInput, ExaOutcome, FetchOutcome, JournalOutcome, MapOutcome};
 pub(crate) use platform::{
