@@ -259,9 +259,9 @@ fn a_rate_a_fifth_worse_than_the_previous_period_is_degraded_and_a_smaller_move_
 }
 
 #[test]
-fn a_period_below_the_minimum_calls_is_too_small_to_compare_even_when_every_call_failed() {
+fn a_period_below_the_minimum_calls_is_too_small_to_judge_even_when_every_call_failed() {
     let mut telemetry = failing("jina", 20, 20, 1);
-    telemetry.retain(|record| record.recorded_at != previous(1));
+    telemetry.retain(|record| record.recorded_at != ago(1));
 
     let report = report_of(&telemetry);
 
@@ -271,8 +271,88 @@ fn a_period_below_the_minimum_calls_is_too_small_to_compare_even_when_every_call
             &json!(true),
             &json!([{
                 "subject": "provider", "provider": "jina", "command": "fetch",
-                "finding": "sample_too_small", "calls": 20, "previous_calls": 19, "minimum": 20,
+                "finding": "sample_too_small", "calls": 19, "previous_calls": 20, "minimum": 20,
             }])
+        )
+    );
+}
+
+#[test]
+fn a_provider_succeeding_in_under_half_its_calls_is_failing_whatever_the_period_before() {
+    let hidden = |at| {
+        fetched(
+            at,
+            &[
+                attempt("jina", Some((AttemptErrorKind::Network, 502)), 100),
+                attempt("tavily", None, 100),
+            ],
+            "tavily",
+            2000,
+        )
+    };
+    // The full text of a paper, read through Web Fetch after the route answered.
+    let full_text = |at| {
+        Record::new(
+            RetrievalCommand::Platform(Platform::Arxiv, "fetch"),
+            Invocation::succeeded(
+                &[
+                    attempt("arxiv_api", None, 100),
+                    attempt("jina", Some((AttemptErrorKind::Timeout, 504)), 100),
+                ],
+                "arxiv_api",
+                ResultSignal::content(&page(2000)),
+            ),
+            0,
+            at,
+        )
+    };
+    let half = |at: DateTime<Utc>, hour: i64| {
+        if hour % 2 == 0 {
+            failed_fetch(
+                at,
+                &[attempt(
+                    "firecrawl",
+                    Some((AttemptErrorKind::Network, 502)),
+                    100,
+                )],
+            )
+        } else {
+            fetched_by(at, "firecrawl")
+        }
+    };
+    let mut telemetry = (1..=20)
+        .flat_map(|hour| {
+            [ago(hour), previous(hour)].map(|at| [hidden(at), full_text(at), half(at, hour)])
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    telemetry.sort_by_key(|record| record.recorded_at);
+
+    let report = report_of(&telemetry);
+    let failing = |command: Value| {
+        let mut finding = json!({
+            "subject": "provider", "provider": "jina",
+            "finding": "failing", "success_rate": 0.0, "calls": 20,
+        });
+        finding
+            .as_object_mut()
+            .expect("an object")
+            .extend(command.as_object().expect("an object").clone());
+        finding
+    };
+
+    assert_eq!(
+        (&report["ok"], &report["findings"]),
+        (
+            &json!(false),
+            &json!([
+                failing(json!({"command": "fetch"})),
+                {
+                    "subject": "provider", "provider": "jina", "command": "fetch",
+                    "finding": "hidden_failures", "count": 20,
+                },
+                failing(json!({"command": "platform", "platform": "arxiv", "operation": "fetch"})),
+            ])
         )
     );
 }
@@ -447,8 +527,18 @@ fn a_schedule_is_overdue_past_its_interval_and_a_day_and_one_without_a_record_is
 }
 
 #[test]
-fn the_attention_line_names_what_is_overdue_or_degraded_and_nothing_else_raises_it() {
+fn the_attention_line_names_what_is_failing_degraded_or_overdue_and_nothing_else_raises_it() {
     let mut degraded = failing("jina", 20, 10, 1);
+    degraded.extend((1..=20).map(|hour| {
+        failed_fetch(
+            ago(hour),
+            &[attempt(
+                "firecrawl",
+                Some((AttemptErrorKind::Network, 502)),
+                100,
+            )],
+        )
+    }));
     degraded.push(fetched(
         ago(40),
         &[
@@ -490,7 +580,8 @@ fn the_attention_line_names_what_is_overdue_or_degraded_and_nothing_else_raises_
         lines,
         [
             Some(
-                "jina fetch degraded, tier free overdue; run `forager doctor --health` for the report"
+                "firecrawl fetch failing, jina fetch degraded, tier free overdue; \
+                 run `forager doctor --health` for the report"
                     .to_owned()
             ),
             None,

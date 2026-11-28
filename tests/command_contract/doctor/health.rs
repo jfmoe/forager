@@ -52,7 +52,7 @@ fn the_health_summary_reads_telemetry_and_the_schedule_records_without_a_request
     let fetch = environment.run(&["fetch", "https://example.test/page"]);
     let state = environment.state_dir.join("forager");
     let now = Utc::now();
-    record_scheduled_run(&state, now - TimeDelta::days(3), &["free"]);
+    record_scheduled_run(&state, now - TimeDelta::days(30), &["free"]);
     fs::write(
         state.join("github_workflows.json"),
         json!({
@@ -102,8 +102,8 @@ fn the_doctor_report_adds_one_health_line_when_a_scheduled_tier_is_overdue() {
     let environment = RunEnvironment::new("");
     record_scheduled_run(
         &environment.state_dir.join("forager"),
-        Utc::now() - TimeDelta::days(3),
-        &["free", "metered"],
+        Utc::now() - TimeDelta::days(30),
+        &["free"],
     );
 
     let doctor = environment.run(&["doctor", "--offline"]);

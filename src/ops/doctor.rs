@@ -30,7 +30,7 @@ pub(crate) struct DoctorReport {
     state_directories: StateDirectories,
     permission_warnings: Vec<String>,
     config: Value,
-    /// What the health summary found overdue or degraded, when it found anything.
+    /// What the health summary found failing, degraded or overdue, when it found anything.
     #[serde(skip_serializing_if = "Option::is_none")]
     health: Option<String>,
 }
@@ -227,8 +227,8 @@ pub(crate) fn offline() -> Result<(DoctorReport, u8), config::ConfigError> {
     report("offline", providers, true, &runtime_config, effective)
 }
 
-/// The health summary of the `days` before now. It exits 4 when something is overdue or
-/// degraded, so a scheduled job can act on its exit code.
+/// The health summary of the `days` before now. It exits 4 when something is failing, degraded
+/// or overdue, so a scheduled job can act on its exit code.
 pub(crate) fn health(days: u32) -> Result<(HealthSummary, u8), config::ConfigError> {
     let telemetry_enabled = config::telemetry_enabled()?;
     let report = health::report(days, Utc::now());

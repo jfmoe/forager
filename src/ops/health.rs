@@ -20,6 +20,10 @@ pub(crate) const DEFAULT_DAYS: u32 = 7;
 pub(crate) const MAX_DAYS: u32 = 15;
 /// The calls a provider needs in each of the two periods before they are compared.
 const MINIMUM_CALLS: usize = 20;
+/// A provider whose calls succeed less often than this fraction, with the minimum calls in the
+/// period, is failing, whatever the period before said: a fallback can hide such a provider for
+/// weeks, and a comparison sees nothing once both periods fail alike.
+const FAILING_BELOW: (usize, usize) = (1, 2);
 /// A rate that moved this far for the worse, as a fraction, is a degradation.
 const DEGRADATION: (usize, usize) = (1, 5);
 /// A fetched page shorter than this many characters is short. Thinner content already fails
@@ -98,7 +102,7 @@ pub(crate) fn report(days: u32, now: DateTime<Utc>) -> HealthReport {
 #[derive(Debug, Serialize)]
 pub(crate) struct HealthReport {
     mode: &'static str,
-    /// No finding needs attention: nothing is overdue or degraded.
+    /// No finding needs attention: nothing is failing, degraded or overdue.
     ok: bool,
     days: u32,
     since: DateTime<Utc>,
@@ -144,6 +148,11 @@ struct Finding {
 #[derive(Debug, Serialize)]
 #[serde(tag = "finding", rename_all = "snake_case")]
 enum FindingKind {
+    /// Too few of the period's calls succeeded.
+    Failing {
+        success_rate: Rate,
+        calls: usize,
+    },
     /// A rate moved for the worse against the period before.
     Degraded {
         metric: Metric,
@@ -279,7 +288,7 @@ pub(crate) fn summarize(evidence: &Evidence<'_>, now: DateTime<Utc>, days: u32) 
 }
 
 impl HealthReport {
-    /// Whether nothing is overdue or degraded.
+    /// Whether nothing is failing, degraded or overdue.
     pub(crate) const fn ok(&self) -> bool {
         self.ok
     }
@@ -487,6 +496,13 @@ fn worsened(current: (usize, usize), previous: (usize, usize), higher_is_better:
 fn provider_findings(tally: &Tally, previous: Option<&Tally>) -> Vec<FindingKind> {
     let mut findings = Vec::new();
     let previous_calls = previous.map_or(0, |previous| previous.calls);
+    let (below, of) = FAILING_BELOW;
+    if tally.calls >= MINIMUM_CALLS && tally.successes * of < below * tally.calls {
+        findings.push(FindingKind::Failing {
+            success_rate: rate(tally.success_rate()),
+            calls: tally.calls,
+        });
+    }
     if let Some(previous) =
         previous.filter(|previous| previous.calls >= MINIMUM_CALLS && tally.calls >= MINIMUM_CALLS)
     {
@@ -623,8 +639,8 @@ impl ScheduleHealth {
 }
 
 impl Finding {
-    /// Whether the finding is one that the default `doctor` reports: something overdue or
-    /// degraded.
+    /// Whether the finding is one that the default `doctor` reports: something failing,
+    /// degraded or overdue.
     fn needs_attention(&self) -> bool {
         self.kind.attention().is_some()
     }
@@ -635,6 +651,7 @@ impl FindingKind {
     /// one only the health summary shows.
     const fn attention(&self) -> Option<&'static str> {
         match self {
+            Self::Failing { .. } => Some("failing"),
             Self::Degraded { .. } => Some("degraded"),
             Self::Overdue { .. } => Some("overdue"),
             Self::HiddenFailures { .. }
