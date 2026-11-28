@@ -127,7 +127,6 @@ fn report_of(telemetry: &[Record]) -> Value {
         },
         now(),
         7,
-        true,
     ))
     .expect("serialize the report")
 }
@@ -161,7 +160,6 @@ fn hidden_and_short_answers_a_small_sample_and_stale_schedules_are_exactly_the_f
         },
         now(),
         7,
-        true,
     ))
     .expect("serialize the report");
 
@@ -408,7 +406,6 @@ fn a_schedule_is_overdue_past_its_interval_and_a_day_and_one_without_a_record_is
             },
             now(),
             7,
-            true,
         ))
         .expect("serialize the report")
     };
@@ -485,7 +482,6 @@ fn the_attention_line_names_what_is_overdue_or_degraded_and_nothing_else_raises_
             },
             now(),
             7,
-            true,
         )
         .attention()
     });

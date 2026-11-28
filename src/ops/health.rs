@@ -65,7 +65,7 @@ fn read_workflows(path: &Path) -> Option<Vec<WorkflowStatus>> {
 
 /// The summary of the `days` before `now`, read from forager's state directory; with no state
 /// directory, nothing is recorded.
-pub(crate) fn report(days: u32, now: DateTime<Utc>, telemetry_enabled: bool) -> HealthReport {
+pub(crate) fn report(days: u32, now: DateTime<Utc>) -> HealthReport {
     let state = crate::state_file::state_directory();
     let telemetry = state
         .as_ref()
@@ -91,7 +91,6 @@ pub(crate) fn report(days: u32, now: DateTime<Utc>, telemetry_enabled: bool) -> 
         },
         now,
         days,
-        telemetry_enabled,
     )
 }
 
@@ -103,7 +102,6 @@ pub(crate) struct HealthReport {
     ok: bool,
     days: u32,
     since: DateTime<Utc>,
-    telemetry_enabled: bool,
     findings: Vec<Finding>,
     providers: Vec<ProviderHealth>,
     schedules: Vec<ScheduleHealth>,
@@ -244,12 +242,7 @@ enum ScheduleStatus {
 }
 
 /// Summarises `evidence` over the `days` before `now`, against the `days` before those.
-pub(crate) fn summarize(
-    evidence: &Evidence<'_>,
-    now: DateTime<Utc>,
-    days: u32,
-    telemetry_enabled: bool,
-) -> HealthReport {
+pub(crate) fn summarize(evidence: &Evidence<'_>, now: DateTime<Utc>, days: u32) -> HealthReport {
     let since = now - TimeDelta::days(i64::from(days));
     let (current, previous): (Vec<&Record>, Vec<&Record>) = evidence
         .telemetry
@@ -279,7 +272,6 @@ pub(crate) fn summarize(
         ok: !findings.iter().any(Finding::needs_attention),
         days,
         since,
-        telemetry_enabled,
         findings,
         providers,
         schedules,
@@ -295,14 +287,9 @@ impl HealthReport {
     /// One line naming every finding that needs attention, when there is one.
     pub(crate) fn attention(&self) -> Option<String> {
         let mut named = Vec::<String>::new();
-        for finding in self
-            .findings
-            .iter()
-            .filter(|finding| finding.needs_attention())
-        {
-            let state = match finding.kind {
-                FindingKind::Degraded { .. } => "degraded",
-                _ => "overdue",
+        for finding in &self.findings {
+            let Some(state) = finding.kind.attention() else {
+                continue;
             };
             let line = format!("{} {state}", finding.subject.label());
             if !named.contains(&line) {
@@ -321,30 +308,33 @@ impl HealthReport {
 impl Subject {
     /// How a line of text names the subject, such as `jina fetch` or `tier free`.
     fn label(&self) -> String {
-        match self {
-            Self::Provider(usage) => {
-                let command = match usage.command {
-                    CommandName::Search => "search",
-                    CommandName::Fetch => "fetch",
-                    CommandName::Map => "map",
-                    CommandName::Exa => "exa",
-                    CommandName::Platform => "platform",
-                };
-                [
-                    Some(usage.provider.as_str()),
-                    Some(command),
-                    usage.platform.map(Platform::as_str),
-                    usage.operation.as_deref(),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(" ")
-            }
-            Self::Tier { tier } => format!("tier {tier}"),
-            Self::Workflow { workflow } => format!("workflow {workflow}"),
-            Self::WorkflowRecord => "workflow_record".to_owned(),
-        }
+        label(&serde_json::to_value(self).expect("a subject serializes"))
+    }
+}
+
+/// The fields that name what an entry of the report is about: a finding, a provider row or a
+/// schedule.
+pub(crate) const SUBJECT_FIELDS: [&str; 7] = [
+    "subject",
+    "provider",
+    "command",
+    "platform",
+    "operation",
+    "tier",
+    "workflow",
+];
+
+/// How a line of text names what a serialized entry of the report is about, such as
+/// `jina fetch`, `youtube_api platform youtube comments` or `tier free`.
+pub(crate) fn label(entry: &serde_json::Value) -> String {
+    let named = SUBJECT_FIELDS[1..]
+        .iter()
+        .filter_map(|field| entry[*field].as_str())
+        .collect::<Vec<_>>();
+    match entry["subject"].as_str() {
+        Some(subject @ ("tier" | "workflow")) => format!("{subject} {}", named.join(" ")),
+        Some(subject) if named.is_empty() => subject.to_owned(),
+        _ => named.join(" "),
     }
 }
 
@@ -636,10 +626,22 @@ impl Finding {
     /// Whether the finding is one that the default `doctor` reports: something overdue or
     /// degraded.
     fn needs_attention(&self) -> bool {
-        matches!(
-            self.kind,
-            FindingKind::Overdue { .. } | FindingKind::Degraded { .. }
-        )
+        self.kind.attention().is_some()
+    }
+}
+
+impl FindingKind {
+    /// How the attention line states a finding that the default `doctor` reports; `None` for
+    /// one only the health summary shows.
+    const fn attention(&self) -> Option<&'static str> {
+        match self {
+            Self::Degraded { .. } => Some("degraded"),
+            Self::Overdue { .. } => Some("overdue"),
+            Self::HiddenFailures { .. }
+            | Self::ShortContent { .. }
+            | Self::SampleTooSmall { .. }
+            | Self::NotRecorded => None,
+        }
     }
 }
 
