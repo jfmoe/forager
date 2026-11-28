@@ -26,6 +26,8 @@ use crate::types::{Deadline, Platform};
 
 #[path = "live_contract.rs"]
 mod contract;
+#[path = "live_notification.rs"]
+mod notification;
 #[path = "live_record.rs"]
 mod record;
 
@@ -265,6 +267,10 @@ pub(crate) struct LiveReport {
     tiers: Vec<&'static str>,
     summary: Summary,
     checks: Vec<CheckResult>,
+    /// In an unattended run, the notification decision of each provider whose monitoring issue
+    /// the run changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    notifications: Option<Vec<notification::Notification>>,
     /// Why the run record could not be written; the run's result does not depend on it.
     #[serde(skip_serializing_if = "Option::is_none")]
     record_warning: Option<String>,
@@ -457,22 +463,23 @@ pub(crate) fn run(
         .into_iter()
         .map(LiveTier::as_str)
         .collect::<Vec<_>>();
-    let record_warning = crate::state_file::state_directory()
-        .ok_or(record::RecordError::NoStateDirectory)
-        .and_then(|state| {
-            record::conclude(
+    let run = record::Run {
+        tiers: &tiers,
+        scheduled: selection.unattended,
+        summary: &summary,
+    };
+    let (notifications, record_warning) = match crate::state_file::state_directory() {
+        Some(state) => {
+            let conclusion = record::conclude(
                 &record::Store::new(state.join(record::DIRECTORY)),
                 chrono::Utc::now(),
-                &record::Run {
-                    tiers: &tiers,
-                    scheduled: selection.unattended,
-                    summary: &summary,
-                },
+                &run,
                 &mut results,
-            )
-        })
-        .err()
-        .map(|error| error.to_string());
+            );
+            (conclusion.notifications, conclusion.record.err())
+        }
+        None => (Vec::new(), Some(record::RecordError::NoStateDirectory)),
+    };
     Ok((
         LiveReport {
             mode: "live",
@@ -481,7 +488,8 @@ pub(crate) fn run(
             tiers,
             summary,
             checks: results,
-            record_warning,
+            notifications: selection.unattended.then_some(notifications),
+            record_warning: record_warning.map(|error| error.to_string()),
         },
         exit_code,
     ))
@@ -1161,3 +1169,7 @@ fn exit_code(results: &[CheckResult]) -> u8 {
 #[cfg(test)]
 #[path = "live_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "live_schedule_tests.rs"]
+mod schedule_tests;

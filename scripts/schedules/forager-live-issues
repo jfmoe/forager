@@ -1,0 +1,50 @@
+#!/bin/bash
+# Carries out the notification decision of an unattended `forager doctor --live` run under the
+# maintainer's gh identity. Posts a macOS notification for every open and update, for a run that
+# exited with neither 0 nor 4, and for a gh command that failed.
+# Usage: forager-live-issues REPORT EXIT_CODE
+repo=jfmoe/forager
+report=${1:?the report of an unattended doctor --live run}
+exit_code=${2:?the exit code of that run}
+
+notify() {
+  osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' \
+    -e 'end run' "$1" "$2"
+}
+
+# 0: every check that ran passed. 4: a check failed, and only a confirmed failure has a decision.
+# Any other code means the run checked nothing: its selection was refused or its configuration
+# did not load.
+case $exit_code in
+  0 | 4) ;;
+  *) notify "forager live run" "doctor --live exited $exit_code; read $report" ;;
+esac
+
+# Each decision is four NUL-terminated fields: action, label, title and body.
+while IFS= read -r -d '' action <&3 && IFS= read -r -d '' label <&3 &&
+  IFS= read -r -d '' title <&3 && IFS= read -r -d '' body <&3; do
+  if ! number=$(gh issue list --repo "$repo" --label "$label" --state open --limit 1 \
+    --json number --jq '.[0].number // ""'); then
+    notify "forager: $title" "could not find the issue labelled $label to $action it"
+    continue
+  fi
+  case $action in
+    open | update)
+      if [ -n "$number" ]; then
+        gh issue comment "$number" --repo "$repo" --body "$body"
+      else
+        gh label create "$label" --repo "$repo" --force --color FBCA04 \
+          --description "forager's scheduled Live Checks of one provider" &&
+          gh issue create --repo "$repo" --label "$label" --title "$title" --body "$body"
+      fi || notify "forager: $title" "could not $action the issue labelled $label"
+      notify "forager: $title" "$action: the issue labelled $label"
+      ;;
+    close)
+      if [ -n "$number" ]; then
+        gh issue close "$number" --repo "$repo" --comment "$body" ||
+          notify "forager: $title" "could not close the issue labelled $label"
+      fi
+      ;;
+  esac
+done 3< <(jq -j '.notifications[]? | .action, "\u0000", .label, "\u0000", .title, "\u0000", .body, "\u0000"' \
+  "$report" 2>/dev/null)

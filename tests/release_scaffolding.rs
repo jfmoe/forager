@@ -1,6 +1,9 @@
 #[path = "support/process.rs"]
 mod process;
 #[cfg(unix)]
+#[path = "release_scaffolding/scheduled_jobs.rs"]
+mod scheduled_jobs;
+#[cfg(unix)]
 #[path = "release_scaffolding/scheduled_workflows.rs"]
 mod scheduled_workflows;
 #[cfg(unix)]

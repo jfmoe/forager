@@ -1,0 +1,47 @@
+#!/bin/bash
+# The weekly job: the metered tier and its notification decision, then the record of the GitHub
+# scheduled workflows that the health summary reads, then the health summary.
+repo=jfmoe/forager
+logs="$HOME/Library/Logs/forager"
+mkdir -p "$logs"
+report="$logs/live-metered.json"
+forager doctor --live --unattended --tier metered --timeout 900 >"$report"
+status=$?
+"$(dirname "$0")/forager-live-issues" "$report" "$status"
+
+notify() {
+  osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' \
+    -e 'end run' "$1" "$2"
+}
+
+# Every scheduled workflow is listed: the health summary reports only the ones the record names.
+workflows=(scheduled-build.yml scheduled-advisories.yml)
+state="${XDG_STATE_HOME:-$HOME/.local/state}/forager"
+entries=()
+for workflow in "${workflows[@]}"; do
+  if ! last=$(gh run list --repo "$repo" --workflow "$workflow" --status success --limit 1 \
+    --json updatedAt --jq '.[0].updatedAt // ""'); then
+    break
+  fi
+  entries+=("$(jq -cn --arg workflow "$workflow" --arg last "$last" \
+    '{workflow: $workflow, interval_days: 7, last_success: (if $last == "" then null else $last end)}')")
+done
+# A record is written only when every query answered, so a failed query keeps the last record
+# instead of reporting every workflow as not recorded.
+if [ "${#entries[@]}" -eq "${#workflows[@]}" ]; then
+  (
+    umask 077
+    mkdir -p "$state" &&
+      printf '%s\n' "${entries[@]}" | jq -s '{schema_version: 1, workflows: .}' \
+        >"$state/github_workflows.json.new" &&
+      mv "$state/github_workflows.json.new" "$state/github_workflows.json"
+  )
+else
+  notify "forager weekly job" "could not read the last success of the GitHub scheduled workflows"
+fi
+
+forager doctor --health --format markdown >"$logs/health.md"
+# 4: the summary flags something failing, degraded or overdue.
+if [ "$?" -eq 4 ]; then
+  notify "forager health" "doctor --health flags something; read $logs/health.md"
+fi

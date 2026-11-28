@@ -10,9 +10,9 @@ Each rule is proven once, at the cheapest layer that can observe it breaking. Pl
 | Binary unit tests | Does the binary present a result correctly? | Rendering of command outputs and the mapping from errors to exit codes |
 | Command contract tests | Does the real binary keep its outer contract? | Each command's outer path and the items of the [outer checklist](#the-outer-checklist) |
 | Rule tests | Do the repository's documents and layout follow their rules? | The repository rules and the product skill contract |
-| Release and permission tests | Does what CI and a release rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, and private file permissions on each operating system |
+| Release and permission tests | Does what CI, a release and the schedules rely on still hold? | The shape of the workflows and the release configuration, the release verification scripts, the scheduled jobs' scripts run against stand-ins for the programs they call, and private file permissions on each operating system |
 | Real-browser tests | Do the browser transport and Page Logic work in the Managed Browser? | Off by default; [`browser-routes.md`](browser-routes.md) runs them |
-| Live Checks | Do real sites and keys still answer as forager expects? | Canaries of each provider's operations against the real services, run by `forager doctor --live` after a release, as [`release.md`](release.md) says, and with `--provider <provider>` after a change to that provider's adapter, which for an attended provider needs the user present; never offline |
+| Live Checks | Do real sites and keys still answer as forager expects? | Canaries of each provider's operations against the real services, run by `forager doctor --live`: on the maintainer's machine daily and weekly, after a release, as [`release.md`](release.md) says, and after a change to an adapter, as [`live-checks.md`](live-checks.md) says; never offline and never on GitHub |
 
 Start in the crate and move outward only when the rule is a fact of the outer layer.
 

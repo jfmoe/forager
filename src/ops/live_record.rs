@@ -1,7 +1,8 @@
 //! Run records: one private file per `doctor --live` run in the state directory, removed after
-//! the retention period, and each check's transition against the scheduled runs recorded before it. A record holds
-//! check identifiers, statuses, error kinds, HTTP statuses, durations and contract details,
-//! never a message, so no secret, query, URL or content reaches it.
+//! the retention period, each check's transition against the scheduled runs recorded before it,
+//! and the notification decision those runs give. A record holds check identifiers, statuses,
+//! error kinds, HTTP statuses, durations and contract details, never a message, so no secret,
+//! query, URL or content reaches it.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -11,6 +12,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
+use super::notification::{self, Notification};
 use super::{CheckResult, Outcome, Status, Summary};
 use crate::catalog::LiveTier;
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
@@ -63,22 +65,35 @@ struct RecordedCheck<'a> {
     outcome: &'a Outcome,
 }
 
-/// What a transition needs from an earlier record; every other field is ignored.
+/// What a transition or a notification decision needs from a record; every other field is
+/// ignored.
 #[derive(Deserialize)]
-struct PastRun {
+pub(super) struct PastRun {
     recorded_at: DateTime<Utc>,
-    scheduled: bool,
+    pub(super) scheduled: bool,
     #[serde(default)]
     tiers: Vec<String>,
-    checks: Vec<PastCheck>,
+    pub(super) checks: Vec<PastCheck>,
 }
 
 #[derive(Deserialize)]
-struct PastCheck {
-    id: String,
-    status: Status,
+pub(super) struct PastCheck {
+    pub(super) id: String,
+    pub(super) status: Status,
     #[serde(default)]
-    confirmed: Option<bool>,
+    pub(super) confirmed: Option<bool>,
+    #[serde(default)]
+    pub(super) error_kind: Option<String>,
+    #[serde(default)]
+    pub(super) http_status: Option<u16>,
+}
+
+impl PastCheck {
+    /// Whether the check reached a result: it passed, or it failed without the run leaving its
+    /// failure unconfirmed.
+    pub(super) fn concluded(&self) -> bool {
+        concluded(self.status, self.confirmed)
+    }
 }
 
 /// Whether a check that ended as `status` reached a result: it passed, or it failed without the
@@ -177,15 +192,25 @@ fn recorded_millis(name: &std::ffi::OsStr) -> Option<i64> {
     millis.parse().ok()
 }
 
-/// Gives each result its transition against the recorded scheduled runs, then records this run
-/// at `now` and removes the expired records. The results keep their transitions whether or not
-/// the record could be written.
+/// What concluding a run gives besides each result's transition.
+pub(super) struct Conclusion {
+    /// The notification decision of each provider whose issue the run changes; empty for a run
+    /// that is not scheduled.
+    pub(super) notifications: Vec<Notification>,
+    /// Whether the run was recorded and the expired records removed.
+    pub(super) record: Result<(), RecordError>,
+}
+
+/// Gives each result its transition against the recorded scheduled runs and decides each
+/// provider's notification, then records this run at `now` and removes the expired records. The
+/// results keep their transitions, and the decision stands, whether or not the record could be
+/// written.
 pub(super) fn conclude(
     store: &Store,
     now: DateTime<Utc>,
     run: &Run<'_>,
     results: &mut [CheckResult],
-) -> Result<(), RecordError> {
+) -> Conclusion {
     let history = store.history(now);
     for result in results.iter_mut() {
         let outcome = &result.outcome;
@@ -193,6 +218,24 @@ pub(super) fn conclude(
             .then(|| transition(&history, result.identity.id, outcome.status))
             .flatten();
     }
+    let notifications = notification::decide(
+        &history,
+        &PastRun {
+            recorded_at: now,
+            scheduled: run.scheduled,
+            tiers: run.tiers.iter().map(|tier| (*tier).to_owned()).collect(),
+            checks: results
+                .iter()
+                .map(|result| PastCheck {
+                    id: result.identity.id.to_owned(),
+                    status: result.outcome.status,
+                    confirmed: result.outcome.confirmed,
+                    error_kind: result.outcome.error_kind.clone(),
+                    http_status: result.outcome.http_status,
+                })
+                .collect(),
+        },
+    );
     let millis = now.timestamp_millis();
     let run_id = format!("{millis}-{}", std::process::id());
     let record = Record {
@@ -211,10 +254,18 @@ pub(super) fn conclude(
             })
             .collect(),
     };
-    store.write(&record, millis).map_err(RecordError::Write)?;
-    store
-        .remove_expired(now)
-        .map_err(RecordError::RemoveExpired)
+    let record = store
+        .write(&record, millis)
+        .map_err(RecordError::Write)
+        .and_then(|()| {
+            store
+                .remove_expired(now)
+                .map_err(RecordError::RemoveExpired)
+        });
+    Conclusion {
+        notifications,
+        record,
+    }
 }
 
 /// When the latest scheduled run of each tier was recorded, among the records still within the
@@ -243,7 +294,7 @@ fn transition(history: &[PastRun], id: &str, status: Status) -> Option<Transitio
             run.checks
                 .iter()
                 .find(|check| check.id == id)
-                .filter(|check| concluded(check.status, check.confirmed))
+                .filter(|check| check.concluded())
                 .map(|check| (run.recorded_at, check.status))
         })
         .peekable();
