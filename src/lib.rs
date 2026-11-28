@@ -36,6 +36,8 @@ mod fixture_server;
 #[cfg(test)]
 #[path = "../tests/support/gemini_api_samples.rs"]
 mod gemini_api_samples;
+#[path = "ops/health.rs"]
+mod health;
 #[cfg(test)]
 #[path = "../tests/support/hn_api_samples.rs"]
 mod hn_api_samples;

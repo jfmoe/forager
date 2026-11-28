@@ -19,7 +19,7 @@ Every command ends in one terminal function on the binary side, called once its 
 - **`capabilities/`**: everything that reaches a provider. This covers the Capability Catalog and platform catalog, the HTTP boundary, credential pools, Access Policies, and the provider and route adapters, including the browser transport.
 - **`evidence/`**: what an invocation leaves behind: the Search Result Journal, the stderr attempt log and Invocation Telemetry, each a view of the one attempt chain that orchestration returns.
 - **`infra/`**: shared foundations: configuration, the shared types, redaction, secure file writing and cross-process state files.
-- **`ops/`**: operator commands outside a search: doctor, the Live Check runner behind `doctor --live` with the run records it keeps in the state directory, and browser install and login.
+- **`ops/`**: operator commands outside a search: doctor, the Live Check runner behind `doctor --live` with the run records it keeps in the state directory, the health summary that doctor reads from Invocation Telemetry, those run records and the record of the GitHub scheduled workflows, and browser install and login.
 
 ## Dependency direction
 

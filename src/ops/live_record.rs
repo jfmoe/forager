@@ -3,6 +3,7 @@
 //! check identifiers, statuses, error kinds, HTTP statuses, durations and contract details,
 //! never a message, so no secret, query, URL or content reaches it.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -11,6 +12,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::{CheckResult, Outcome, Status, Summary};
+use crate::catalog::LiveTier;
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 
 /// The run records' directory under the state directory.
@@ -66,6 +68,8 @@ struct RecordedCheck<'a> {
 struct PastRun {
     recorded_at: DateTime<Utc>,
     scheduled: bool,
+    #[serde(default)]
+    tiers: Vec<String>,
     checks: Vec<PastCheck>,
 }
 
@@ -211,6 +215,21 @@ pub(super) fn conclude(
     store
         .remove_expired(now)
         .map_err(RecordError::RemoveExpired)
+}
+
+/// When the latest scheduled run of each tier was recorded, among the records still within the
+/// retention at `now`. A run counts for every tier it selected, whatever its checks concluded.
+pub(super) fn last_scheduled_runs(
+    store: &Store,
+    now: DateTime<Utc>,
+) -> BTreeMap<LiveTier, DateTime<Utc>> {
+    let mut last = BTreeMap::new();
+    for run in store.history(now).into_iter().filter(|run| run.scheduled) {
+        for tier in run.tiers.iter().filter_map(|tier| LiveTier::parse(tier)) {
+            last.insert(tier, run.recorded_at);
+        }
+    }
+    last
 }
 
 /// The transition of check `id`, which ended as `status`, against the scheduled runs in

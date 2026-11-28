@@ -190,13 +190,20 @@ pub(super) enum Command {
         /// manual-only checks.
         #[arg(long, requires = "live")]
         unattended: bool,
+        /// Summarise, from local records and without a request, how each provider behaved in
+        /// real use and whether the scheduled runs are still running.
+        #[arg(long, conflicts_with_all = ["provider", "offline", "live", "timeout"])]
+        health: bool,
+        /// The days the health summary covers; 7 by default.
+        #[arg(long, requires = "health", value_parser = clap::value_parser!(u32).range(1..=i64::from(crate::health::MAX_DAYS)))]
+        days: Option<u32>,
         /// Seconds the checks may take; 30 by default, 420 for the whole live run.
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
         /// Runs one supplemental web search provider alone, for its Live Check.
-        #[arg(long, hide = true, value_parser = parse_provider, requires = "query", conflicts_with_all = ["live", "offline", "provider"])]
+        #[arg(long, hide = true, value_parser = parse_provider, requires = "query", conflicts_with_all = ["live", "offline", "provider", "health"])]
         supplemental_web_search: Option<ProviderId>,
         #[arg(long, hide = true, requires = "supplemental_web_search")]
         query: Option<String>,
@@ -738,6 +745,37 @@ mod doctor_tests {
         assert_eq!(
             tiers,
             [[LiveTier::Free, LiveTier::Metered]; 2].map(Vec::from)
+        );
+    }
+
+    #[test]
+    fn the_health_summary_refuses_the_other_modes_and_takes_one_to_fifteen_days() {
+        let refused = [
+            &["doctor", "--health", "--live"][..],
+            &["doctor", "--health", "--offline"],
+            &["doctor", "--health", "--provider", "exa"],
+            &["doctor", "--health", "--timeout", "5"],
+            &["doctor", "--health", "--days", "0"],
+            &["doctor", "--health", "--days", "16"],
+            &["doctor", "--days", "3"],
+        ]
+        .map(|arguments| {
+            parse(arguments)
+                .map(|_| ())
+                .map_err(|error| error.exit_code())
+        });
+        let days = [
+            &["doctor", "--health"][..],
+            &["doctor", "--health", "--days", "15"],
+        ]
+        .map(|arguments| match parse(arguments) {
+            Ok(Command::Doctor { health, days, .. }) => (health, days),
+            other => panic!("{arguments:?} parse as doctor: {other:?}"),
+        });
+
+        assert_eq!(
+            (refused, days),
+            ([Err(2); 7], [(true, None), (true, Some(15))])
         );
     }
 

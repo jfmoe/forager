@@ -55,7 +55,9 @@ TOML is malformed.
 
 For a provider's configuration, prerequisites, or key validity, use
 `forager doctor --provider PROVIDER --format json`; it sends no billed request and opens no page.
-For connectivity of every configured provider, use `forager doctor --format json`. To check
+For connectivity of every configured provider, use `forager doctor --format json`. To see which
+providers have been failing in the user's real use, including failures a fallback hid, use
+`forager doctor --health --format json`; it reads only local records and sends nothing. To check
 against the real service that a provider's operations still work, use
 `forager doctor --live --provider PROVIDER`, but only when the user asks for it: its requests can
 spend quota, and for a route in the `attended` tier, naming it is the user's consent to open pages

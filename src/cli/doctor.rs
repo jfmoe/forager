@@ -53,6 +53,140 @@ pub(super) fn run_report(
     })
 }
 
+/// Runs the health summary over the `days` before now.
+pub(super) fn run_health(days: u32, format: OutputFormat) -> Result<CommandOutput, AppError> {
+    let (report, exit_code) = crate::doctor::health(days)?;
+    let value =
+        serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?;
+    let stdout = match format {
+        OutputFormat::Json => value.to_string(),
+        OutputFormat::Markdown => health_markdown(&value),
+    };
+    Ok(CommandOutput::Text {
+        stdout,
+        stderr: None,
+        exit_code,
+    })
+}
+
+/// The findings first, then one line per provider and command, then one per schedule.
+fn health_markdown(value: &Value) -> String {
+    let mut output = format!(
+        "# forager doctor --health\n\nok: {}\ndays: {}, since {}\ntelemetry_enabled: {}\n",
+        value["ok"].as_bool().unwrap_or(false),
+        value["days"],
+        scalar(&value["since"]),
+        value["telemetry_enabled"].as_bool().unwrap_or(false),
+    );
+    output.push_str("\n## Findings\n\n");
+    for finding in value["findings"].as_array().into_iter().flatten() {
+        let _ = write!(
+            output,
+            "- {}: {}",
+            subject_label(finding),
+            scalar(&finding["finding"])
+        );
+        for (field, detail) in finding.as_object().into_iter().flatten() {
+            if !SUBJECT_FIELDS.contains(&field.as_str()) && field != "finding" {
+                let _ = write!(output, ", {field}={}", scalar(detail));
+            }
+        }
+        output.push('\n');
+    }
+    output.push_str("\n## Providers\n\n");
+    for row in value["providers"].as_array().into_iter().flatten() {
+        let _ = write!(output, "- {}:", subject_label(row));
+        let mut separator = " ";
+        for field in [
+            "calls",
+            "previous_calls",
+            "success_rate",
+            "hidden_failures",
+            "empty_rate",
+            "short_content_rate",
+        ] {
+            if !row[field].is_null() {
+                let _ = write!(output, "{separator}{field}={}", scalar(&row[field]));
+                separator = ", ";
+            }
+        }
+        for percentile in ["p50", "p95"] {
+            let _ = write!(
+                output,
+                ", {percentile}={}ms",
+                row["duration_ms"][percentile]
+            );
+        }
+        let failure = &row["last_failure"];
+        if !failure.is_null() {
+            let _ = write!(
+                output,
+                ", last_failure={}",
+                failure["error_kind"].as_str().unwrap_or("unknown")
+            );
+            if let Some(status) = failure["http_status"].as_u64() {
+                let _ = write!(output, " HTTP {status}");
+            }
+            let _ = write!(output, " at {}", scalar(&failure["at"]));
+        }
+        output.push('\n');
+    }
+    output.push_str("\n## Schedules\n\n");
+    for schedule in value["schedules"].as_array().into_iter().flatten() {
+        let _ = write!(
+            output,
+            "- {}: {}",
+            subject_label(schedule),
+            scalar(&schedule["status"])
+        );
+        if let Some(last) = schedule["last_run_at"].as_str() {
+            let _ = write!(
+                output,
+                ", last run {last}, {} hours ago",
+                schedule["age_hours"]
+            );
+        }
+        if let Some(days) = schedule["interval_days"].as_u64()
+            && !schedule["last_run_at"].is_null()
+        {
+            let _ = write!(output, ", every {days} days");
+        }
+        output.push('\n');
+    }
+    output
+}
+
+/// The fields that name what a finding, a provider row or a schedule is about.
+const SUBJECT_FIELDS: [&str; 7] = [
+    "subject",
+    "provider",
+    "command",
+    "platform",
+    "operation",
+    "tier",
+    "workflow",
+];
+
+/// Names what an entry of the health summary is about, such as `jina fetch` or `tier free`.
+fn subject_label(entry: &Value) -> String {
+    let named = SUBJECT_FIELDS[1..]
+        .iter()
+        .filter_map(|field| entry[*field].as_str())
+        .collect::<Vec<_>>();
+    match entry["subject"].as_str() {
+        Some(subject @ ("tier" | "workflow")) => format!("{subject} {}", named.join(" ")),
+        Some(subject) if named.is_empty() => subject.to_owned(),
+        _ => named.join(" "),
+    }
+}
+
+/// A JSON scalar as text: a string without its quotes.
+fn scalar(value: &Value) -> String {
+    value
+        .as_str()
+        .map_or_else(|| value.to_string(), str::to_owned)
+}
+
 pub(super) fn run_live(
     selection: &crate::live::LiveSelection,
     list: bool,
@@ -156,10 +290,14 @@ fn render_doctor_markdown(report: &crate::doctor::DoctorReport) -> Result<String
 
 fn doctor_markdown(value: &Value) -> Result<String, AppError> {
     let mut output = format!(
-        "# forager doctor\n\nmode: {}\nok: {}\n\n",
+        "# forager doctor\n\nmode: {}\nok: {}\n",
         value["mode"].as_str().unwrap_or_default(),
         value["ok"].as_bool().unwrap_or(false)
     );
+    if let Some(health) = value["health"].as_str() {
+        let _ = writeln!(output, "health: {health}");
+    }
+    output.push('\n');
     for provider in value["providers"]
         .as_array()
         .expect("doctor providers serialize as an array")
@@ -284,10 +422,69 @@ fn render_provider_doctor_markdown(
 mod tests {
     use serde_json::json;
 
-    use super::{ci_environment, doctor_markdown, live_markdown};
+    use super::{ci_environment, doctor_markdown, health_markdown, live_markdown};
 
     #[test]
-    fn offline_doctor_markdown_shows_preflight_and_state_directories_without_reachability() {
+    fn health_markdown_lists_the_findings_then_each_provider_and_schedule() {
+        let report = json!({
+            "mode": "health",
+            "ok": false,
+            "days": 7,
+            "since": "2026-11-21T06:00:00Z",
+            "telemetry_enabled": true,
+            "findings": [
+                {
+                    "subject": "provider", "provider": "jina", "command": "fetch",
+                    "finding": "degraded", "metric": "success_rate", "current": 0.8, "previous": 1.0,
+                },
+                {"subject": "tier", "tier": "metered", "finding": "overdue", "age_hours": 216, "interval_days": 7},
+                {"subject": "workflow_record", "finding": "not_recorded"},
+            ],
+            "providers": [
+                {
+                    "provider": "jina", "command": "fetch", "calls": 20, "previous_calls": 20,
+                    "success_rate": 0.8, "hidden_failures": 0, "empty_rate": 0.0,
+                    "short_content_rate": 0.0, "duration_ms": {"p50": 310, "p95": 900},
+                    "last_failure": {"at": "2026-11-28T04:00:00Z", "error_kind": "timeout", "http_status": 504},
+                },
+                {
+                    "provider": "youtube_api", "command": "platform", "platform": "youtube",
+                    "operation": "comments", "calls": 2, "previous_calls": 0, "success_rate": 1.0,
+                    "hidden_failures": 0, "empty_rate": null, "duration_ms": {"p50": 100, "p95": 120},
+                    "last_failure": null,
+                },
+            ],
+            "schedules": [
+                {"subject": "tier", "tier": "free", "interval_days": 1, "last_run_at": "2026-11-28T03:00:00Z", "age_hours": 3, "status": "current"},
+                {"subject": "tier", "tier": "metered", "interval_days": 7, "last_run_at": "2026-11-19T06:00:00Z", "age_hours": 216, "status": "overdue"},
+                {"subject": "workflow_record", "interval_days": null, "last_run_at": null, "age_hours": null, "status": "not_recorded"},
+            ],
+        });
+
+        assert_eq!(
+            health_markdown(&report),
+            "# forager doctor --health\n\n\
+             ok: false\ndays: 7, since 2026-11-21T06:00:00Z\ntelemetry_enabled: true\n\n\
+             ## Findings\n\n\
+             - jina fetch: degraded, current=0.8, metric=success_rate, previous=1.0\n\
+             - tier metered: overdue, age_hours=216, interval_days=7\n\
+             - workflow_record: not_recorded\n\
+             \n## Providers\n\n\
+             - jina fetch: calls=20, previous_calls=20, success_rate=0.8, hidden_failures=0, \
+             empty_rate=0.0, short_content_rate=0.0, p50=310ms, p95=900ms, \
+             last_failure=timeout HTTP 504 at 2026-11-28T04:00:00Z\n\
+             - youtube_api platform youtube comments: calls=2, previous_calls=0, \
+             success_rate=1.0, hidden_failures=0, p50=100ms, p95=120ms\n\
+             \n## Schedules\n\n\
+             - tier free: current, last run 2026-11-28T03:00:00Z, 3 hours ago, every 1 days\n\
+             - tier metered: overdue, last run 2026-11-19T06:00:00Z, 216 hours ago, every 7 days\n\
+             - workflow_record: not_recorded\n"
+        );
+    }
+
+    #[test]
+    fn offline_doctor_markdown_shows_the_health_line_preflight_and_state_directories_without_reachability()
+     {
         let report = json!({
             "mode": "offline",
             "ok": false,
@@ -308,13 +505,15 @@ mod tests {
             },
             "permission_warnings": [],
             "config": {},
+            "health": "tier free overdue; run `forager doctor --health` for the report",
         });
 
         let markdown = doctor_markdown(&report).expect("render markdown");
 
         assert_eq!(
             markdown,
-            "# forager doctor\n\nmode: offline\nok: false\n\n\
+            "# forager doctor\n\nmode: offline\nok: false\n\
+             health: tier free overdue; run `forager doctor --health` for the report\n\n\
              - exa: configured=true, key_count=1, source=file\n\
              - xiaohongshu_browser: configured=true, key_count=0, source=default, \
              preflight=false (no browser)\n\

@@ -1248,7 +1248,7 @@ read.
   index. A `fetch` record also names the host it fetched
   from. A record never holds a query, a URL beyond that host, content, a key, an error message,
   a provider endpoint, a model name or a Platform Ref. The hosts reveal which domains were
-  fetched, so keep that in mind before sharing the directory. A record that cannot be written is
+  fetched, so keep that in mind before sharing the directory. `doctor --health` summarises them. A record that cannot be written is
   dropped without changing the command's output or exit code.
 - `retry`: `max_attempts` per request (at least 1), backoff `multiplier` (above 0), and `max_wait`
   seconds between attempts.
@@ -1316,6 +1316,7 @@ with the started browser is also `runtime`.
 ```console
 forager doctor [--timeout SECONDS] [--format json|markdown]
 forager doctor --offline [--format json|markdown]
+forager doctor --health [--days DAYS] [--format json|markdown]
 forager doctor --provider PROVIDER [--timeout SECONDS] [--format json|markdown]
 forager doctor --live [--tier TIER[,TIER...]] [--provider PROVIDER] [--platform PLATFORM]
                [--unattended] [--timeout SECONDS] [--format json|markdown]
@@ -1327,6 +1328,8 @@ forager doctor --live --list [--tier TIER[,TIER...]] [--provider PROVIDER]
 | --- | --- | --- |
 | `--provider PROVIDER` | Check one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api` without a billed request: its configuration, its prerequisites and, where the provider offers one, its free account check. Without it, run the shallow all-provider report. With `--live`, run only that provider's Live Checks. | Omitted |
 | `--offline` | Run the shallow report's checks that send no request. Conflicts with `--provider`, `--live`, and `--timeout`. | Off |
+| `--health` | Print the health summary of real use and of the scheduled runs, from local records only. Conflicts with `--provider`, `--offline`, `--live`, and `--timeout`. | Off |
+| `--days DAYS` | The days the health summary covers, from `1` to `15`. Requires `--health`. | `7` |
 | `--live` | Run Live Checks against the real services instead of the report. | Off |
 | `--tier TIER[,TIER...]` | Run the Live Checks of these Live Tiers: `free`, `metered`, `attended`. Requires `--live`. | `free,metered`; all three with `--provider` |
 | `--platform PLATFORM` | Run only the Live Checks of this platform's operations. Requires `--live`. | Omitted |
@@ -1335,10 +1338,11 @@ forager doctor --live --list [--tier TIER[,TIER...]] [--provider PROVIDER]
 | `--timeout SECONDS` | Set the diagnostic deadline; with `--live`, the time limit of the whole run. | `30`; `420` with `--live` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
-`doctor` has four modes. The default shallow report checks configuration, permissions, state
+`doctor` has five modes. The default shallow report checks configuration, permissions, state
 directories, the browser preflight check and the reachability of every configured provider.
 `--offline` runs the same checks without any request. `--provider` checks one provider without a
-billed request. `--live` runs Live Checks, which send real requests and are described below.
+billed request. `--health` summarises local records without any request, as described below.
+`--live` runs Live Checks, which send real requests and are described below.
 
 Use `doctor` for credentials, connectivity, and effective configuration inspection. In shallow
 mode, `ok` covers every configured provider: if any configured provider is unreachable, the
@@ -1379,12 +1383,76 @@ both the shallow check and the account check wait for that window; when it does 
 the shallow report marks the provider unreachable and the account check fails with `timeout`, and
 neither sends a request.
 
+The shallow and the offline report add `health`, one line naming each finding of the health
+summary over its default 7 days that is overdue or degraded and pointing to `doctor --health`; it
+is absent when there is none, and it never changes `ok` or the exit code.
+
 `--offline` sends no request. Its report has `mode: "offline"` and the same `config`,
 `permission_warnings` and `state_directories`; its provider entries report configuration and key
 presence without `reachable`, and an enabled browser route adds `preflight` with the same
 preflight check, plus its `message` when the check fails. Its `ok` is true when the state
 directories are writable, whatever is configured, including no main search; otherwise it exits 4.
 Use it to check configuration, permissions and state directories without a network.
+
+#### Health summary
+
+`doctor --health` reads, from forager's state directory and without any request, the Invocation
+Telemetry of the last `--days` days and of the same number of days before them, the scheduled live
+runs in `live_runs/`, and the record of the GitHub scheduled workflows. It prints
+`{mode: "health", ok, days, since, telemetry_enabled, findings, providers, schedules}`. With
+telemetry turned off, `telemetry_enabled` is false and only the records already there are read, so
+an empty summary does not mean a healthy one.
+
+`providers` has one entry per provider and command that ran in the period: `provider`, `command`
+(`search`, `fetch`, `map`, `exa` or `platform`), `platform` and `operation` when the command has
+them, `calls` (the invocations in which the provider ran; a skipped route did not run),
+`previous_calls` (the same in the period before), `success_rate`, `hidden_failures` (calls that
+failed before another provider answered, which a fallback hid), `empty_rate` (the share of its
+answers that were a legitimate empty result, `null` without an answer), `short_content_rate` (for
+`fetch` only: the share of its pages under 500 characters, the likeliest form of a block page
+returned as content), `duration_ms` with `p50` and `p95` of the time it spent per call, and
+`last_failure` with `at`, `error_kind` and `http_status`. Only a provider's own failures count, of
+the transport and the content families; an argument, configuration or `--output` error is
+forager's own and counts as no failure.
+
+`schedules` lists each scheduled Live Tier (`free`, run daily, and `metered`, run weekly), then each
+GitHub scheduled workflow, with `subject` (`tier` or `workflow`), its `tier` or `workflow` name,
+`interval_days`, `last_run_at` (the last scheduled `doctor --live` run of the tier, whatever its
+checks concluded, or the workflow's last success), `age_hours` and `status`: `current`, `overdue`
+when the last run is older than its interval plus one day, or `not_recorded` when there is no
+record. A missing or malformed workflow record is one entry with `subject: "workflow_record"` and
+`status: "not_recorded"`.
+
+`findings` lists what the summary flags, the providers' findings before the schedules'; each
+finding names its subject with the same fields as its entry and has a `finding`:
+
+- `degraded`: a provider's `metric` (`success_rate`, `empty_rate` or `short_content_rate`) moved
+  for the worse by at least 0.2 against the period before, with `current` and `previous`. Only a
+  provider with at least 20 calls in both periods is compared.
+- `hidden_failures`, with `count`, and `short_content`, with `count` of short `fetch` pages.
+- `sample_too_small`: a provider with fewer than `minimum` calls in either period, with `calls`
+  and `previous_calls`, so it could not be compared.
+- `overdue`, with `age_hours` and `interval_days`, and `not_recorded`, for a schedule.
+
+`ok` is false, and the command exits `4`, when a finding is `overdue` or `degraded`; it exits `0`
+otherwise, and `3` when the configuration cannot be loaded.
+
+The record of the GitHub scheduled workflows is `github_workflows.json` in the state directory,
+written by the maintainer's weekly job from `gh`:
+
+```json
+{
+  "schema_version": 1,
+  "workflows": [
+    {"workflow": "NAME", "interval_days": 7, "last_success": "2026-11-27T03:00:00Z"}
+  ]
+}
+```
+
+`last_success` is an RFC 3339 time or `null` when the workflow has no successful run, which reports
+that workflow as `not_recorded`; `interval_days` is a positive whole number. Any other form is
+malformed. The summary knows only the workflows the record lists, so the record lists every
+scheduled workflow: one left out is not reported at all.
 
 #### Live Checks
 

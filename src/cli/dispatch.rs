@@ -661,6 +661,8 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             platform,
             list,
             unattended,
+            health,
+            days,
             timeout,
             format,
             supplemental_web_search,
@@ -686,6 +688,9 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     timeout.unwrap_or(doctor::LIVE_TIMEOUT_SECONDS),
                     format,
                 );
+            }
+            if health {
+                return doctor::run_health(days.unwrap_or(crate::health::DEFAULT_DAYS), format);
             }
             doctor::run_report(
                 provider,

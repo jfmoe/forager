@@ -1,4 +1,5 @@
 mod gemini_api;
+mod health;
 mod live;
 mod offline;
 #[cfg(unix)]
