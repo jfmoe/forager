@@ -1,5 +1,11 @@
 #[path = "support/process.rs"]
 mod process;
+#[cfg(unix)]
+#[path = "release_scaffolding/scheduled_workflows.rs"]
+mod scheduled_workflows;
+#[cfg(unix)]
+#[path = "release_scaffolding/stand_ins.rs"]
+mod stand_ins;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -11,6 +17,9 @@ const WORKFLOW_DIRECTORY: &str = ".github/workflows";
 
 // cargo-dist generates this workflow and runs its plan job on pull requests as a dry run.
 const DIST_WORKFLOW: &str = ".github/workflows/release.yml";
+
+const SCHEDULED_ADVISORIES_WORKFLOW: &str = ".github/workflows/scheduled-advisories.yml";
+const SCHEDULED_BUILD_WORKFLOW: &str = ".github/workflows/scheduled-build.yml";
 
 // Without a timeout, a hung fixture accept could hold a job until GitHub's six-hour limit (#52).
 #[test]
@@ -45,14 +54,92 @@ fn one_workflow_runs_the_required_jobs_on_every_pull_request_and_main_push() {
     );
 }
 
-// Live checks spend the maintainer's keys against real sites; #19 kept them out of every
-// pull-request run.
+// The user's rule: Live Checks never run on GitHub. They spend the maintainer's keys and reach
+// sites from the egress address, and a public repository would need those keys as secrets (#19,
+// #318). The scheduled workflows therefore hold only their own token, and no input can steer one
+// into a release.
 #[test]
-fn no_pull_request_workflow_command_runs_a_live_check() {
-    assert!(
-        workflow_run_commands(&pull_request_workflow())
+fn live_checks_never_run_on_github() {
+    let workflows = workflow_paths()
+        .into_iter()
+        .map(|path| (load_workflow(&path), path))
+        .collect::<Vec<_>>();
+    let scheduled = workflows
+        .iter()
+        .filter(|(workflow, _)| workflow["on"].get("schedule").is_some())
+        .collect::<Vec<_>>();
+
+    for (workflow, path) in &workflows {
+        assert!(
+            workflow_run_commands(workflow)
+                .iter()
+                .all(|command| !command.contains("doctor --live")),
+            "{path} runs a Live Check"
+        );
+    }
+    assert_eq!(
+        scheduled
             .iter()
-            .all(|command| !command.contains("doctor --live"))
+            .map(|(_, path)| path.as_str())
+            .collect::<Vec<_>>(),
+        [SCHEDULED_ADVISORIES_WORKFLOW, SCHEDULED_BUILD_WORKFLOW]
+    );
+    for (workflow, path) in scheduled {
+        let source = fs::read_to_string(path).expect("read workflow");
+        let triggers = workflow["on"].as_object().expect("workflow triggers");
+        let secrets = source
+            .match_indices("secrets.")
+            .map(|(at, _)| &source[at..])
+            .filter(|reference| !reference.starts_with("secrets.GITHUB_TOKEN"))
+            .count();
+        let releasing = workflow_run_commands(workflow)
+            .into_iter()
+            .filter(|run| run.contains("gh release") || run.contains("gh workflow run"))
+            .count();
+        let attesting = workflow_jobs(workflow)
+            .values()
+            .flat_map(job_steps)
+            .filter_map(|step| step["uses"].as_str())
+            .filter(|uses| uses.contains("attest"))
+            .count();
+        assert_eq!(
+            (
+                triggers.keys().map(String::as_str).collect::<Vec<_>>(),
+                triggers["workflow_dispatch"].get("inputs").is_some(),
+                secrets,
+                releasing,
+                attesting,
+            ),
+            (vec!["schedule", "workflow_dispatch"], false, 0, 0, 0),
+            "{path}"
+        );
+    }
+}
+
+// The scheduled build finds a retired runner image before release day only while it builds on
+// the runners the release uses, so it reads the artifact gate's target list through the same
+// preparation script.
+#[test]
+fn the_scheduled_build_runs_on_the_release_targets_the_artifact_gate_reads() {
+    let prepare = "bash .github/scripts/prepare-release-targets.sh .github/release-targets.json \"$GITHUB_OUTPUT\"";
+    let build = load_workflow(SCHEDULED_BUILD_WORKFLOW);
+    let gate = load_workflow(".github/workflows/release-artifact-gate.yml");
+
+    assert!(workflow_run_commands(&gate).contains(&prepare));
+    assert!(
+        job_steps(workflow_job(&build, "prepare-targets"))
+            .iter()
+            .any(|step| step["run"].as_str() == Some(prepare))
+    );
+    assert_eq!(
+        (
+            workflow_job(&build, "build")["strategy"]["matrix"]["include"].as_str(),
+            workflow_job(&build, "build")["runs-on"].as_str(),
+        ),
+        (
+            Some("${{ fromJSON(needs.prepare-targets.outputs.targets) }}"),
+            Some("${{ matrix.runner }}"),
+        )
     );
 }
 
@@ -360,9 +447,11 @@ fn string_list(value: &Value) -> Vec<&str> {
     }
 }
 
+/// The `run` commands of every job with steps; a job that calls a reusable workflow has none.
 fn workflow_run_commands(workflow: &Value) -> Vec<&str> {
     workflow_jobs(workflow)
         .values()
+        .filter(|job| job.get("steps").is_some())
         .flat_map(job_steps)
         .filter_map(|step| step["run"].as_str())
         .collect()

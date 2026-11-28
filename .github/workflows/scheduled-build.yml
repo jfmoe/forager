@@ -1,0 +1,62 @@
+name: Scheduled release build
+
+# Builds forager on each release target's runner, from the target list the release artifact gate
+# reads, so a retired runner image or a target that no longer builds shows before release day.
+# It publishes nothing and creates no attestation.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-targets:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: targets
+        run: bash .github/scripts/prepare-release-targets.sh .github/release-targets.json "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare-targets
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare-targets.outputs.targets) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          rustflags: ""
+      - run: cargo build --locked --profile dist --target ${{ matrix.target }}
+
+  report:
+    needs:
+      - prepare-targets
+      - build
+    if: ${{ always() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: bash .github/scripts/report-scheduled-run.sh workflow:scheduled-build "Scheduled release build fails"
