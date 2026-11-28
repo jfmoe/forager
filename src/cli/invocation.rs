@@ -4,7 +4,7 @@
 use chrono::Utc;
 
 use super::dispatch::{AppError, CommandOutput};
-use crate::telemetry::{self, Invocation, PreflightKind, ResultSignal, TerminalKind};
+use crate::telemetry::{self, Invocation, LocalKind, ResultSignal, TerminalKind};
 use crate::types::{
     AttemptErrorKind, PlatformAskResult, PlatformCommentsPage, PlatformFetchResult,
     ProviderAttempt, ProviderError,
@@ -108,8 +108,8 @@ impl AppError {
     #[must_use]
     pub fn invocation(&self) -> Invocation {
         Invocation::preflight(match self.exit_code() {
-            2 => TerminalKind::Preflight(PreflightKind::Argument),
-            3 => TerminalKind::Preflight(PreflightKind::Config),
+            2 => TerminalKind::Local(LocalKind::Argument),
+            3 => TerminalKind::Local(LocalKind::Config),
             _ => TerminalKind::Attempt(AttemptErrorKind::Runtime),
         })
     }

@@ -71,12 +71,14 @@ _Avoid_: debug log, response cache, search history
 **Invocation Telemetry**:
 The local record, on by default, of the health signals of every retrieval command: one record per
 invocation, success or failure, with the command, its exit code and terminal error kind, the
-providers tried and the one that answered, whether a fallback happened, the shape of the result
-and the safe fields of each attempt, and for a fetch the host it read. It never holds a query, a
-URL beyond that host, content, a credential, an error message, a provider endpoint, a model name
-or a Platform Ref. The Search Result Journal records what a search found; telemetry records how
-the providers behaved, so the two never record the same fact. Operator commands and Live Checks
-write none.
+providers tried and the one that answered, whether another provider ran and failed before that
+answer, the shape of the result and the safe fields of each attempt, and for a fetch the host it
+read. A route that was skipped never ran, so it is neither the first provider tried nor a failure
+before the answer. It never holds a query, a URL beyond that host, content, a credential, an error
+message, a provider endpoint, a model name or a Platform Ref. The Search Result Journal records
+what one search found, with its content, and only a search writes it; telemetry records how every
+retrieval command went, without content. A search's attempt outcomes appear in both, read from
+the same Attempt Trace. Operator commands and Live Checks write none.
 _Avoid_: analytics, usage tracking, debug log
 
 **Attempt Trace**:

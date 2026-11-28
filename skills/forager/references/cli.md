@@ -1235,14 +1235,17 @@ read.
   only expired files that forager named.
 - `telemetry.enabled` (default `true`) keeps Invocation Telemetry: every `search`, `fetch`, `map`,
   `exa` and `platform` command, successful or not, writes one private record of health signals to
-  `$XDG_STATE_HOME/forager/telemetry` (else `~/.local/state/forager/telemetry`), and records
-  older than 30 days are removed. `config`, `doctor`, `setup` and `browser` write none, and a
-  command whose configuration cannot be loaded writes none. A record holds the command, its
-  platform and operation, the exit code and terminal error kind, the provider tried first and
-  the one that answered, whether a fallback happened, the result's item count and content
-  length and whether it was a legitimate empty result, and for each attempt its provider,
-  disposition, error kind, HTTP status, duration, whether it was anonymous, its retry and
-  rotation counts and its credential index. A `fetch` record also names the host it fetched
+  `$XDG_STATE_HOME/forager/telemetry` (else `~/.local/state/forager/telemetry`), and each new
+  record removes the records older than 30 days. With telemetry turned off nothing is written or
+  removed: the records already there stay until you delete that directory. `config`, `doctor`,
+  `setup` and `browser` write none, and a command whose configuration cannot be loaded writes
+  none. A record holds the command, its platform and operation, the exit code and terminal error
+  kind (`output` when the `--output` copy could not be written, which still names the provider
+  that answered), the provider that ran first and the one that answered, whether another provider
+  ran and failed before that answer, the result's item count and content length and whether it
+  was a legitimate empty result, and for each attempt its provider, disposition, error kind, HTTP
+  status, duration, whether it was anonymous, its retry and rotation counts and its credential
+  index. A `fetch` record also names the host it fetched
   from. A record never holds a query, a URL beyond that host, content, a key, an error message,
   a provider endpoint, a model name or a Platform Ref. The hosts reveal which domains were
   fetched, so keep that in mind before sharing the directory. A record that cannot be written is

@@ -18,9 +18,9 @@ summary, provider attempts, terminal attribution, budget, capability gaps).
   journal's own naming pattern, so it cannot remove neighbouring data.
 - When no valid journal configuration exists yet, forager reports the journal as unavailable
   instead of guessing a default location.
-- Invocation Telemetry is the other persistent record: it keeps the health signals of every
-  retrieval command, never a query, an answer or a source. The journal records what a search
-  found and telemetry records how the providers behaved, so the two never record the same fact.
+- The journal is not forager's only persistent record. Invocation Telemetry keeps how every
+  retrieval command went, never a query, an answer or a source; the journal keeps what one search
+  found, with its content, and only a search writes it.
 
 ## Why
 
@@ -38,8 +38,11 @@ summary, provider attempts, terminal attribution, budget, capability gaps).
 - **Off by default.** The record would be missing exactly when a user first needs to review a
   surprising result.
 - **Persisting debug logs as a second record.** The stderr attempt log stays on stderr; two
-  persistent records of the same facts would disagree about what happened. Telemetry is not such a
-  record, because it holds none of the journal's facts.
+  persistent records of the same facts would disagree about what happened. Telemetry does repeat
+  a search's attempt outcomes, and that overlap is accepted: both records read them from the same
+  Attempt Trace, so they cannot disagree, and the two answer different questions, the review of
+  one search against the health of providers across commands, under different retention and
+  privacy boundaries, since the journal keeps content and telemetry keeps none.
 
 ## Revisit when
 
