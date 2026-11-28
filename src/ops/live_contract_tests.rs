@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
-use super::{Detail, Observed, violation};
+use super::{Detail, Observed, Rule, violation};
 use crate::catalog::{Field, LiveContract, SampleRule};
 use crate::live::declared;
 
@@ -147,7 +147,7 @@ fn meeting() -> Value {
 }
 
 /// What the contract says about the passing payload with the value at `pointer` replaced.
-fn broken(pointer: &str, value: Value) -> Option<(&'static str, Option<String>, Option<Observed>)> {
+fn broken(pointer: &str, value: Value) -> Option<(Rule, Option<String>, Option<Observed>)> {
     let mut payload = meeting();
     *payload
         .pointer_mut(pointer)
@@ -172,20 +172,20 @@ fn each_shape_rule_names_the_rule_the_item_and_what_it_found() {
         ),
         (
             None,
-            Some(("present", None, Some(Observed::Null))),
-            Some(("type", None, Some(Observed::Number))),
-            Some(("nonblank", None, Some(Observed::String { length: 2 }))),
-            Some(("at_least", None, Some(Observed::Number))),
-            Some(("at_least", None, Some(Observed::Number))),
-            Some(("type", None, Some(Observed::String { length: 3 }))),
-            Some(("min_items", None, Some(Observed::Array { count: 1 }))),
+            Some((Rule::Present, None, Some(Observed::Null))),
+            Some((Rule::Type, None, Some(Observed::Number))),
+            Some((Rule::Nonblank, None, Some(Observed::String { length: 2 }))),
+            Some((Rule::AtLeast, None, Some(Observed::Number))),
+            Some((Rule::AtLeast, None, Some(Observed::Number))),
+            Some((Rule::Type, None, Some(Observed::String { length: 3 }))),
+            Some((Rule::MinItems, None, Some(Observed::Array { count: 1 }))),
             Some((
-                "nonblank",
+                Rule::Nonblank,
                 Some("items[1].ref".to_owned()),
                 Some(Observed::String { length: 0 })
             )),
             Some((
-                "in_some_items",
+                Rule::InSomeItems,
                 None,
                 Some(Observed::Items {
                     with_field: 0,
@@ -220,7 +220,7 @@ fn a_failure_detail_carries_no_value_of_the_output() {
                 .filter(|marker| serialized.contains(*marker))
                 .collect::<Vec<_>>()
         ),
-        ("type", Vec::<&&str>::new()),
+        (Rule::Type, Vec::<&&str>::new()),
         "{serialized}"
     );
 }
@@ -257,10 +257,10 @@ fn a_keyed_fetch_fails_when_any_attempt_was_anonymous_and_an_anonymous_one_when_
         ),
         [
             None,
-            Some(("keyed_read", Some("provider_attempts[].anonymous"))),
+            Some((Rule::KeyedRead, Some("provider_attempts[].anonymous"))),
             None,
-            Some(("anonymous_read", Some("provider_attempts[].anonymous"))),
-            Some(("anonymous_read", Some("provider_attempts"))),
+            Some((Rule::AnonymousRead, Some("provider_attempts[].anonymous"))),
+            Some((Rule::AnonymousRead, Some("provider_attempts"))),
         ]
     );
 }
@@ -352,7 +352,7 @@ fn a_live_event_needs_clob_prices_unless_none_of_its_markets_is_open() {
             .iter()
             .map(|payload| violation(&contract, payload).map(|detail| detail.rule))
             .collect::<Vec<_>>(),
-        [None, Some("live_quotes"), None]
+        [None, Some(Rule::LiveQuotes), None]
     );
 }
 
@@ -375,7 +375,7 @@ fn a_runtime_class_attempt_fails_a_contract_the_output_otherwise_meets() {
         (
             None,
             Some(Detail {
-                rule: "no_runtime_attempt",
+                rule: Rule::NoRuntimeAttempt,
                 path: Some("provider_attempts[].error_kind"),
                 at: Some("provider_attempts[0].error_kind".to_owned()),
                 observed: Some(Observed::String { length: 7 }),

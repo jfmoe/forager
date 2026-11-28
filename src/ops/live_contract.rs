@@ -2,15 +2,64 @@
 //! An observation holds only types, counts and lengths, so a failure never carries a title, a
 //! text or any other value of the output.
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use serde_json::Value;
 
 use crate::catalog::{Field, LiveContract, SampleRule, Shape};
 
+/// A rule a check can break: a shape rule of a contract's field, a rule of its sample, or a
+/// rule of the run itself.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Rule {
+    Present,
+    Type,
+    Nonblank,
+    AtLeast,
+    MinItems,
+    InSomeItems,
+    NoRuntimeAttempt,
+    KeyedRead,
+    AnonymousRead,
+    ResolvedByPayout,
+    LiveQuotes,
+    CommandSucceeds,
+    TimeLimit,
+    ValidJson,
+    CommandRuns,
+}
+
+impl Rule {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Present => "present",
+            Self::Type => "type",
+            Self::Nonblank => "nonblank",
+            Self::AtLeast => "at_least",
+            Self::MinItems => "min_items",
+            Self::InSomeItems => "in_some_items",
+            Self::NoRuntimeAttempt => "no_runtime_attempt",
+            Self::KeyedRead => "keyed_read",
+            Self::AnonymousRead => "anonymous_read",
+            Self::ResolvedByPayout => "resolved_by_payout",
+            Self::LiveQuotes => "live_quotes",
+            Self::CommandSucceeds => "command_succeeds",
+            Self::TimeLimit => "time_limit",
+            Self::ValidJson => "valid_json",
+            Self::CommandRuns => "command_runs",
+        }
+    }
+}
+
+impl Serialize for Rule {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
 /// Which rule a check broke, where, and what was there.
 #[derive(Debug, PartialEq, Serialize)]
 pub(super) struct Detail {
-    pub(super) rule: &'static str,
+    pub(super) rule: Rule,
     /// The field as the contract names it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) path: Option<&'static str>,
@@ -23,7 +72,7 @@ pub(super) struct Detail {
 
 impl Detail {
     /// A rule of the run itself, such as the command exiting nonzero, which has no path.
-    pub(super) const fn rule(rule: &'static str) -> Self {
+    pub(super) const fn rule(rule: Rule) -> Self {
         Self {
             rule,
             path: None,
@@ -32,7 +81,7 @@ impl Detail {
         }
     }
 
-    fn at(rule: &'static str, path: &'static str, at: &str, value: Option<&Value>) -> Self {
+    fn at(rule: Rule, path: &'static str, at: &str, value: Option<&Value>) -> Self {
         Self {
             rule,
             path: Some(path),
@@ -46,10 +95,10 @@ impl Detail {
         match (self.at.as_deref().or(self.path), &self.observed) {
             (Some(path), Some(observed)) => format!(
                 "the output breaks the contract rule `{}` at `{path}`: found {}",
-                self.rule,
+                self.rule.as_str(),
                 observed.describe()
             ),
-            _ => format!("the check broke the rule `{}`", self.rule),
+            _ => format!("the check broke the rule `{}`", self.rule.as_str()),
         }
     }
 }
@@ -135,7 +184,7 @@ fn runtime_attempt(payload: &Value) -> Option<Detail> {
     locate(payload, PATH)
         .into_iter()
         .find(|(_, value)| value.and_then(Value::as_str) == Some("runtime"))
-        .map(|(at, value)| Detail::at("no_runtime_attempt", PATH, &at, value))
+        .map(|(at, value)| Detail::at(Rule::NoRuntimeAttempt, PATH, &at, value))
 }
 
 fn broken(field: &Field, payload: &Value) -> Option<Detail> {
@@ -146,7 +195,7 @@ fn broken(field: &Field, payload: &Value) -> Option<Detail> {
             .filter(|(_, value)| shape_rule(field.shape, *value).is_none())
             .count();
         return (with_field == 0).then_some(Detail {
-            rule: "in_some_items",
+            rule: Rule::InSomeItems,
             path: Some(field.path),
             at: None,
             observed: Some(Observed::Items {
@@ -161,9 +210,9 @@ fn broken(field: &Field, payload: &Value) -> Option<Detail> {
 }
 
 /// The rule `value` breaks for `shape`, if any.
-fn shape_rule(shape: Shape, value: Option<&Value>) -> Option<&'static str> {
+fn shape_rule(shape: Shape, value: Option<&Value>) -> Option<Rule> {
     let Some(value) = value.filter(|value| !value.is_null()) else {
-        return Some("present");
+        return Some(Rule::Present);
     };
     let (typed, bounded) = match shape {
         Shape::Text => (
@@ -185,12 +234,12 @@ fn shape_rule(shape: Shape, value: Option<&Value>) -> Option<&'static str> {
         ),
     };
     if !typed {
-        Some("type")
+        Some(Rule::Type)
     } else if !bounded {
         Some(match shape {
-            Shape::Text => "nonblank",
-            Shape::List { .. } => "min_items",
-            _ => "at_least",
+            Shape::Text => Rule::Nonblank,
+            Shape::List { .. } => Rule::MinItems,
+            _ => Rule::AtLeast,
         })
     } else {
         None
@@ -238,9 +287,9 @@ fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
         SampleRule::Credentials { anonymous } => {
             const PATH: &str = "provider_attempts[].anonymous";
             let name = if anonymous {
-                "anonymous_read"
+                Rule::AnonymousRead
             } else {
-                "keyed_read"
+                Rule::KeyedRead
             };
             let attempts = locate(payload, PATH);
             if attempts.is_empty() {
@@ -263,7 +312,7 @@ fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
                 .any(|(_, status)| status.and_then(Value::as_str) == Some("open"));
             let source = payload.get("price_source");
             (open && source.and_then(Value::as_str) != Some("clob"))
-                .then(|| Detail::at("live_quotes", "price_source", "price_source", source))
+                .then(|| Detail::at(Rule::LiveQuotes, "price_source", "price_source", source))
         }
     }
 }
@@ -271,7 +320,7 @@ fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
 /// The winning market resolved Yes at a payout of 1, priced by its resolution, and the fetch
 /// made one attempt, so it never asked the CLOB.
 fn resolved_by_payout(payload: &Value, winner: &str) -> Option<Detail> {
-    const RULE: &str = "resolved_by_payout";
+    const RULE: Rule = Rule::ResolvedByPayout;
     let markets = payload["markets"].as_array().map_or(&[][..], Vec::as_slice);
     let Some((index, market)) = markets
         .iter()

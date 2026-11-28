@@ -29,7 +29,7 @@ mod contract;
 #[path = "live_record.rs"]
 mod record;
 
-use contract::Detail;
+use contract::{Detail, Rule};
 
 /// The one check outside any provider's registration: a main search with supplemental web
 /// search, which proves the pipeline that joins them.
@@ -315,6 +315,22 @@ struct Outcome {
     detail: Option<Detail>,
 }
 
+impl Outcome {
+    /// A check that ended as `status` without starting a command.
+    const fn of(status: Status) -> Self {
+        Self {
+            status,
+            cause: None,
+            attempts: 0,
+            duration_ms: None,
+            rerun: false,
+            error_kind: None,
+            http_status: None,
+            detail: None,
+        }
+    }
+}
+
 impl CheckResult {
     /// A check that never started a command.
     fn without_command(
@@ -326,14 +342,8 @@ impl CheckResult {
         Self {
             identity: CheckIdentity::of(entry),
             outcome: Outcome {
-                status,
                 cause,
-                attempts: 0,
-                duration_ms: None,
-                rerun: false,
-                error_kind: None,
-                http_status: None,
-                detail: None,
+                ..Outcome::of(status)
             },
             message: Some(message),
             transition: None,
@@ -342,38 +352,25 @@ impl CheckResult {
 
     fn observed(entry: &Declared, observation: Observation) -> Self {
         let duration_ms = Some(crate::net::duration_millis(observation.duration));
-        let identity = CheckIdentity::of(entry);
         let (outcome, message) = match observation.outcome {
-            Ok(_) => (
-                Outcome {
-                    status: Status::Passed,
-                    cause: None,
-                    attempts: observation.attempts,
-                    duration_ms,
-                    rerun: false,
-                    error_kind: None,
-                    http_status: None,
-                    detail: None,
-                },
-                None,
-            ),
+            Ok(_) => (Outcome::of(Status::Passed), None),
             Err(failure) => (
                 Outcome {
-                    status: Status::Failed,
-                    cause: None,
-                    attempts: observation.attempts,
-                    duration_ms,
-                    rerun: false,
                     error_kind: Some(failure.error_kind.into_owned()),
                     http_status: failure.http_status,
                     detail: Some(*failure.detail),
+                    ..Outcome::of(Status::Failed)
                 },
                 Some(failure.message.into_owned()),
             ),
         };
         Self {
-            identity,
-            outcome,
+            identity: CheckIdentity::of(entry),
+            outcome: Outcome {
+                attempts: observation.attempts,
+                duration_ms,
+                ..outcome
+            },
             message,
             transition: None,
         }
@@ -446,20 +443,22 @@ pub(crate) fn run(
         .into_iter()
         .map(LiveTier::as_str)
         .collect::<Vec<_>>();
-    let record_warning = match crate::state_file::state_directory() {
-        Some(state) => record::conclude(
-            &record::Store::new(state.join(record::DIRECTORY)),
-            chrono::Utc::now(),
-            &record::Run {
-                tiers: &tiers,
-                scheduled: selection.unattended,
-                summary: &summary,
-            },
-            &mut results,
-        )
-        .err(),
-        None => Some("no state directory, so the run was not recorded".into()),
-    };
+    let record_warning = crate::state_file::state_directory()
+        .ok_or(record::RecordError::NoStateDirectory)
+        .and_then(|state| {
+            record::conclude(
+                &record::Store::new(state.join(record::DIRECTORY)),
+                chrono::Utc::now(),
+                &record::Run {
+                    tiers: &tiers,
+                    scheduled: selection.unattended,
+                    summary: &summary,
+                },
+                &mut results,
+            )
+        })
+        .err()
+        .map(|error| error.to_string());
     Ok((
         LiveReport {
             mode: "live",
@@ -541,7 +540,7 @@ struct Failure {
 
 impl Failure {
     /// A failure of the run itself rather than of the command's provider.
-    fn of_run(kind: FailureKind, rule: &'static str, message: &'static str) -> Self {
+    fn of_run(kind: FailureKind, rule: Rule, message: &'static str) -> Self {
         Self {
             kind,
             error_kind: Cow::Borrowed(match kind {
@@ -846,7 +845,7 @@ fn attempt(
         .map_err(|_| {
             Failure::of_run(
                 FailureKind::Other,
-                "command_runs",
+                Rule::CommandRuns,
                 "cannot create a content directory",
             )
         })?;
@@ -859,12 +858,16 @@ fn attempt(
         Execution::TimedOut => {
             return Err(Failure::of_run(
                 FailureKind::Timeout,
-                "time_limit",
+                Rule::TimeLimit,
                 "the command ran past its time limit and was killed",
             ));
         }
         Execution::Broken(message) => {
-            return Err(Failure::of_run(FailureKind::Other, "command_runs", message));
+            return Err(Failure::of_run(
+                FailureKind::Other,
+                Rule::CommandRuns,
+                message,
+            ));
         }
     };
     let payload = serde_json::from_slice::<Value>(&stdout);
@@ -874,7 +877,7 @@ fn attempt(
     let payload = payload.map_err(|_| {
         Failure::of_run(
             FailureKind::Contract,
-            "valid_json",
+            Rule::ValidJson,
             "the command printed invalid JSON",
         )
     })?;
@@ -917,12 +920,12 @@ fn nonzero_terminal(payload: Option<&Value>, credentials: &[Secret]) -> Failure 
                 &format!("the command failed with {kind}: {message}"),
                 credentials,
             )),
-            detail: Box::new(Detail::rule("command_succeeds")),
+            detail: Box::new(Detail::rule(Rule::CommandSucceeds)),
             http_status: payload.and_then(http_status),
         },
         None => Failure::of_run(
             FailureKind::Other,
-            "command_succeeds",
+            Rule::CommandSucceeds,
             "the command exited nonzero without an error kind and message",
         ),
     }

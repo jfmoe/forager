@@ -1,5 +1,5 @@
-//! Run records: one private file per `doctor --live` run in the state directory, kept 90 days,
-//! and each check's transition against the scheduled runs recorded before it. A record holds
+//! Run records: one private file per `doctor --live` run in the state directory, removed after
+//! the retention period, and each check's transition against the scheduled runs recorded before it. A record holds
 //! check identifiers, statuses, error kinds, HTTP statuses, durations and contract details,
 //! never a message, so no secret, query, URL or content reaches it.
 
@@ -21,6 +21,17 @@ const RETENTION: TimeDelta = TimeDelta::days(90);
 /// Where run records are kept.
 pub(super) struct Store {
     directory: PathBuf,
+}
+
+/// Why a run left no record, or left expired ones behind; the run's result does not depend on it.
+#[derive(Debug, thiserror::Error)]
+pub(super) enum RecordError {
+    #[error("no state directory, so the run was not recorded")]
+    NoStateDirectory,
+    #[error("cannot write the run record: {0}")]
+    Write(io::Error),
+    #[error("cannot remove expired run records: {0}")]
+    RemoveExpired(io::Error),
 }
 
 /// What a run record says about the run as a whole.
@@ -134,14 +145,14 @@ fn recorded_millis(name: &std::ffi::OsStr) -> Option<i64> {
 }
 
 /// Gives each result its transition against the recorded scheduled runs, then records this run
-/// at `now` and removes the expired records. Returns why the record could not be written or the
-/// old ones removed; the results keep their transitions either way.
+/// at `now` and removes the expired records. The results keep their transitions whether or not
+/// the record could be written.
 pub(super) fn conclude(
     store: &Store,
     now: DateTime<Utc>,
     run: &Run<'_>,
     results: &mut [CheckResult],
-) -> Result<(), String> {
+) -> Result<(), RecordError> {
     let history = store.history();
     for result in results.iter_mut() {
         result.transition = transition(&history, result.identity.id, result.outcome.status);
@@ -164,12 +175,10 @@ pub(super) fn conclude(
             })
             .collect(),
     };
-    store
-        .write(&record, millis)
-        .map_err(|error| format!("cannot write the run record: {error}"))?;
+    store.write(&record, millis).map_err(RecordError::Write)?;
     store
         .remove_expired(now)
-        .map_err(|error| format!("cannot remove expired run records: {error}"))
+        .map_err(RecordError::RemoveExpired)
 }
 
 /// The transition of check `id`, which ended as `status`, against the scheduled runs in
