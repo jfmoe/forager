@@ -238,7 +238,7 @@ fn reserve_under_lock(
         return Ok(None);
     }
     state["routes"][route] = json!({"reserved_at_ms": window});
-    state_file::write_state(path, &state)?;
+    state_file::write_state(path, &state, true)?;
     Ok(Some(window))
 }
 

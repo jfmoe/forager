@@ -18,6 +18,10 @@ use crate::secure_fs::ensure_private_directory;
 use crate::state_file::{StateLock, read_state, state_directory, write_state};
 
 const IDENTITY_VERSION: u32 = 1;
+// The identity and the login marker are written only when a profile is created or a login
+// succeeds, and an identity a power loss damages leaves the user to delete the profile and log
+// in again, so both writes reach the disk before they return.
+const STATE_SYNCED: bool = true;
 
 /// The screen and window of a headed browser, as its page reports them in CSS pixels.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
@@ -135,7 +139,8 @@ impl BrowserProfile {
 
     fn write_identity(&self, identity: &Identity) -> Result<(), ProfileError> {
         let value = serde_json::to_value(identity).map_err(|error| self.unusable(&error))?;
-        write_state(&self.identity_file(), &value).map_err(|error| self.unusable(&error))
+        write_state(&self.identity_file(), &value, STATE_SYNCED)
+            .map_err(|error| self.unusable(&error))
     }
 
     fn identity_file(&self) -> PathBuf {
@@ -200,7 +205,7 @@ impl LockedProfile {
             self.profile.write_identity(&self.identity)?;
         }
         let marker = json!({"logged_in_at": chrono::Utc::now().to_rfc3339()});
-        write_state(&self.profile.login_marker(), &marker)
+        write_state(&self.profile.login_marker(), &marker, STATE_SYNCED)
             .map_err(|error| self.profile.unusable(&error))
     }
 }

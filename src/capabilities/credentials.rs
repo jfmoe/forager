@@ -147,7 +147,7 @@ fn claim_persistent_index(
         provider.to_owned(),
         json!({"next_index": (index + 1) % key_count}),
     );
-    state_file::write_state(path, &state)?;
+    state_file::write_state(path, &state, true)?;
     Ok((index, diagnostic))
 }
 

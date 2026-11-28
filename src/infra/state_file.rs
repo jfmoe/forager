@@ -167,8 +167,9 @@ pub(crate) fn read_state(path: &Path) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
-/// Replaces a state file through a synced private temporary file and an atomic rename.
-pub(crate) fn write_state(path: &Path, state: &Value) -> io::Result<()> {
+/// Replaces a state file through a private temporary file and an atomic rename. With `synced`,
+/// the write returns only once the content has reached the disk.
+pub(crate) fn write_state(path: &Path, state: &Value, synced: bool) -> io::Result<()> {
     let temporary = parent(path)?.join(format!(".{}.{}.tmp", file_stem(path), std::process::id()));
     let result = (|| {
         let mut file = create_private_file(&temporary)?;
@@ -176,7 +177,9 @@ pub(crate) fn write_state(path: &Path, state: &Value) -> io::Result<()> {
         serde_json::to_writer(&mut file, state).map_err(io::Error::other)?;
         file.write_all(b"\n")?;
         file.flush()?;
-        file.sync_all()?;
+        if synced {
+            file.sync_all()?;
+        }
         fs::rename(&temporary, path)?;
         drop(create_private_file(path)?);
         Ok(())
