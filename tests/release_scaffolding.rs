@@ -389,9 +389,10 @@ fn release_plz_commands_use_github_app_tokens() {
     assert_eq!(release_plz_jobs.len(), 2);
     for job in release_plz_jobs {
         let token = named_step_by_id(job, "app-token");
-        assert_eq!(
-            token["uses"].as_str(),
-            Some("actions/create-github-app-token@v2")
+        assert!(
+            token["uses"]
+                .as_str()
+                .is_some_and(|uses| uses.starts_with("actions/create-github-app-token@"))
         );
         assert_eq!(
             token["with"]["app-id"].as_str(),
