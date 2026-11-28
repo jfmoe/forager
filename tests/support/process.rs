@@ -156,12 +156,21 @@ impl ManagedChild {
 }
 
 pub(crate) fn spawn_command(command: &mut Command) -> io::Result<ManagedChild> {
+    spawn_command_reading_stdout(command, u64::MAX)
+}
+
+/// Starts `command` like [`spawn_command`], but closes its stdout once the first `limit` bytes
+/// are read, as a reader such as `head` does.
+pub(crate) fn spawn_command_reading_stdout(
+    command: &mut Command,
+    limit: u64,
+) -> io::Result<ManagedChild> {
     let mut child = command.spawn()?;
     let stdout = child.stdout.take().expect("capture test command stdout");
     let stderr = child.stderr.take().expect("capture test command stderr");
     Ok(ManagedChild {
         child,
-        stdout: spawn_reader(stdout),
+        stdout: spawn_reader(stdout.take(limit)),
         stderr: spawn_reader(stderr),
     })
 }
