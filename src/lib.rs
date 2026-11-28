@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 //! Core application services for the `forager` CLI.
 
 #[path = "cli/app.rs"]

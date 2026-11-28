@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 use std::fmt::Write as _;
 use std::fs;
 use std::io;
