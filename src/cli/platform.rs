@@ -13,16 +13,17 @@ use super::args::{ContentOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
+use crate::catalog::PlatformOperation;
 use crate::config::{ConfigError, PlatformRoutesRuntimeConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::platform_chain::{self, PlatformPreflightError};
 use crate::platform_fetch;
 use crate::platform_operation;
 use crate::types::{
-    ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, Platform,
-    PlatformAskRequest, PlatformCommentsRequest, PlatformFetchRequest, PlatformFetchResult,
-    PlatformRef, PlatformSearchOptions, PlatformSearchPage, PlatformSearchRequest, ProviderError,
-    ScholarCitedByRequest,
+    ASK, ArxivSearchOptions, ArxivSort, AttemptErrorKind, CITED_BY, COMMENTS, ContentDepth,
+    Deadline, HISTORY, Platform, PlatformAskRequest, PlatformCommentsRequest, PlatformFetchRequest,
+    PlatformFetchResult, PlatformRef, PlatformSearchOptions, PlatformSearchPage,
+    PlatformSearchRequest, ProviderError, STORIES, ScholarCitedByRequest, TRANSCRIBE, VIDEOS,
 };
 
 #[path = "ssrn_search.rs"]
@@ -269,6 +270,88 @@ fn parse_date(value: &str) -> Result<NaiveDate, String> {
         .then(|| value.parse().ok())
         .flatten()
         .ok_or_else(|| format!("`{value}` is not a calendar date in YYYY-MM-DD form"))
+}
+
+impl PlatformCommand {
+    /// The platform and the Platform Operation this command runs.
+    pub(super) fn operation(&self) -> (Platform, &'static str) {
+        let search = PlatformOperation::Search.as_str();
+        let fetch = PlatformOperation::Fetch.as_str();
+        match self {
+            Self::Arxiv { command } => (
+                Platform::Arxiv,
+                match command {
+                    ArxivCommand::Search(_) => search,
+                    ArxivCommand::Fetch(_) => fetch,
+                },
+            ),
+            Self::Ssrn { command } => (
+                Platform::Ssrn,
+                match command {
+                    SsrnCommand::Search(_) => search,
+                    SsrnCommand::Fetch(_) => fetch,
+                },
+            ),
+            Self::Scholar { command } => (
+                Platform::Scholar,
+                match command {
+                    ScholarCommand::Search(_) => search,
+                    ScholarCommand::Fetch(_) => fetch,
+                    ScholarCommand::CitedBy(_) => CITED_BY,
+                },
+            ),
+            Self::Xiaohongshu { command } => (
+                Platform::Xiaohongshu,
+                match command {
+                    XiaohongshuCommand::Search(_) => search,
+                    XiaohongshuCommand::Fetch(_) => fetch,
+                    XiaohongshuCommand::Comments(_) => COMMENTS,
+                },
+            ),
+            Self::X { command } => (
+                Platform::X,
+                match command {
+                    XCommand::Search(_) => search,
+                    XCommand::Fetch(_) => fetch,
+                    XCommand::Ask(_) => ASK,
+                },
+            ),
+            Self::Hn { command } => (
+                Platform::Hn,
+                match command {
+                    HnCommand::Search(_) => search,
+                    HnCommand::Fetch(_) => fetch,
+                    HnCommand::Stories(_) => STORIES,
+                },
+            ),
+            Self::Youtube { command } => (
+                Platform::Youtube,
+                match command {
+                    YoutubeCommand::Search(_) => search,
+                    YoutubeCommand::Fetch(_) => fetch,
+                    YoutubeCommand::Comments(_) => COMMENTS,
+                    YoutubeCommand::Videos(_) => VIDEOS,
+                    YoutubeCommand::Ask(_) => ASK,
+                    YoutubeCommand::Transcribe(_) => TRANSCRIBE,
+                },
+            ),
+            Self::Polymarket { command } => (
+                Platform::Polymarket,
+                match command {
+                    PolymarketCommand::Search(_) => search,
+                    PolymarketCommand::Fetch(_) => fetch,
+                    PolymarketCommand::History(_) => HISTORY,
+                },
+            ),
+            Self::Reddit { command } => (
+                Platform::Reddit,
+                match command {
+                    RedditCommand::Search(_) => search,
+                    RedditCommand::Fetch(_) => fetch,
+                },
+            ),
+        }
+    }
 }
 
 pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {

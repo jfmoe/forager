@@ -68,14 +68,26 @@ response bodies, credentials or tool traces. It serves review and diagnosis; it 
 message stream and not a cache of search responses.
 _Avoid_: debug log, response cache, search history
 
+**Invocation Telemetry**:
+The local record, on by default, of the health signals of every retrieval command: one record per
+invocation, success or failure, with the command, its exit code and terminal error kind, the
+providers tried and the one that answered, whether a fallback happened, the shape of the result
+and the safe fields of each attempt, and for a fetch the host it read. It never holds a query, a
+URL beyond that host, content, a credential, an error message, a provider endpoint, a model name
+or a Platform Ref. The Search Result Journal records what a search found; telemetry records how
+the providers behaved, so the two never record the same fact. Operator commands and Live Checks
+write none.
+_Avoid_: analytics, usage tracking, debug log
+
 **Attempt Trace**:
 The read-only facts derived from the provider attempt chain of one invocation: the terminal
 attribution, whether a fallback happened, the provider that succeeded, and a bounded summary.
 Orchestration collects the complete chain once for every command, with or without `--verbose`,
 including the attempts of routes that failed before a fallback succeeded, and every view reads it:
-the verbose result, the stderr attempt log, the Search Result Journal and exit-code attribution.
-Whether attempts reach stdout is decided by the rendering, from `--verbose`. A fallback happened
-when the run degraded at all, including a model change within one provider.
+the verbose result, the stderr attempt log, Invocation Telemetry, the Search Result Journal and
+exit-code attribution. Whether attempts reach stdout is decided by the rendering, from
+`--verbose`. A fallback happened when the run degraded at all, including a model change within
+one provider.
 _Avoid_: per-call-site interpretation, raw attempt scan
 
 **Caller Capability Declaration**:
@@ -373,7 +385,7 @@ the check of the whole search pipeline belongs to no provider. Live Checks run o
 `forager doctor --live`, never in an offline test. A check whose prerequisites this machine lacks
 is unconfigured, which is neither a pass nor a failure. A per-key account check, which asks only
 whether a key is valid and spends nothing, is not a Live Check, and a Live Check is a canary, not
-use: it writes no Search Result Journal record.
+use: it writes no Search Result Journal record and no Invocation Telemetry.
 _Avoid_: live case, provider probe, end-to-end test
 
 **Live Tier**:

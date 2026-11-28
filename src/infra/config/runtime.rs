@@ -283,6 +283,11 @@ impl RuntimeConfig {
     }
 }
 
+/// Whether the effective configuration keeps Invocation Telemetry.
+pub(crate) fn telemetry_enabled() -> Result<bool, ConfigError> {
+    Ok(load_effective_config()?.config.telemetry.enabled)
+}
+
 pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let loaded = load_effective_config()?;
     let config_dir = ConfigLocation::discover()?.config_dir;

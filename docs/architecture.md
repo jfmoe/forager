@@ -8,14 +8,16 @@ When design goals conflict, they rank in this order: distribution and startup ex
 
 ## Shape
 
-The project is one crate with a binary and a library. The library exposes exactly three facade modules, `app`, `config` and `types`; every other module is private to the crate. The binary parses arguments, renders output and maps errors to exit codes. Output formatting stays on the binary side.
+The project is one crate with a binary and a library. The library exposes exactly three facade modules, `app`, `config` and `types`; every other module is private to the crate. The binary parses arguments, renders output and maps errors to exit codes. Output formatting stays on the binary side, and only the CLI layer, the binary and `cli/`, writes to stdout and stderr; a repository rule enforces it.
+
+Every command ends in one terminal function on the binary side, called once its exit code and its `--output` copy are settled. An exhaustive match on the command's kind decides whether it writes an Invocation Telemetry record: a retrieval command always does, an operator command never does.
 
 `src/` holds six groups, each owning one kind of responsibility:
 
 - **`cli/`**: the argument tree, command dispatch and the `app` facade. Dispatch runs the browser preflight check and writes the journal at the end of a command.
 - **`core/`**: orchestration of one invocation. This covers the search fan-out, the shared chain executor, route planning for each platform operation, and attempt attribution.
 - **`capabilities/`**: everything that reaches a provider. This covers the Capability Catalog and platform catalog, the HTTP boundary, credential pools, Access Policies, and the provider and route adapters, including the browser transport.
-- **`evidence/`**: what an invocation leaves behind: the Search Result Journal and the stderr attempt log.
+- **`evidence/`**: what an invocation leaves behind: the Search Result Journal, the stderr attempt log and Invocation Telemetry, each a view of the one attempt chain that orchestration returns.
 - **`infra/`**: shared foundations: configuration, the shared types, redaction, secure file writing and cross-process state files.
 - **`ops/`**: operator commands outside a search: doctor, the Live Check runner behind `doctor --live` with the run records it keeps in the state directory, and browser install and login.
 
@@ -84,7 +86,7 @@ Invariants that hold for every command:
 
 - An invocation reaches exactly one terminal state.
 - The exit code is chosen by the error family.
-- A failure in side work (the journal, a credential cursor, the `--output` copy) does not change the main terminal state, except that an explicitly requested output file that cannot be written exits 3.
+- A failure in side work (the journal, telemetry, a credential cursor, the `--output` copy) does not change the main terminal state, except that an explicitly requested output file that cannot be written exits 3.
 - Success and failure payloads each have a bound.
 - A caller's capability declaration is authoritative.
 

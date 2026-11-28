@@ -1233,6 +1233,20 @@ read.
   `~/.local/state/forager/journal`), and `retention_days` (default `30`; `0` keeps files forever).
   Each search run writes its own file, whose path is `journal_ref`; retention deletes
   only expired files that forager named.
+- `telemetry.enabled` (default `true`) keeps Invocation Telemetry: every `search`, `fetch`, `map`,
+  `exa` and `platform` command, successful or not, writes one private record of health signals to
+  `$XDG_STATE_HOME/forager/telemetry` (else `~/.local/state/forager/telemetry`), and records
+  older than 30 days are removed. `config`, `doctor`, `setup` and `browser` write none, and a
+  command whose configuration cannot be loaded writes none. A record holds the command, its
+  platform and operation, the exit code and terminal error kind, the provider tried first and
+  the one that answered, whether a fallback happened, the result's item count and content
+  length and whether it was a legitimate empty result, and for each attempt its provider,
+  disposition, error kind, HTTP status, duration, whether it was anonymous, its retry and
+  rotation counts and its credential index. A `fetch` record also names the host it fetched
+  from. A record never holds a query, a URL beyond that host, content, a key, an error message,
+  a provider endpoint, a model name or a Platform Ref. The hosts reveal which domains were
+  fetched, so keep that in mind before sharing the directory. A record that cannot be written is
+  dropped without changing the command's output or exit code.
 - `retry`: `max_attempts` per request (at least 1), backoff `multiplier` (above 0), and `max_wait`
   seconds between attempts.
 - `http.ssl_verify` turns TLS certificate verification off when `false`.
@@ -1456,7 +1470,7 @@ value of the output. The contract rules are `present`, `type`, `nonblank`, `at_l
 command, quotes its error; only the report shows it.
 
 Each check runs forager as a separate process with its own time limit, without that command's own
-retries and without writing the Search Result Journal. A check on an HTTP route that fails with
+retries and without writing the Search Result Journal or Invocation Telemetry. A check on an HTTP route that fails with
 `network` or `timeout` is run once more; any other failure, and any failure of a browser route's
 check, is final. In an unattended run, every check on an HTTP route that still failed, except
 with `auth` or `parameter`, runs once more after a delay of one minute, shared by all of them; its

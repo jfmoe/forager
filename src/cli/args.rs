@@ -4,6 +4,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::catalog::{self, LiveTier, ProviderId};
 use crate::providers::SearchType;
+use crate::telemetry::RetrievalCommand;
 use crate::types::{CapabilitySet, FallbackPolicy, Platform};
 
 /// Parsed `forager` command-line arguments.
@@ -30,6 +31,31 @@ impl Cli {
         )
     }
 
+    /// What kind of command this is: a retrieval command, which writes Invocation Telemetry,
+    /// or an operator command, which does not.
+    #[must_use]
+    pub fn kind(&self) -> CommandKind {
+        match &self.command {
+            Command::Search { .. } => CommandKind::Retrieval(RetrievalCommand::Search),
+            Command::Fetch { .. } => CommandKind::Retrieval(RetrievalCommand::Fetch),
+            Command::Map { .. } => CommandKind::Retrieval(RetrievalCommand::Map),
+            Command::Exa {
+                command: ExaCommand::Search { .. },
+            } => CommandKind::Retrieval(RetrievalCommand::Exa("search")),
+            Command::Exa {
+                command: ExaCommand::Similar { .. },
+            } => CommandKind::Retrieval(RetrievalCommand::Exa("similar")),
+            Command::Platform { command } => {
+                let (platform, operation) = command.operation();
+                CommandKind::Retrieval(RetrievalCommand::Platform(platform, operation))
+            }
+            Command::Browser { .. } => CommandKind::Browser,
+            Command::Config { .. } => CommandKind::Config,
+            Command::Setup { .. } => CommandKind::Setup,
+            Command::Doctor { .. } => CommandKind::Doctor,
+        }
+    }
+
     /// Returns the requested output destination for a JSON preflight failure.
     #[must_use]
     pub fn json_preflight_output(&self) -> Option<OutputTarget> {
@@ -47,6 +73,21 @@ impl Cli {
             _ => None,
         }
     }
+}
+
+/// The kind of a parsed command, which decides at the terminal state what it leaves behind.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommandKind {
+    /// A command that reaches a provider for its result.
+    Retrieval(RetrievalCommand),
+    /// `config`.
+    Config,
+    /// `doctor`, in every mode.
+    Doctor,
+    /// `setup`.
+    Setup,
+    /// `browser`.
+    Browser,
 }
 
 #[derive(Debug, Subcommand)]

@@ -680,7 +680,7 @@ fn a_failure_message_never_shows_a_configured_credential() {
 }
 
 #[test]
-fn every_check_command_runs_once_and_outside_the_search_result_journal() {
+fn every_check_command_runs_once_and_outside_the_journal_and_telemetry() {
     for entry in declared() {
         let prepared = prepare(&entry.check, Some("input"), None);
         let environment = |name: &str| {
@@ -694,9 +694,10 @@ fn every_check_command_runs_once_and_outside_the_search_result_journal() {
         assert_eq!(
             (
                 environment("FORAGER_JOURNAL__ENABLED"),
+                environment("FORAGER_TELEMETRY__ENABLED"),
                 environment("FORAGER_RETRY__MAX_ATTEMPTS")
             ),
-            (Some("false"), Some("1")),
+            (Some("false"), Some("false"), Some("1")),
             "{}",
             entry.check.id
         );

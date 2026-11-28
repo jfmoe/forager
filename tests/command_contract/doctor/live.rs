@@ -40,7 +40,7 @@ fn statuses(report: &Value) -> Vec<(&str, &str)> {
 }
 
 #[test]
-fn the_anonymous_web_fetch_check_reads_without_the_configured_key_and_exits_0() {
+fn the_anonymous_web_fetch_check_reads_without_the_key_or_telemetry_and_exits_0() {
     let fixture = Fixture::start_sequence(vec![jina(&article())]);
     let environment = RunEnvironment::new(&jina_config(&fixture.url));
 
@@ -56,6 +56,7 @@ fn the_anonymous_web_fetch_check_reads_without_the_configured_key_and_exits_0() 
             &report["checks"][0]["attempts"],
             header(&request, "authorization"),
             request.contains(JINA_KEY),
+            environment.state_dir.join("forager/telemetry").exists(),
         ),
         (
             Some(0),
@@ -63,6 +64,7 @@ fn the_anonymous_web_fetch_check_reads_without_the_configured_key_and_exits_0() 
             vec![("jina:web_fetch:anonymous", "passed")],
             &json!(1),
             None,
+            false,
             false,
         ),
         "stderr: {}",

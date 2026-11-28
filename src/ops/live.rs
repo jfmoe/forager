@@ -994,8 +994,8 @@ fn nonzero_terminal(payload: Option<&Value>, credentials: &[Secret]) -> Failure 
 }
 
 /// Builds the check's command line and the environment that holds it to its routes. Every
-/// command runs once, without retries of its own, and stays out of the Search Result Journal,
-/// because a Live Check is a canary, not use.
+/// command runs once, without retries of its own, and stays out of the Search Result Journal and
+/// Invocation Telemetry, because a Live Check is a canary, not use.
 fn prepare(check: &LiveCheck, input: Option<&str>, scratch: Option<&Path>) -> Prepared {
     let mut arguments = check
         .command
@@ -1022,6 +1022,7 @@ fn prepare(check: &LiveCheck, input: Option<&str>, scratch: Option<&Path>) -> Pr
     let mut environment = vec![
         ("FORAGER_RETRY__MAX_ATTEMPTS".to_owned(), "1".to_owned()),
         ("FORAGER_JOURNAL__ENABLED".to_owned(), "false".to_owned()),
+        ("FORAGER_TELEMETRY__ENABLED".to_owned(), "false".to_owned()),
     ];
     match check.command.routes {
         RoutePin::Platform(platform, routes) => environment.push((

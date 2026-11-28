@@ -84,6 +84,8 @@ mod secure_fs;
 mod ssrn_crossref_samples;
 #[path = "infra/state_file.rs"]
 mod state_file;
+#[path = "evidence/telemetry.rs"]
+mod telemetry;
 #[path = "infra/types/mod.rs"]
 pub mod types;
 #[cfg(test)]

@@ -2,8 +2,8 @@
 
 ## Decision
 
-forager keeps a Search Result Journal, enabled by default, as its only persistent record of what a
-search did. Every Default Search Invocation that reaches a terminal state, success or failure,
+forager keeps a Search Result Journal, enabled by default, as its persistent record of what a
+search found. Every Default Search Invocation that reaches a terminal state, success or failure,
 writes one entry with two surfaces: the result (query, full answer, sources) and the execution (plan
 summary, provider attempts, terminal attribution, budget, capability gaps).
 
@@ -18,6 +18,9 @@ summary, provider attempts, terminal attribution, budget, capability gaps).
   journal's own naming pattern, so it cannot remove neighbouring data.
 - When no valid journal configuration exists yet, forager reports the journal as unavailable
   instead of guessing a default location.
+- Invocation Telemetry is the other persistent record: it keeps the health signals of every
+  retrieval command, never a query, an answer or a source. The journal records what a search
+  found and telemetry records how the providers behaved, so the two never record the same fact.
 
 ## Why
 
@@ -34,8 +37,9 @@ summary, provider attempts, terminal attribution, budget, capability gaps).
   record would need an identifier beyond its location.
 - **Off by default.** The record would be missing exactly when a user first needs to review a
   surprising result.
-- **Persisting debug logs as a second record.** Debug output stays on stderr; two persistent
-  records would disagree about what happened.
+- **Persisting debug logs as a second record.** The stderr attempt log stays on stderr; two
+  persistent records of the same facts would disagree about what happened. Telemetry is not such a
+  record, because it holds none of the journal's facts.
 
 ## Revisit when
 

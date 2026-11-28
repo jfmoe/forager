@@ -4,6 +4,8 @@
 mod doc_tests;
 #[path = "repository_rules/links.rs"]
 mod links;
+#[path = "repository_rules/output.rs"]
+mod output;
 #[path = "repository_rules/retired.rs"]
 mod retired;
 #[path = "repository_rules/runner.rs"]
@@ -692,6 +694,49 @@ fn scanned_files(extensions: &[&str]) -> Vec<PathBuf> {
                 vec![path]
             }
         })
+        .collect()
+}
+
+#[test]
+fn only_the_cli_layer_writes_to_stdout_or_stderr() {
+    let test_files = test_only_sources();
+    let found = files(&root().join("src"), "rs")
+        .into_iter()
+        .filter(|path| {
+            let name = relative(path);
+            !(name.starts_with("src/cli/")
+                || name == "src/main.rs"
+                || name.ends_with("_tests.rs")
+                || test_files.contains(&name))
+        })
+        .flat_map(|path| {
+            output::writes_outside_tests(&read(&path))
+                .into_iter()
+                .map(move |(line, text)| format!("{}:{line}: {text}", relative(&path)))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        found.is_empty(),
+        "only src/cli/ and src/main.rs write to stdout or stderr, so what a run did reaches the \
+         user through the views of the Attempt Trace; return the text to the CLI layer instead: \
+         {found:#?}"
+    );
+}
+
+/// The source files `src/lib.rs` declares only under `#[cfg(test)]`, as repository paths.
+fn test_only_sources() -> BTreeSet<String> {
+    let library = read(&root().join("src/lib.rs"));
+    let lines = library.lines().map(str::trim).collect::<Vec<_>>();
+    lines
+        .windows(2)
+        .filter(|pair| pair[0] == "#[cfg(test)]")
+        .filter_map(|pair| {
+            pair[1]
+                .strip_prefix("#[path = \"")
+                .and_then(|path| path.strip_suffix("\"]"))
+        })
+        .map(|path| format!("src/{path}"))
         .collect()
 }
 

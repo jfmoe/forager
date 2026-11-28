@@ -12,4 +12,5 @@ mod config;
 mod doctor;
 mod environment;
 mod platforms;
+mod telemetry;
 mod web;

@@ -95,6 +95,8 @@ pub enum CommandOutput {
     Fetch {
         /// Fetch result.
         result: Result<FetchOutcome, ProviderError>,
+        /// The host of the requested URL, without its userinfo or port.
+        host: Option<String>,
         /// Requested output format.
         format: ContentOutputFormat,
         /// Optional output file destination.
@@ -544,9 +546,13 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
+            let host = reqwest::Url::parse(&url)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_owned));
             let (result, attempt_log) = FetchContext::load(timeout)?.fetch(FetchRequest { url });
             Ok(CommandOutput::Fetch {
                 result,
+                host,
                 format,
                 output: output.target(),
                 verbose,
