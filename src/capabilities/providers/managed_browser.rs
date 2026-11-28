@@ -108,28 +108,60 @@ fn locate_in(cache: &Path, package: &Package) -> Result<PathBuf, LocateError> {
         return Ok(executable);
     }
     Err(LocateError::NotInstalled {
-        installed: installed_versions(cache),
+        installed: version_directories(&browsers_directory(cache))
+            .into_iter()
+            .map(|directory| directory.version)
+            .filter(|version| version != VERSION)
+            .collect(),
     })
 }
 
-fn installed_versions(cache: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(browsers_directory(cache)) else {
+/// A Managed Browser version directory: a directory named by the install prefix and a dotted,
+/// all-numeric version.
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct VersionDirectory {
+    // The order key comes first, so that versions order by their numbers.
+    numbers: Vec<u64>,
+    pub(crate) version: String,
+    pub(crate) path: PathBuf,
+}
+
+/// Lists the version directories in the browser directory `browsers`, oldest first. An entry
+/// with any other name, or a symbolic link, is not a version directory.
+pub(crate) fn version_directories(browsers: &Path) -> Vec<VersionDirectory> {
+    let Ok(entries) = std::fs::read_dir(browsers) else {
         return Vec::new();
     };
-    let mut versions = entries
+    let mut directories = entries
         .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_dir())
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
         .filter_map(|entry| {
-            entry
+            let version = entry
                 .file_name()
-                .to_str()
-                .and_then(|name| name.strip_prefix(INSTALL_PREFIX))
-                .map(str::to_owned)
+                .to_str()?
+                .strip_prefix(INSTALL_PREFIX)?
+                .to_owned();
+            Some(VersionDirectory {
+                numbers: version_numbers(&version)?,
+                version,
+                path: entry.path(),
+            })
         })
-        .filter(|version| version != VERSION)
         .collect::<Vec<_>>();
-    versions.sort();
-    versions
+    directories.sort();
+    directories
+}
+
+fn version_numbers(version: &str) -> Option<Vec<u64>> {
+    version
+        .split('.')
+        .map(|part| {
+            part.bytes()
+                .all(|byte| byte.is_ascii_digit())
+                .then(|| part.parse().ok())
+                .flatten()
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -169,6 +201,26 @@ mod tests {
                     installed: vec!["147.0.1.2".into()]
                 }
             )
+        );
+    }
+
+    #[test]
+    fn other_installed_versions_are_named_in_numeric_order() {
+        let cache = tempfile::tempdir().expect("create cache");
+        for version in ["10.0.0.0", "9.0.0.0", "9.0.x"] {
+            fs::create_dir_all(
+                cache
+                    .path()
+                    .join(format!("browser/fingerprint-chromium-{version}")),
+            )
+            .expect("create version");
+        }
+
+        assert_eq!(
+            locate_in(cache.path(), &MACOS_ARM64),
+            Err(LocateError::NotInstalled {
+                installed: vec!["9.0.0.0".into(), "10.0.0.0".into()]
+            })
         );
     }
 }

@@ -2,8 +2,9 @@
 //! Browser in the cache, and logging a user into a platform's Browser Profile.
 //!
 //! Install downloads the pinned package of this host, checks its SHA256, and copies the browser
-//! out of it. Login opens a window on the platform's login entry and waits until the platform's
-//! page logic sees a logged-in session, then closes the browser normally and records the login.
+//! out of it; then it removes every other installed version but the newest. Login opens a window
+//! on the platform's login entry and waits until the platform's page logic sees a logged-in
+//! session, then closes the browser normally and records the login.
 
 use std::fmt::Write as _;
 use std::io;
@@ -31,6 +32,7 @@ const LOGIN_POLL: Duration = Duration::from_secs(1);
 const MAX_UNANSWERED_POLLS: u32 = 5;
 const DOWNLOAD_PREFIX: &str = ".download-";
 const STAGING_PREFIX: &str = ".staging-";
+const REMOVING_PREFIX: &str = ".removing-";
 // Detaching runs even after the command's timeout, so that no disk image stays mounted.
 const DETACH_LIMIT: Duration = Duration::from_secs(15);
 
@@ -120,7 +122,7 @@ pub(crate) trait Unpack {
 }
 
 /// Installs the pinned version of this host's package into the cache within `deadline`,
-/// unless it is already installed.
+/// unless it is already installed, then removes every other installed version but the newest.
 ///
 /// # Errors
 ///
@@ -160,7 +162,8 @@ async fn install_package(
     let browsers = install_directory
         .parent()
         .ok_or_else(|| runtime("the install directory has no parent"))?;
-    place_package(
+    remove_leftovers(browsers).await;
+    let installed = place_package(
         package,
         install_directory,
         browsers,
@@ -169,7 +172,9 @@ async fn install_package(
         deadline,
         progress,
     )
-    .await
+    .await?;
+    remove_other_versions(browsers, install_directory, progress).await;
+    Ok(installed)
 }
 
 /// Puts the pinned version into `install_directory`, unless it is already there.
@@ -193,7 +198,6 @@ async fn place_package(
     tokio::fs::create_dir_all(browsers)
         .await
         .map_err(|error| io_failure("create the cache directory", &error))?;
-    remove_leftovers(browsers).await;
     let archive = browsers.join(format!("{DOWNLOAD_PREFIX}{}", std::process::id()));
     let staging = browsers.join(format!("{STAGING_PREFIX}{}", std::process::id()));
     let installed = async {
@@ -251,9 +255,57 @@ async fn is_file(path: &Path) -> bool {
         .is_ok_and(|metadata| metadata.is_file())
 }
 
-/// Removes the downloads and staging directories that an install interrupted earlier left in
-/// `directory`. Each carries the process ID of its install, and one whose process still runs
-/// belongs to a concurrent install and stays.
+/// Removes the version directories in `browsers` other than `install_directory`, except the
+/// newest of them. A development build and the installed release may pin different versions
+/// while sharing the cache, and a process of the previous version may still run during an
+/// upgrade, so one other version stays.
+///
+/// Each directory is first renamed to a leftover name, so an interrupted removal never leaves a
+/// partial version that would still count as installed. A removal that fails is reported
+/// through `progress` and does not fail the install.
+async fn remove_other_versions(
+    browsers: &Path,
+    install_directory: &Path,
+    progress: &mut dyn FnMut(&str),
+) {
+    let others = managed_browser::version_directories(browsers)
+        .into_iter()
+        .filter(|directory| directory.path != install_directory)
+        .collect::<Vec<_>>();
+    let Some((_newest, older)) = others.split_last() else {
+        return;
+    };
+    for other in older {
+        let leftover = browsers.join(format!(
+            "{REMOVING_PREFIX}{}-{}",
+            std::process::id(),
+            other.version
+        ));
+        match tokio::fs::rename(&other.path, &leftover).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                progress(&format!(
+                    "cannot remove fingerprint-chromium {}: {error}",
+                    other.version
+                ));
+                continue;
+            }
+        }
+        match tokio::fs::remove_dir_all(&leftover).await {
+            Ok(()) => progress(&format!("removed fingerprint-chromium {}", other.version)),
+            Err(error) => progress(&format!(
+                "removed fingerprint-chromium {}, but cannot delete its files in {}: {error}; a later `forager browser install` deletes them",
+                other.version,
+                leftover.display()
+            )),
+        }
+    }
+}
+
+/// Removes the downloads, staging directories and removed versions that an install
+/// interrupted earlier left in `directory`. Each carries the process ID of its install, and one
+/// whose process still runs belongs to a concurrent install and stays.
 async fn remove_leftovers(directory: &Path) {
     let Ok(mut entries) = tokio::fs::read_dir(directory).await else {
         return;
@@ -263,10 +315,16 @@ async fn remove_leftovers(directory: &Path) {
         let Some(owner) = name
             .to_str()
             .and_then(|name| {
-                name.strip_prefix(DOWNLOAD_PREFIX)
-                    .or_else(|| name.strip_prefix(STAGING_PREFIX))
+                [DOWNLOAD_PREFIX, STAGING_PREFIX, REMOVING_PREFIX]
+                    .into_iter()
+                    .find_map(|prefix| name.strip_prefix(prefix))
             })
-            .map(|pid| pid.parse::<u32>().ok())
+            .map(|tag| {
+                tag.split_once('-')
+                    .map_or(tag, |(pid, _)| pid)
+                    .parse::<u32>()
+                    .ok()
+            })
         else {
             continue;
         };
@@ -646,14 +704,14 @@ async fn await_login(
 mod tests {
     use std::cell::Cell;
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::time::Duration;
 
     use sha2::{Digest, Sha256};
 
     use super::{Archive, Download, Installed, SetupFailure, Unpack, install_package};
     use crate::fixture_server::block_on;
-    use crate::providers::managed_browser::{Package, VERSION};
+    use crate::providers::managed_browser::{Package, VERSION, install_directory};
     use crate::types::{AttemptErrorKind, Deadline};
 
     const PACKAGE_BYTES: &[u8] = b"a disk image";
@@ -722,6 +780,39 @@ mod tests {
             Deadline::new(Duration::from_secs(10)),
             &mut |_| {},
         ))
+    }
+
+    /// Installs into the pinned version's directory of `cache` and returns the result with the
+    /// progress lines.
+    fn install_pinned(
+        cache: &Path,
+        package: &Package,
+    ) -> (Result<Installed, SetupFailure>, Vec<String>) {
+        let mut lines = Vec::new();
+        let installed = block_on(install_package(
+            package,
+            &install_directory(cache),
+            &FakeDownload::default(),
+            &FakeUnpack,
+            Deadline::new(Duration::from_secs(10)),
+            &mut |line| lines.push(line.to_owned()),
+        ));
+        (installed, lines)
+    }
+
+    /// Creates the directory of an installed `version` under the browser directory of `cache`.
+    fn installed_version(cache: &Path, version: &str) -> PathBuf {
+        let directory = cache
+            .join("browser")
+            .join(format!("fingerprint-chromium-{version}"));
+        fs::create_dir_all(directory.join("Chromium.app/Contents/MacOS")).expect("create version");
+        fs::write(directory.join("Chromium.app/Contents/MacOS/Chromium"), "")
+            .expect("write executable");
+        directory
+    }
+
+    fn versions(cache: &Path) -> Vec<String> {
+        files(&cache.join("browser"))
     }
 
     fn files(directory: &Path) -> Vec<String> {
@@ -816,6 +907,233 @@ mod tests {
         .expect("install");
 
         assert_eq!(files(&browsers), ["fingerprint-chromium"]);
+    }
+
+    #[test]
+    fn an_install_keeps_only_the_newest_other_version_by_numeric_order() {
+        let cache = tempfile::tempdir().expect("create cache");
+        installed_version(cache.path(), "9.0.0.0");
+        installed_version(cache.path(), "10.0.0.0");
+
+        let (installed, lines) = install_pinned(cache.path(), &package(digest()));
+
+        assert_eq!(
+            (
+                installed
+                    .map(|installed| installed.downloaded)
+                    .map_err(failure),
+                versions(cache.path()),
+                lines.last().map(String::as_str)
+            ),
+            (
+                Ok(true),
+                vec![
+                    "fingerprint-chromium-10.0.0.0".to_owned(),
+                    format!("fingerprint-chromium-{VERSION}")
+                ],
+                Some("removed fingerprint-chromium 9.0.0.0")
+            )
+        );
+    }
+
+    #[test]
+    fn an_install_that_finds_the_pin_installed_keeps_a_newer_version_and_removes_older_ones() {
+        let cache = tempfile::tempdir().expect("create cache");
+        installed_version(cache.path(), VERSION);
+        installed_version(cache.path(), "9.0.0.0");
+        installed_version(cache.path(), "999.0.0.0");
+
+        let (installed, _) = install_pinned(cache.path(), &package(digest()));
+
+        assert_eq!(
+            (
+                installed
+                    .map(|installed| installed.downloaded)
+                    .map_err(failure),
+                versions(cache.path())
+            ),
+            (
+                Ok(false),
+                vec![
+                    format!("fingerprint-chromium-{VERSION}"),
+                    "fingerprint-chromium-999.0.0.0".to_owned()
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn a_failed_install_removes_no_version() {
+        let cache = tempfile::tempdir().expect("create cache");
+        installed_version(cache.path(), "9.0.0.0");
+        installed_version(cache.path(), "10.0.0.0");
+
+        let (installed, _) = install_pinned(cache.path(), &package("0000"));
+
+        assert_eq!(
+            (installed.is_err(), versions(cache.path())),
+            (
+                true,
+                vec![
+                    "fingerprint-chromium-10.0.0.0".to_owned(),
+                    "fingerprint-chromium-9.0.0.0".to_owned()
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn entries_that_are_not_version_directories_are_neither_removed_nor_counted() {
+        let cache = tempfile::tempdir().expect("create cache");
+        installed_version(cache.path(), "9.0.0.0");
+        let browsers = cache.path().join("browser");
+        fs::create_dir(browsers.join("fingerprint-chromium-99.0.x")).expect("non-numeric");
+        fs::create_dir(browsers.join("fingerprint-chromium-")).expect("no version");
+        fs::create_dir(browsers.join("chromium-1.0.0.0")).expect("other prefix");
+        fs::write(browsers.join("fingerprint-chromium-1.0.0.0"), "").expect("file");
+
+        install_pinned(cache.path(), &package(digest()))
+            .0
+            .expect("install");
+
+        assert_eq!(
+            versions(cache.path()),
+            [
+                "chromium-1.0.0.0".to_owned(),
+                "fingerprint-chromium-".to_owned(),
+                "fingerprint-chromium-1.0.0.0".to_owned(),
+                format!("fingerprint-chromium-{VERSION}"),
+                "fingerprint-chromium-9.0.0.0".to_owned(),
+                "fingerprint-chromium-99.0.x".to_owned(),
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symbolic_link_named_as_a_version_is_neither_followed_nor_removed() {
+        let cache = tempfile::tempdir().expect("create cache");
+        let target = installed_version(cache.path(), "1.0.0.0");
+        let elsewhere = cache.path().join("elsewhere");
+        fs::rename(&target, &elsewhere).expect("move the target away");
+        std::os::unix::fs::symlink(&elsewhere, &target).expect("link");
+        installed_version(cache.path(), "9.0.0.0");
+
+        install_pinned(cache.path(), &package(digest()))
+            .0
+            .expect("install");
+
+        assert_eq!(
+            (versions(cache.path()), elsewhere.is_dir()),
+            (
+                vec![
+                    "fingerprint-chromium-1.0.0.0".to_owned(),
+                    format!("fingerprint-chromium-{VERSION}"),
+                    "fingerprint-chromium-9.0.0.0".to_owned(),
+                ],
+                true
+            )
+        );
+    }
+
+    /// Sets the mode of `directory` and reports whether permissions now bind this user, which
+    /// they do not for root.
+    #[cfg(unix)]
+    fn lock(directory: &Path, mode: u32) -> bool {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(directory, fs::Permissions::from_mode(mode)).expect("set permissions");
+        let probe = directory.join("probe");
+        let binds = fs::write(&probe, "").is_err();
+        if !binds {
+            fs::remove_file(probe).expect("remove probe");
+        }
+        binds
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_version_whose_files_cannot_be_deleted_is_removed_with_a_note() {
+        let cache = tempfile::tempdir().expect("create cache");
+        let old = installed_version(cache.path(), "9.0.0.0");
+        installed_version(cache.path(), "10.0.0.0");
+        let locked = Path::new("Chromium.app/Contents/MacOS");
+        if !lock(&old.join(locked), 0o555) {
+            return;
+        }
+
+        let (installed, lines) = install_pinned(cache.path(), &package(digest()));
+
+        let browsers = cache.path().join("browser");
+        let names = files(&browsers);
+        for name in &names {
+            let bundle = browsers.join(name).join(locked);
+            if bundle.is_dir() {
+                lock(&bundle, 0o755);
+            }
+        }
+        let note = lines.last().expect("a note");
+        assert_eq!(
+            (
+                installed
+                    .map(|installed| installed.downloaded)
+                    .map_err(failure),
+                names
+                    .iter()
+                    .filter(|name| name.starts_with("fingerprint-chromium-"))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                note.starts_with("removed fingerprint-chromium 9.0.0.0, but cannot delete")
+            ),
+            (
+                Ok(true),
+                vec![
+                    "fingerprint-chromium-10.0.0.0".to_owned(),
+                    format!("fingerprint-chromium-{VERSION}")
+                ],
+                true
+            ),
+            "{note}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_version_that_cannot_be_moved_stays_and_the_install_succeeds_with_a_note() {
+        let cache = tempfile::tempdir().expect("create cache");
+        installed_version(cache.path(), VERSION);
+        installed_version(cache.path(), "9.0.0.0");
+        installed_version(cache.path(), "10.0.0.0");
+        let browsers = cache.path().join("browser");
+        if !lock(&browsers, 0o555) {
+            return;
+        }
+
+        let (installed, lines) = install_pinned(cache.path(), &package(digest()));
+
+        lock(&browsers, 0o755);
+        assert_eq!(
+            (
+                installed
+                    .map(|installed| installed.downloaded)
+                    .map_err(failure),
+                versions(cache.path()),
+                lines
+                    .iter()
+                    .map(|line| line.starts_with("cannot remove fingerprint-chromium 9.0.0.0: "))
+                    .collect::<Vec<_>>()
+            ),
+            (
+                Ok(false),
+                vec![
+                    "fingerprint-chromium-10.0.0.0".to_owned(),
+                    format!("fingerprint-chromium-{VERSION}"),
+                    "fingerprint-chromium-9.0.0.0".to_owned()
+                ],
+                vec![true]
+            ),
+            "{lines:?}"
+        );
     }
 
     #[cfg(unix)]
