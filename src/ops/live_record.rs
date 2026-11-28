@@ -46,6 +46,8 @@ pub(super) struct Run<'a> {
     /// Whether the run was unattended; only such a run is a baseline for later transitions.
     pub(super) scheduled: bool,
     pub(super) summary: &'a Summary,
+    /// The identifier of every check this forager declares, selected or not.
+    pub(super) declared: &'a [&'static str],
 }
 
 #[derive(Serialize)]
@@ -57,6 +59,7 @@ struct Record<'a> {
     tiers: &'a [&'static str],
     scheduled: bool,
     summary: &'a Summary,
+    declared: &'a [&'static str],
     checks: Vec<RecordedCheck<'a>>,
 }
 
@@ -75,6 +78,9 @@ pub(super) struct PastRun {
     pub(super) scheduled: bool,
     #[serde(default)]
     tiers: Vec<String>,
+    /// The checks the forager that ran it declared; `None` in a record that does not list them.
+    #[serde(default)]
+    pub(super) declared: Option<Vec<String>>,
     pub(super) checks: Vec<PastCheck>,
 }
 
@@ -162,6 +168,7 @@ pub(super) fn conclude(
             recorded_at: now,
             scheduled: run.scheduled,
             tiers: run.tiers.iter().map(|tier| (*tier).to_owned()).collect(),
+            declared: Some(run.declared.iter().map(|id| (*id).to_owned()).collect()),
             checks: results
                 .iter()
                 .map(|result| PastCheck {
@@ -184,6 +191,7 @@ pub(super) fn conclude(
         tiers: run.tiers,
         scheduled: run.scheduled,
         summary: run.summary,
+        declared: run.declared,
         checks: results
             .iter()
             .map(|result| RecordedCheck {

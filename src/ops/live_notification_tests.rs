@@ -23,6 +23,13 @@ fn scheduled(day: u32, checks: Value) -> PastRun {
     run(day, true, checks)
 }
 
+/// A scheduled run whose forager declared the checks `declared`.
+fn scheduled_declaring(day: u32, declared: &[&str], checks: Value) -> PastRun {
+    let mut run = scheduled(day, checks);
+    run.declared = Some(declared.iter().map(|id| (*id).to_owned()).collect());
+    run
+}
+
 fn passed(id: &str) -> Value {
     json!({"id": id, "status": "passed", "attempts": 1})
 }
@@ -160,6 +167,25 @@ fn a_failure_left_unconfirmed_neither_opens_nor_closes_an_issue_nor_serves_as_a_
     assert_eq!(
         (after_a_pass, after_a_failure, past_one),
         (NONE, NONE, NONE)
+    );
+}
+
+#[test]
+fn a_failing_check_no_longer_declared_leaves_the_set_in_the_first_run_without_it() {
+    let before_retirement = scheduled_declaring(
+        1,
+        &["exa:search", "exa:old"],
+        json!([failed("exa:old", "network"), passed("exa:search")]),
+    );
+    let first = scheduled_declaring(2, &["exa:search"], json!([passed("exa:search")]));
+    let second = scheduled_declaring(3, &["exa:search"], json!([passed("exa:search")]));
+
+    assert_eq!(
+        (
+            actions(std::slice::from_ref(&before_retirement), &first),
+            actions(&[before_retirement, first], &second),
+        ),
+        (one("exa", "close"), NONE)
     );
 }
 

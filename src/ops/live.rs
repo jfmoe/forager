@@ -420,6 +420,27 @@ struct Confirmation<'a> {
     wait: &'a mut dyn FnMut(Duration),
 }
 
+/// The body of the monitoring issue that each provider of a declared check, or `pipeline`, opens
+/// when that check fails in a scheduled run.
+#[cfg(test)]
+pub(crate) fn issue_bodies() -> Vec<String> {
+    declared()
+        .iter()
+        .map(|entry| {
+            let run = serde_json::from_value::<record::PastRun>(serde_json::json!({
+                "recorded_at": "2026-11-28T06:00:00Z",
+                "scheduled": true,
+                "checks": [{"id": entry.check.id, "status": "failed", "confirmed": true}],
+            }))
+            .expect("a run record");
+            notification::decide(&[], &run)
+                .into_iter()
+                .map(|notification| notification.body)
+                .collect::<String>()
+        })
+        .collect()
+}
+
 /// When the latest scheduled run of each tier was recorded under the state directory `state`.
 pub(crate) fn last_scheduled_runs(
     state: &std::path::Path,
@@ -463,10 +484,15 @@ pub(crate) fn run(
         .into_iter()
         .map(LiveTier::as_str)
         .collect::<Vec<_>>();
+    let declared_ids = declared
+        .iter()
+        .map(|entry| entry.check.id)
+        .collect::<Vec<_>>();
     let run = record::Run {
         tiers: &tiers,
         scheduled: selection.unattended,
         summary: &summary,
+        declared: &declared_ids,
     };
     let (notifications, record_warning) = match crate::state_file::state_directory() {
         Some(state) => {

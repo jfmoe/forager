@@ -1563,9 +1563,9 @@ A run that is not unattended reruns nothing and reports no `confirmed`.
 Every live run, attended or not, is recorded in `live_runs/` under forager's state directory
 (`$XDG_STATE_HOME/forager` or `~/.local/state/forager`), one private file per run, and records older
 than 90 days are removed. A record holds the run's identifier, time, forager version, tiers,
-whether it was `scheduled` (true exactly when the run was unattended), the summary, and per check
-its `status`, `cause`, `attempts`, `rerun`, `confirmed`, `duration_ms`, `error_kind`,
-`http_status`, and `detail`; it never holds a `message`, so no key, query, URL or content reaches
+whether it was `scheduled` (true exactly when the run was unattended), the summary, the `declared`
+identifier of every check this forager declares, and per check its `status`, `cause`, `attempts`,
+`rerun`, `confirmed`, `duration_ms`, `error_kind`, `http_status`, and `detail`; it never holds a `message`, so no key, query, URL or content reaches
 it. A record older than 90 days is never read, even before it is removed. A check that reached a
 result (passed, or failed without `confirmed: false`) reports its `transition` against the most
 recent scheduled record in which it reached one: `newly_failed` when it failed after a pass or with no earlier run, `still_failing` with
@@ -1577,19 +1577,21 @@ changes no later transition.
 
 An unattended run's `notifications` says, for each provider whose monitoring issue the run
 changes, what happens to that issue; a provider it does not list keeps its issue as it is.
-A provider's failing set is its checks whose latest scheduled result, passed or a failure not left
-`confirmed: false`, is a failure; a run that is not scheduled changes no issue. Each entry has
-`provider` (`pipeline` for the pipeline check), `action`, `label` (`live-check:<provider>`, which
+A provider's failing set is its declared checks whose latest scheduled result, passed or a failure
+not left `confirmed: false`, is a failure; a run that is not scheduled changes no issue. Each entry
+has `provider` (`pipeline` for the pipeline check), `action`, `label` (`live-check:<provider>`, which
 identifies the issue), `title` and `body`:
 
 - `open`: the failing set became non-empty.
 - `update`: the set's checks or their error kinds changed.
-- `close`: every check in the set passed.
+- `close`: every check in the set passed or is no longer declared.
 
-`body` lists each failing check by `id` with its `error_kind` and `http_status`, and holds no
-message, configuration value, endpoint or usage figure, because the issue is public. An error kind
-forager does not name is shown as `unrecognised`. Unconfigured, unselected and not-started checks
-change no set, and a failure left `confirmed: false` neither opens nor closes an issue.
+`body` lists each failing check by `id` with its `error_kind` and `http_status`, names the
+`doctor --live` command that runs the provider's checks (for the pipeline check, its tier) by hand,
+and holds no message, configuration value, endpoint or usage figure, because the issue is public.
+An error kind forager does not name is shown as `unrecognised`. Unconfigured, unselected and
+not-started checks change no set, and a failure left `confirmed: false` neither opens nor closes an
+issue.
 
 A live run exits `0` when at least one check ran and every check that ran passed, so unconfigured
 and unselected checks do not fail it; `ok` is true exactly then. It exits `4` when a check failed,

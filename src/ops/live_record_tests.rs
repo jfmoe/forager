@@ -111,6 +111,7 @@ fn record_results(
             tiers: &["metered"],
             scheduled,
             summary: &summary,
+            declared: &["exa:docs_search"],
         },
         &mut results,
     )
@@ -190,6 +191,7 @@ fn a_run_record_holds_the_run_and_each_check_without_a_message_query_url_key_or_
             tiers: &["free", "metered"],
             scheduled: true,
             summary: &summary,
+            declared: &["exa:docs_search"],
         },
         &mut results,
     )
@@ -318,6 +320,7 @@ fn an_expired_record_is_no_baseline_even_before_it_is_removed() {
             tiers: &["metered"],
             scheduled: true,
             summary: &summary,
+            declared: &["exa:docs_search"],
         },
         &mut results,
     );
@@ -347,6 +350,7 @@ fn each_tier_s_last_scheduled_run_counts_a_run_left_unconfirmed_and_no_run_by_ha
                 tiers,
                 scheduled,
                 summary: &summary,
+                declared: &["exa:docs_search"],
             },
             &mut results,
         )
@@ -408,6 +412,7 @@ fn an_unattended_runs_issue_text_holds_only_check_identifiers_error_kinds_and_ht
                 tiers: &["metered"],
                 scheduled: true,
                 summary: &summary,
+                declared: &["exa:docs_search"],
             },
             &mut results,
         );
