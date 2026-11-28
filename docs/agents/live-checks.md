@@ -30,6 +30,8 @@ The job files are in `scripts/schedules/`; forager installs nothing. The jobs ru
 
 After a change to these files, copy them again; for a plist, `launchctl bootout` it before bootstrapping it again. launchd starts a job that a sleeping machine missed when the machine wakes, and skips it while the machine is off. Either way the health summary flags a tier or workflow whose last run is overdue.
 
+The weekly job starts on Monday evening, local time, after the GitHub scheduled workflows have run early on Monday (UTC), so the record it writes holds this week's runs. A record written before them would hold last week's, and the health summary would report both workflows overdue within days. Keep that order when moving either schedule.
+
 The jobs give each run a longer `--timeout` than the default: a failed check is confirmed only by a rerun after a delay, and only while the run has room for the check's own time limit, so a shorter run leaves more failures unconfirmed.
 
 ## Monitoring issues
