@@ -32,6 +32,15 @@ fn cleanup_warning_silences_permission_denied() {
     assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
 }
 
+#[test]
+fn cleanup_warning_reports_an_unexpected_error() {
+    let error = io::Error::other("disk on fire");
+
+    let warning = cleanup_warning(&error);
+
+    assert_eq!(warning.as_deref(), Some("journal cleanup: disk on fire"));
+}
+
 fn outcome() -> SearchOutcome {
     SearchOutcome {
         provider: "xai",

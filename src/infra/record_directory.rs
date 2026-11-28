@@ -100,21 +100,18 @@ impl RecordDirectory {
     /// back. The sweep goes on past a file it cannot remove and returns the first error; a record
     /// another process removed first is no error.
     pub(crate) fn remove_expired_when_due(&self, now: DateTime<Utc>) -> io::Result<()> {
-        if self.kind.retention.is_none() || !self.sweep_due(now) {
+        if self.kind.retention.is_none() {
             return Ok(());
         }
-        let marked = create_private_file(&self.sweep_marker())
-            .and_then(|marker| marker.set_modified(now.into()));
-        self.remove_expired(now).and(marked)
-    }
-
-    fn sweep_due(&self, now: DateTime<Utc>) -> bool {
-        fs::metadata(self.sweep_marker())
-            .and_then(|marker| marker.modified())
-            .map_or(true, |swept| {
-                let swept = DateTime::<Utc>::from(swept);
-                swept > now || now - swept >= SWEEP_PERIOD
-            })
+        let marker = self.sweep_marker();
+        // Anything but a regular file under the marker's name belongs to someone else, so it is
+        // neither read nor touched, and every write sweeps.
+        let recorded = match fs::symlink_metadata(&marker) {
+            Ok(found) if !found.is_file() => Ok(()),
+            Ok(found) if !sweep_due(&found, now) => return Ok(()),
+            _ => create_private_file(&marker).and_then(|file| file.set_modified(now.into())),
+        };
+        self.remove_expired(now).and(recorded)
     }
 
     /// The file whose modification time records the kind's last sweep; no record name matches it.
@@ -188,6 +185,14 @@ struct Written {
     nanos: i64,
     pid: u32,
     sequence: Option<u64>,
+}
+
+/// Whether a sweep is due at `now` after the one `marker` records.
+fn sweep_due(marker: &fs::Metadata, now: DateTime<Utc>) -> bool {
+    marker.modified().map_or(true, |swept| {
+        let swept = DateTime::<Utc>::from(swept);
+        swept > now || now - swept >= SWEEP_PERIOD
+    })
 }
 
 fn nanos(at: DateTime<Utc>) -> i64 {
@@ -414,6 +419,37 @@ mod tests {
         assert_eq!(
             records.read::<Value>(now() - TimeDelta::days(30)),
             Vec::<Value>::new()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_sweep_leaves_the_file_a_link_named_as_its_marker_points_to_untouched() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().expect("create the record directory");
+        let path = directory.path();
+        let neighbour = path.join("notes.txt");
+        fs::write(&neighbour, "the user's own file").expect("write a neighbouring file");
+        fs::set_permissions(&neighbour, fs::Permissions::from_mode(0o644)).expect("set its mode");
+        let modified = |path: &std::path::Path| fs::metadata(path).expect("stat").modified();
+        let before = modified(&neighbour).expect("its modification time");
+        std::os::unix::fs::symlink(&neighbour, path.join(".note_last_sweep"))
+            .expect("link the marker's name to the neighbour");
+        let records = RecordDirectory::new(path.to_path_buf(), KIND);
+        written(&records, now() - TimeDelta::days(11));
+
+        records
+            .remove_expired_when_due(now())
+            .expect("remove the expired records");
+
+        assert_eq!(
+            (
+                fs::metadata(&neighbour).expect("stat").permissions().mode() & 0o777,
+                modified(&neighbour).expect("its modification time"),
+                records.read::<Value>(now() - TimeDelta::days(30)).len(),
+            ),
+            (0o644, before, 0)
         );
     }
 
