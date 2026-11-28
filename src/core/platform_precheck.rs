@@ -10,6 +10,7 @@
 
 use reqwest::Client;
 
+use crate::chain::{ChainOutcome, LeadingTrace};
 use crate::config::PlatformRuntimeConfig;
 use crate::net::RetryPolicy;
 use crate::platform_chain::PlatformPreflightError;
@@ -57,37 +58,21 @@ pub(crate) fn plan_precheck(
     })
 }
 
-/// The video the precheck read, the attempts of the read led by those recorded before it, and the
-/// read's diagnostic.
-pub(crate) struct Prechecked {
-    pub(crate) video: PlatformItem,
-    pub(crate) attempts: Vec<ProviderAttempt>,
-    pub(crate) diagnostic: Option<String>,
-}
-
 /// Reads the video; a failed read, or a stream that is live, fails with every attempt of the
 /// read. `prior` holds the attempts recorded before the read, such as skipped routes; they
-/// lead the attempts of the read on success and on failure.
+/// lead the attempts of the read on success and on failure. The outcome carries the video read.
 pub(crate) async fn run_precheck(
     plan: PrecheckPlan,
-    mut prior: Vec<ProviderAttempt>,
+    prior: Vec<ProviderAttempt>,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
-) -> Result<Prechecked, ProviderError> {
-    let checked =
-        match platform_fetch::fetch_item(plan.fetch, client, retry_policy, deadline, verbose).await
-        {
-            Ok(checked) => checked,
-            Err(mut error) => {
-                prior.append(&mut error.attempts);
-                error.attempts = prior;
-                return Err(error);
-            }
-        };
-    prior.extend(checked.attempts);
-    let video = checked.item;
+) -> Result<ChainOutcome<PlatformItem>, ProviderError> {
+    let checked = LeadingTrace::new(prior).lead(
+        platform_fetch::fetch_item(plan.fetch, client, retry_policy, deadline, verbose).await,
+    )?;
+    let video = &checked.value;
     if matches!(
         &video.data,
         PlatformItemData::Youtube(data) if data.live_status == Some(YoutubeLiveStatus::Live)
@@ -98,14 +83,10 @@ pub(crate) async fn run_precheck(
                 "{} is streaming live; a model can read it only after the stream ends",
                 video.reference
             ),
-            attempts: prior,
+            attempts: checked.attempts,
             verbose,
             diagnostic: checked.diagnostic,
         });
     }
-    Ok(Prechecked {
-        video,
-        attempts: prior,
-        diagnostic: checked.diagnostic,
-    })
+    Ok(checked)
 }

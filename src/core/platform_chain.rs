@@ -9,8 +9,8 @@ use reqwest::Client;
 
 use crate::catalog::{self, PlatformOperation, ProviderId, ProviderTransport};
 use crate::chain::{
-    self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
-    StepVerdict, TerminalPolicy,
+    self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, LeadingTrace, StepIdentity,
+    StepSuccess, StepVerdict, TerminalPolicy,
 };
 use crate::config::{self, BrowserRuntimeConfig, PlatformRouteConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
@@ -95,7 +95,7 @@ pub(crate) async fn run_search(
         platform,
         request,
         routes,
-        mut skipped,
+        skipped,
     } = plan;
     let request_ref = &request;
     let steps = routes
@@ -148,27 +148,21 @@ pub(crate) async fn run_search(
         },
     )
     .await;
-    match result {
-        Ok(outcome) => {
-            let (route, items, next_page) = outcome.value;
-            skipped.extend(outcome.attempts);
-            Ok(PlatformSearchPage {
-                platform,
-                provider: route.name(),
-                collection: None,
-                items,
-                next_cursor: next_page
-                    .map(|page| page_cursor::encode(route, request.at_page(page))),
-                attempts: if verbose { skipped } else { Vec::new() },
-                diagnostic: outcome.diagnostic,
-            })
-        }
-        Err(mut error) => {
-            skipped.append(&mut error.attempts);
-            error.attempts = skipped;
-            Err(error)
-        }
-    }
+    let outcome = LeadingTrace::new(skipped).lead(result)?;
+    let (route, items, next_page) = outcome.value;
+    Ok(PlatformSearchPage {
+        platform,
+        provider: route.name(),
+        collection: None,
+        items,
+        next_cursor: next_page.map(|page| page_cursor::encode(route, request.at_page(page))),
+        attempts: if verbose {
+            outcome.attempts
+        } else {
+            Vec::new()
+        },
+        diagnostic: outcome.diagnostic,
+    })
 }
 
 pub(crate) fn route_identity(config: &PlatformRouteConfig) -> StepIdentity {

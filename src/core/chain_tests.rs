@@ -485,3 +485,58 @@ fn chain_wide_error_uses_kind_and_message_from_the_same_terminal_attempt() {
         (AttemptErrorKind::Quality, "thin content")
     );
 }
+
+mod leading_trace {
+    use super::super::{ChainOutcome, LeadingTrace, skipped_attempt};
+    use crate::types::{AttemptErrorKind, AttemptTarget, ProviderAttempt, ProviderError};
+
+    fn attempt(provider: &'static str) -> ProviderAttempt {
+        skipped_attempt(AttemptTarget::platform("youtube", "ask"), provider, "test")
+    }
+
+    fn trace() -> LeadingTrace {
+        LeadingTrace {
+            attempts: vec![attempt("youtube_api")],
+            diagnostic: Some("read".into()),
+        }
+    }
+
+    fn providers(attempts: &[ProviderAttempt]) -> Vec<&str> {
+        attempts.iter().map(|attempt| attempt.provider).collect()
+    }
+
+    #[test]
+    fn the_leading_trace_leads_a_successful_chain() {
+        let outcome = trace()
+            .lead(Ok(ChainOutcome {
+                value: (),
+                attempts: vec![attempt("gemini_api")],
+                diagnostic: Some("answered".into()),
+            }))
+            .unwrap_or_else(|error| panic!("lead failed: {}", error.message));
+
+        assert_eq!(
+            (providers(&outcome.attempts), outcome.diagnostic.as_deref()),
+            (vec!["youtube_api", "gemini_api"], Some("read\nanswered"))
+        );
+    }
+
+    #[test]
+    fn the_leading_trace_leads_a_failed_chain() {
+        let error = trace()
+            .lead::<()>(Err(ProviderError {
+                kind: AttemptErrorKind::Quality,
+                message: "refused".into(),
+                attempts: vec![attempt("gemini_api")],
+                verbose: false,
+                diagnostic: None,
+            }))
+            .err()
+            .map(|error| (providers(&error.attempts).join(","), error.diagnostic));
+
+        assert_eq!(
+            error,
+            Some(("youtube_api,gemini_api".to_owned(), Some("read".to_owned())))
+        );
+    }
+}

@@ -14,12 +14,12 @@ use reqwest::Client;
 
 use crate::catalog::{self, PlatformOperation, ProviderId};
 use crate::chain::{
-    self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepSuccess, StepVerdict,
-    TerminalPolicy,
+    self, BudgetPolicy, ChainOutcome, ChainSettings, ChainStep, DiagnosticMerge, LeadingTrace,
+    StepSuccess, StepVerdict, TerminalPolicy,
 };
 use crate::config::{PlatformRouteConfig, PlatformRuntimeConfig, WebFetchRuntimeConfig};
 use crate::engine;
-use crate::net::{RetryPolicy, combine_diagnostics};
+use crate::net::RetryPolicy;
 use crate::platform_chain::{
     PlatformPreflightError, operation_target, plan_routes, route_candidates, route_identity,
 };
@@ -87,41 +87,31 @@ pub(crate) async fn fetch(
         routes,
         skipped,
     } = plan;
-    let mut attempts = skipped;
-    let metadata = match fetch_metadata(
-        platform,
-        &request,
-        routes,
-        client.clone(),
-        retry_policy,
-        deadline,
-        verbose,
-    )
-    .await
-    {
-        Ok(metadata) => metadata,
-        Err(mut error) => {
-            attempts.append(&mut error.attempts);
-            error.attempts = attempts;
-            return Err(error);
-        }
-    };
-    attempts.extend(metadata.attempts);
-    let mut item = metadata.item;
-    let mut diagnostic = metadata.diagnostic;
+    let ChainOutcome {
+        value: (route, mut item, content_source),
+        mut attempts,
+        mut diagnostic,
+    } = LeadingTrace::new(skipped).lead(
+        fetch_metadata(
+            platform,
+            &request,
+            routes,
+            client.clone(),
+            retry_policy,
+            deadline,
+            verbose,
+        )
+        .await,
+    )?;
     let mut content = None;
     if request.depth == ContentDepth::Thread
-        && let FullTextSource::Native(body) = metadata.content_source
+        && let FullTextSource::Native(body) = content_source
     {
-        content = Some(PlatformContent::new(
-            item.url.clone(),
-            metadata.route.name(),
-            body,
-        ));
+        content = Some(PlatformContent::new(item.url.clone(), route.name(), body));
     } else if request.depth == ContentDepth::FullText {
-        let full_text = match metadata.content_source {
-            FullTextSource::Native(body) => Ok(FullText {
-                content: PlatformContent::new(item.url.clone(), metadata.route.name(), body),
+        let full_text = match content_source {
+            FullTextSource::Native(body) => Ok(ChainOutcome {
+                value: PlatformContent::new(item.url.clone(), route.name(), body),
                 attempts: Vec::new(),
                 diagnostic: None,
             }),
@@ -129,27 +119,23 @@ pub(crate) async fn fetch(
                 read_url_full_text(urls, &web_fetch, &client, retry_policy, deadline).await
             }
         };
-        match full_text {
-            Ok(body) => {
-                attempts.extend(body.attempts);
-                item.depth = ContentDepth::FullText;
-                diagnostic =
-                    combine_diagnostics([diagnostic, body.diagnostic].into_iter().flatten());
-                content = Some(body.content);
-            }
-            Err(mut error) => {
-                attempts.append(&mut error.attempts);
-                error.attempts = attempts;
-                error.verbose = verbose;
-                error.diagnostic =
-                    combine_diagnostics([diagnostic, error.diagnostic].into_iter().flatten());
-                return Err(error);
-            }
+        let body = LeadingTrace {
+            attempts,
+            diagnostic,
         }
+        .lead(full_text)
+        .map_err(|mut error| {
+            error.verbose = verbose;
+            error
+        })?;
+        item.depth = ContentDepth::FullText;
+        content = Some(body.value);
+        attempts = body.attempts;
+        diagnostic = body.diagnostic;
     }
     Ok(PlatformFetchResult {
         platform,
-        provider: metadata.route.name(),
+        provider: route.name(),
         item,
         content,
         attempts: if verbose { attempts } else { Vec::new() },
@@ -157,30 +143,23 @@ pub(crate) async fn fetch(
     })
 }
 
-/// An item the fetch chain read without its full text, with every attempt of the read: the
-/// routes planning skipped, then the chain's.
-pub(crate) struct FetchedItem {
-    pub(crate) item: PlatformItem,
-    pub(crate) attempts: Vec<ProviderAttempt>,
-    pub(crate) diagnostic: Option<String>,
-}
-
 /// Runs a planned fetch for its item alone; a full-text source the route declares is left
-/// unread. A failure carries every attempt of the read.
+/// unread. The outcome carries every attempt of the read, the routes planning skipped first, and
+/// so does a failure.
 pub(crate) async fn fetch_item(
     plan: PlatformFetchPlan,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
-) -> Result<FetchedItem, ProviderError> {
+) -> Result<ChainOutcome<PlatformItem>, ProviderError> {
     let PlatformFetchPlan {
         platform,
         request,
         routes,
-        mut skipped,
+        skipped,
     } = plan;
-    match fetch_metadata(
+    let metadata = fetch_metadata(
         platform,
         &request,
         routes,
@@ -189,32 +168,14 @@ pub(crate) async fn fetch_item(
         deadline,
         verbose,
     )
-    .await
-    {
-        Ok(metadata) => {
-            skipped.extend(metadata.attempts);
-            Ok(FetchedItem {
-                item: metadata.item,
-                attempts: skipped,
-                diagnostic: metadata.diagnostic,
-            })
-        }
-        Err(mut error) => {
-            skipped.append(&mut error.attempts);
-            error.attempts = skipped;
-            Err(error)
-        }
-    }
+    .await;
+    LeadingTrace::new(skipped)
+        .lead(metadata)
+        .map(|outcome| outcome.map(|(_, item, _)| item))
 }
 
-struct Metadata {
-    route: ProviderId,
-    item: PlatformItem,
-    content_source: FullTextSource,
-    attempts: Vec<ProviderAttempt>,
-    diagnostic: Option<String>,
-}
-
+/// Runs the metadata route chain; its value is the route that answered, the item and where the
+/// item's full text lives.
 async fn fetch_metadata(
     platform: Platform,
     request: &PlatformFetchRequest,
@@ -223,7 +184,7 @@ async fn fetch_metadata(
     retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
-) -> Result<Metadata, ProviderError> {
+) -> Result<ChainOutcome<(ProviderId, PlatformItem, FullTextSource)>, ProviderError> {
     let steps = routes
         .into_iter()
         .map(|context| ChainStep {
@@ -231,7 +192,7 @@ async fn fetch_metadata(
             configured: true,
         })
         .collect();
-    let outcome = chain::run_chain(
+    chain::run_chain(
         steps,
         ChainSettings {
             target: operation_target(platform, PlatformOperation::Fetch.as_str()),
@@ -264,21 +225,7 @@ async fn fetch_metadata(
             }
         },
     )
-    .await?;
-    let (route, item, content_source) = outcome.value;
-    Ok(Metadata {
-        route,
-        item,
-        content_source,
-        attempts: outcome.attempts,
-        diagnostic: outcome.diagnostic,
-    })
-}
-
-struct FullText {
-    content: PlatformContent,
-    attempts: Vec<ProviderAttempt>,
-    diagnostic: Option<String>,
+    .await
 }
 
 /// Reads the first URL whose Web Fetch chain succeeds. A URL with a later fallback gets half of
@@ -289,7 +236,7 @@ async fn read_url_full_text(
     client: &Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-) -> Result<FullText, ProviderError> {
+) -> Result<ChainOutcome<PlatformContent>, ProviderError> {
     let mut attempts = Vec::new();
     let mut last_error = None;
     let count = urls.len();
@@ -315,8 +262,8 @@ async fn read_url_full_text(
         {
             Ok(outcome) => {
                 attempts.extend(outcome.attempts);
-                return Ok(FullText {
-                    content: PlatformContent::new(url, outcome.provider, outcome.content),
+                return Ok(ChainOutcome {
+                    value: PlatformContent::new(url, outcome.provider, outcome.content),
                     attempts,
                     diagnostic: outcome.diagnostic,
                 });
