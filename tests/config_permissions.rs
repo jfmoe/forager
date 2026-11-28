@@ -1,3 +1,9 @@
+#[path = "support/isolation.rs"]
+mod isolation;
+#[expect(
+    dead_code,
+    reason = "these tests start only the binary, never a program that keeps its environment"
+)]
 #[path = "support/process.rs"]
 mod process;
 
@@ -8,17 +14,15 @@ use std::path::{Path, PathBuf};
 fn record_one_invocation(root: &Path) -> (PathBuf, PathBuf) {
     let config_dir = root.join("config");
     std::fs::create_dir_all(&config_dir).expect("create config directory");
-    let mut command = process::command_behind_closed_proxy(env!("CARGO_BIN_EXE_forager"));
-    command.env_clear();
-    process::proxy_through(&mut command, process::CLOSED_PROXY);
+    let mut command = isolation::command_with_empty_environment(
+        env!("CARGO_BIN_EXE_forager"),
+        process::CLOSED_PROXY,
+    );
     command
         .env("HOME", root)
         .env("FORAGER_CONFIG_DIR", &config_dir)
         .env("XDG_STATE_HOME", root.join("state"))
         .args(["map", "https://example.test"]);
-    if let Some(system_root) = std::env::var_os("SystemRoot") {
-        command.env("SystemRoot", system_root);
-    }
     let output = process::run_command(&mut command, None);
     assert_eq!(output.status.code(), Some(3), "{output:?}");
     let directory = root.join("state").join("forager").join("telemetry");

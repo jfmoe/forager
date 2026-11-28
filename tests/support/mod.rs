@@ -7,9 +7,11 @@ use std::process::{Command, Output};
 use std::sync::mpsc;
 
 mod fixture_server;
+mod isolation;
 mod process;
 
 pub(crate) use fixture_server::*;
+use isolation::command_with_empty_environment;
 pub(crate) use process::*;
 
 pub(crate) mod arxiv_api_samples;
@@ -144,14 +146,7 @@ pub(crate) fn forager_command() -> Command {
 }
 
 pub(crate) fn forager_command_through(proxy: &str) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
-    command.env_clear();
-    proxy_through(&mut command, proxy);
-    #[cfg(windows)]
-    if let Some(system_root) = std::env::var_os("SystemRoot") {
-        command.env("SystemRoot", system_root);
-    }
-    command
+    command_with_empty_environment(env!("CARGO_BIN_EXE_forager"), proxy)
 }
 
 /// The forager binary isolated to `home`, reading its configuration from `config_dir` and
