@@ -14,3 +14,13 @@ pub use dispatch::{
     bounded_attempt_summary, combine_diagnostics, run,
 };
 pub use invocation::{RetrievalCommand, record_invocation};
+
+/// The names each report vocabulary that the product skill lists serializes to, by vocabulary and
+/// in the skill's order, so the skill contract test can bind each list to its enum.
+#[must_use]
+pub fn report_vocabularies() -> Vec<(&'static str, Vec<String>)> {
+    crate::health::vocabularies()
+        .into_iter()
+        .chain(crate::live::vocabularies())
+        .collect()
+}
