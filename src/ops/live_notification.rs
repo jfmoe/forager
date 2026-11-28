@@ -9,6 +9,7 @@ use std::fmt::Write;
 use serde::Serialize;
 
 use super::record::{PastCheck, PastRun};
+use crate::catalog::ProviderId;
 use crate::types::AttemptErrorKind;
 
 /// What happens to a provider's monitoring issue.
@@ -19,7 +20,7 @@ pub(super) enum Action {
     Open,
     /// Its failing set changed its members or their error kinds.
     Update,
-    /// Its failing set became empty, because those checks passed.
+    /// Its failing set became empty, because those checks passed or are no longer declared.
     Close,
 }
 
@@ -38,14 +39,23 @@ pub(super) struct Notification {
 type FailingSets<'a> = BTreeMap<&'a str, BTreeMap<&'a str, &'a PastCheck>>;
 
 /// The decision for every provider whose issue `current` changes, after the records in
-/// `history`, oldest first. A provider's failing set holds its checks whose latest scheduled
-/// result, passed or confirmed failed, is a failure; a run that is not scheduled decides nothing.
+/// `history`, oldest first. A provider's failing set holds its declared checks whose latest
+/// scheduled result, passed or confirmed failed, is a failure; a run that is not scheduled decides
+/// nothing. The set before `current` holds the checks the previous scheduled run declared, so a
+/// check retired since leaves the set in the first run that no longer declares it.
 pub(super) fn decide(history: &[PastRun], current: &PastRun) -> Vec<Notification> {
     if !current.scheduled {
         return Vec::new();
     }
-    let before = failing_sets(history.iter());
-    let after = failing_sets(history.iter().chain(std::iter::once(current)));
+    let previous = history.iter().rev().find(|run| run.scheduled);
+    let before = failing_sets(
+        history.iter(),
+        previous.and_then(|run| run.declared.as_deref()),
+    );
+    let after = failing_sets(
+        history.iter().chain(std::iter::once(current)),
+        current.declared.as_deref(),
+    );
     let mut providers = before.keys().chain(after.keys()).collect::<Vec<_>>();
     providers.sort_unstable();
     providers.dedup();
@@ -63,7 +73,12 @@ pub(super) fn decide(history: &[PastRun], current: &PastRun) -> Vec<Notification
         .collect()
 }
 
-fn failing_sets<'a>(runs: impl Iterator<Item = &'a PastRun>) -> FailingSets<'a> {
+/// The failing sets after `runs`, among the `declared` checks; every check counts when a record
+/// does not list them.
+fn failing_sets<'a>(
+    runs: impl Iterator<Item = &'a PastRun>,
+    declared: Option<&[String]>,
+) -> FailingSets<'a> {
     let mut latest = BTreeMap::<&str, &PastCheck>::new();
     for run in runs.filter(|run| run.scheduled) {
         for check in run.checks.iter().filter(|check| check.concluded()) {
@@ -72,7 +87,8 @@ fn failing_sets<'a>(runs: impl Iterator<Item = &'a PastRun>) -> FailingSets<'a> 
     }
     let mut sets = FailingSets::new();
     for (id, check) in latest {
-        if check.status == super::Status::Failed {
+        let is_declared = declared.is_none_or(|declared| declared.iter().any(|known| known == id));
+        if check.status == super::Status::Failed && is_declared {
             sets.entry(provider_of(id)).or_default().insert(id, check);
         }
     }
@@ -108,8 +124,9 @@ fn notification(
             }
             let _ = write!(
                 body,
-                "\nRun `forager doctor --live --provider {provider} --tier free,metered` on the \
-                 maintainer's machine for the detail, as docs/agents/live-checks.md describes.\n"
+                "\nRun `{}` on the maintainer's machine for the detail, as \
+                 docs/agents/live-checks.md describes.\n",
+                rerun_command(provider)
             );
             body
         }
@@ -121,6 +138,19 @@ fn notification(
         label: format!("live-check:{provider}"),
         title: format!("Live Checks of {provider} fail"),
         body,
+    }
+}
+
+/// The command that runs a provider's unattended tiers by hand. A provider's checks are selected
+/// by its name; the pipeline check, which no provider declares, only by its tier.
+fn rerun_command(provider: &str) -> String {
+    if ProviderId::parse(provider).is_some() {
+        format!("forager doctor --live --provider {provider} --tier free,metered")
+    } else {
+        format!(
+            "forager doctor --live --tier {}",
+            super::PIPELINE.tier.as_str()
+        )
     }
 }
 

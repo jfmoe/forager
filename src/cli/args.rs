@@ -715,6 +715,24 @@ mod doctor_tests {
     }
 
     #[test]
+    fn the_command_each_monitoring_issue_names_is_accepted() {
+        let refused = crate::live::issue_bodies()
+            .into_iter()
+            .filter_map(|body| {
+                let command = body
+                    .split('`')
+                    .find(|part| part.starts_with("forager "))
+                    .unwrap_or_default()
+                    .to_owned();
+                let arguments = command.split_whitespace().skip(1).collect::<Vec<_>>();
+                parse(&arguments).err().map(|error| (command, error.kind()))
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(refused, []);
+    }
+
+    #[test]
     fn an_unknown_tier_is_refused_naming_the_accepted_tiers() {
         let error = parse(&["doctor", "--live", "--tier", "cheap"])
             .expect_err("the parser refuses the tier");

@@ -46,8 +46,8 @@ None is a triage label ([`triage-labels.md`](triage-labels.md)), so triage and t
 Reading a `live-check:` issue:
 
 - The body lists each failing check of the provider with its error kind and HTTP status, and nothing else, because the repository is public. Only a confirmed failure reaches it: both observations failed, or the one observation was an `auth` or `parameter` failure.
-- A comment means the set of failing checks or their error kinds changed, and lists the new set. Closing means every check in it passed in a later scheduled run. A check that is unconfigured, unselected or not started changes nothing, and a run by hand never opens, updates or closes an issue.
-- For the detail (the failed rule, the path, what was observed and the command's own message), read the tier's last report, or run `forager doctor --live --provider <provider> --tier free,metered`. The tier selection keeps a person's rerun out of the provider's attended checks.
+- A comment means the set of failing checks or their error kinds changed, and lists the new set. Closing means every check in it passed in a later scheduled run or is no longer declared. A check that is unconfigured, unselected or not started changes nothing, and a run by hand never opens, updates or closes an issue.
+- For the detail (the failed rule, the path, what was observed and the command's own message), read the tier's last report, or run the command the issue names: `forager doctor --live --provider <provider> --tier free,metered`, whose tier selection keeps a person's rerun out of the provider's attended checks. No provider declares the pipeline check, so its issue names `forager doctor --live --tier metered`, which runs every `metered` check.
 - A run that exits 4 without a notification left its failures unconfirmed; the report shows them with `confirmed: false`.
 - A decision whose `gh` command failed is not tried again: the next run compares against records that already hold this run. The notification names the issue and the action; carry it out by hand from the tier's last report.
 
