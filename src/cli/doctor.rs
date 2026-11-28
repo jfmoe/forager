@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use super::args::OutputFormat;
 use super::dispatch::{AppError, CommandOutput};
+use crate::health::{SUBJECT_FIELDS, label};
 use crate::providers::ProviderId;
 
 /// The default deadline of `doctor`, and of a whole `doctor --live` run.
@@ -83,7 +84,7 @@ fn health_markdown(value: &Value) -> String {
         let _ = write!(
             output,
             "- {}: {}",
-            subject_label(finding),
+            label(finding),
             scalar(&finding["finding"])
         );
         for (field, detail) in finding.as_object().into_iter().flatten() {
@@ -95,7 +96,7 @@ fn health_markdown(value: &Value) -> String {
     }
     output.push_str("\n## Providers\n\n");
     for row in value["providers"].as_array().into_iter().flatten() {
-        let _ = write!(output, "- {}:", subject_label(row));
+        let _ = write!(output, "- {}:", label(row));
         let mut separator = " ";
         for field in [
             "calls",
@@ -136,7 +137,7 @@ fn health_markdown(value: &Value) -> String {
         let _ = write!(
             output,
             "- {}: {}",
-            subject_label(schedule),
+            label(schedule),
             scalar(&schedule["status"])
         );
         if let Some(last) = schedule["last_run_at"].as_str() {
@@ -154,30 +155,6 @@ fn health_markdown(value: &Value) -> String {
         output.push('\n');
     }
     output
-}
-
-/// The fields that name what a finding, a provider row or a schedule is about.
-const SUBJECT_FIELDS: [&str; 7] = [
-    "subject",
-    "provider",
-    "command",
-    "platform",
-    "operation",
-    "tier",
-    "workflow",
-];
-
-/// Names what an entry of the health summary is about, such as `jina fetch` or `tier free`.
-fn subject_label(entry: &Value) -> String {
-    let named = SUBJECT_FIELDS[1..]
-        .iter()
-        .filter_map(|field| entry[*field].as_str())
-        .collect::<Vec<_>>();
-    match entry["subject"].as_str() {
-        Some(subject @ ("tier" | "workflow")) => format!("{subject} {}", named.join(" ")),
-        Some(subject) if named.is_empty() => subject.to_owned(),
-        _ => named.join(" "),
-    }
 }
 
 /// A JSON scalar as text: a string without its quotes.

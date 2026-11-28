@@ -35,6 +35,15 @@ pub(crate) struct DoctorReport {
     health: Option<String>,
 }
 
+/// The health summary, and whether telemetry is still being written: with it off, an empty
+/// summary is not a healthy one.
+#[derive(Debug, Serialize)]
+pub(crate) struct HealthSummary {
+    telemetry_enabled: bool,
+    #[serde(flatten)]
+    report: HealthReport,
+}
+
 #[derive(Debug, Serialize)]
 struct StateDirectories {
     state: DirectoryStatus,
@@ -169,12 +178,7 @@ fn report(
             state_directories,
             permission_warnings: permission_warnings()?,
             config: effective,
-            health: health::report(
-                health::DEFAULT_DAYS,
-                Utc::now(),
-                config::telemetry_enabled()?,
-            )
-            .attention(),
+            health: health::report(health::DEFAULT_DAYS, Utc::now()).attention(),
         },
         if ok { 0 } else { 4 },
     ))
@@ -225,10 +229,17 @@ pub(crate) fn offline() -> Result<(DoctorReport, u8), config::ConfigError> {
 
 /// The health summary of the `days` before now. It exits 4 when something is overdue or
 /// degraded, so a scheduled job can act on its exit code.
-pub(crate) fn health(days: u32) -> Result<(HealthReport, u8), config::ConfigError> {
-    let report = health::report(days, Utc::now(), config::telemetry_enabled()?);
+pub(crate) fn health(days: u32) -> Result<(HealthSummary, u8), config::ConfigError> {
+    let telemetry_enabled = config::telemetry_enabled()?;
+    let report = health::report(days, Utc::now());
     let exit_code = if report.ok() { 0 } else { 4 };
-    Ok((report, exit_code))
+    Ok((
+        HealthSummary {
+            telemetry_enabled,
+            report,
+        },
+        exit_code,
+    ))
 }
 
 pub(crate) fn one_provider(
