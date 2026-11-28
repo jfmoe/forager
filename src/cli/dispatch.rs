@@ -69,27 +69,15 @@ pub enum CommandOutput {
         result: Result<SearchOutcome, SearchFailure>,
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
-        /// Requested output format.
-        format: ContentOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether full provider attempts should be rendered inline.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<ContentOutputFormat>,
     },
     /// Typed Exa terminal state for binary-side formatting and tee output.
     Exa {
         /// Provider result.
         result: Result<ExaOutcome, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
     /// Typed Web Fetch terminal state for binary-side formatting and tee output.
     Fetch {
@@ -97,54 +85,30 @@ pub enum CommandOutput {
         result: Result<FetchOutcome, ProviderError>,
         /// The host of the requested URL, without its userinfo or port.
         host: Option<String>,
-        /// Requested output format.
-        format: ContentOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<ContentOutputFormat>,
     },
     /// Typed platform search terminal state for binary-side formatting and tee output.
     PlatformSearch {
         /// Platform search result.
         result: Result<PlatformSearchPage, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
     /// Typed platform fetch terminal state for binary-side formatting and tee output.
     PlatformFetch {
         /// Platform fetch result; a full-text body is already written unless the format is
         /// `content`.
         result: Box<Result<PlatformFetchResult, ProviderError>>,
-        /// Requested output format.
-        format: ContentOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<ContentOutputFormat>,
     },
     /// Typed platform comments terminal state for binary-side formatting and tee output.
     PlatformComments {
         /// Comments result, in the platform's own shape.
         result: Result<PlatformCommentsPage, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
     /// Typed platform ask terminal state for binary-side formatting and tee output.
     PlatformAsk {
@@ -152,68 +116,53 @@ pub enum CommandOutput {
         platform: Platform,
         /// Ask result, in the platform's own shape.
         result: Result<PlatformAskResult, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
     /// Typed transcribe terminal state for binary-side formatting and tee output.
     PlatformTranscribe {
         /// Transcribe result; the transcript is already written unless the format is
         /// `content`.
         result: Box<Result<PlatformTranscribeResult, ProviderError>>,
-        /// Requested output format.
-        format: ContentOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<ContentOutputFormat>,
     },
     /// Typed Hacker News stories terminal state for binary-side formatting and tee output.
     HnStories {
         /// Stories result.
         result: Result<HnStoriesResult, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
     /// Typed Polymarket price history terminal state for binary-side formatting and tee output.
     PolymarketHistory {
         /// History result.
         result: Result<PolymarketHistoryResult, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
     /// Typed Tavily site map terminal state for binary-side formatting and tee output.
     Map {
         /// Site map result.
         result: Result<MapOutcome, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether the result lists every provider attempt, as `--verbose` asks.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
+        /// How the result is presented.
+        presentation: Presentation<OutputFormat>,
     },
+}
+
+/// How a retrieval command presents its result: the format, the `--output` copy, whether the
+/// result lists every provider attempt, as `--verbose` asks, and the attempt log that
+/// `log.level` selects.
+#[derive(Debug)]
+pub struct Presentation<F> {
+    /// Requested output format.
+    pub format: F,
+    /// Optional output file destination.
+    pub output: Option<OutputTarget>,
+    /// Whether the result lists every provider attempt.
+    pub verbose: bool,
+    /// Optional terminal projection selected by `log.level`.
+    pub attempt_log: Option<String>,
 }
 
 struct AppContext<P> {
@@ -533,10 +482,12 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Search {
                 result,
                 journal,
-                format,
-                output: output.target(),
-                verbose,
-                attempt_log,
+                presentation: Presentation {
+                    format,
+                    output: output.target(),
+                    verbose,
+                    attempt_log,
+                },
             })
         }
         Command::Fetch {
@@ -553,10 +504,12 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Fetch {
                 result,
                 host,
-                format,
-                output: output.target(),
-                verbose,
-                attempt_log,
+                presentation: Presentation {
+                    format,
+                    output: output.target(),
+                    verbose,
+                    attempt_log,
+                },
             })
         }
         Command::Map {
@@ -581,10 +534,12 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 });
             Ok(CommandOutput::Map {
                 result,
-                format,
-                output: output.target(),
-                verbose,
-                attempt_log,
+                presentation: Presentation {
+                    format,
+                    output: output.target(),
+                    verbose,
+                    attempt_log,
+                },
             })
         }
         Command::Exa {
@@ -1075,10 +1030,12 @@ fn run_exa_search(
     let (result, attempt_log) = AppContext::<providers::Exa>::for_exa(timeout)?.exa_search(request);
     Ok(CommandOutput::Exa {
         result,
-        format,
-        output,
-        verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output,
+            verbose,
+            attempt_log,
+        },
     })
 }
 
@@ -1093,10 +1050,12 @@ fn run_exa_similar(
         AppContext::<providers::Exa>::for_exa(timeout)?.exa_similar(request);
     Ok(CommandOutput::Exa {
         result,
-        format,
-        output,
-        verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output,
+            verbose,
+            attempt_log,
+        },
     })
 }
 

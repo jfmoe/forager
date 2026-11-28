@@ -11,7 +11,9 @@ use super::{
     deliver, fetch, parse_date, preflight_error, run_page, search,
 };
 use crate::app::args::{ContentOutputFormat, OutputArgs, OutputFormat};
-use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
+use crate::app::dispatch::{
+    AppError, CommandOutput, NetworkDependencies, Presentation, provider_attempt_log,
+};
 use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, Platform, PlatformAskRequest, PlatformCommentsRequest,
@@ -537,10 +539,12 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
     });
     Ok(CommandOutput::PlatformTranscribe {
         result: Box::new(result),
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 

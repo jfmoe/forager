@@ -11,7 +11,8 @@ use reqwest::Client;
 
 use super::args::{ContentOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
-    AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
+    AppError, CommandOutput, NetworkDependencies, Presentation, invocation_temp_dir,
+    provider_attempt_log,
 };
 use crate::catalog::PlatformOperation;
 use crate::config::{ConfigError, PlatformRoutesRuntimeConfig, PlatformRuntimeConfig};
@@ -522,10 +523,12 @@ where
     });
     Ok(CommandOutput::PlatformSearch {
         result,
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 
@@ -555,10 +558,12 @@ fn comments(
     });
     Ok(CommandOutput::PlatformComments {
         result,
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 
@@ -588,10 +593,12 @@ fn ask(
     Ok(CommandOutput::PlatformAsk {
         platform,
         result,
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 
@@ -677,10 +684,12 @@ fn fetch(
     });
     Ok(CommandOutput::PlatformFetch {
         result: Box::new(result),
-        format,
-        output: common.output.target(),
-        verbose: common.verbose,
-        attempt_log,
+        presentation: Presentation {
+            format,
+            output: common.output.target(),
+            verbose: common.verbose,
+            attempt_log,
+        },
     })
 }
 
