@@ -69,11 +69,13 @@ message stream and not a cache of search responses.
 _Avoid_: debug log, response cache, search history
 
 **Attempt Trace**:
-The read-only facts derived from a provider attempt chain: the terminal attribution, whether a
-fallback happened, the provider that succeeded, and a bounded summary. Every consumer (the Search
-Result Journal, the stderr attempt log and exit-code attribution) reads its projection instead of
-interpreting the raw chain again. A fallback happened when the run degraded at all, including a
-model change within one provider.
+The read-only facts derived from the provider attempt chain of one invocation: the terminal
+attribution, whether a fallback happened, the provider that succeeded, and a bounded summary.
+Orchestration collects the complete chain once for every command, with or without `--verbose`,
+including the attempts of routes that failed before a fallback succeeded, and every view reads it:
+the verbose result, the stderr attempt log, the Search Result Journal and exit-code attribution.
+Whether attempts reach stdout is decided by the rendering, from `--verbose`. A fallback happened
+when the run degraded at all, including a model change within one provider.
 _Avoid_: per-call-site interpretation, raw attempt scan
 
 **Caller Capability Declaration**:

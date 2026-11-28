@@ -39,10 +39,7 @@ fn route(
 }
 
 fn request(url: &str) -> FetchRequest {
-    FetchRequest {
-        url: url.into(),
-        verbose: true,
-    }
+    FetchRequest { url: url.into() }
 }
 
 /// Fetches the article with `id` on a fixture answering `responses` in turn.

@@ -43,7 +43,6 @@ fn search(body: &str) -> (Result<SearchOutcome, ProviderError>, String) {
     let outcome = block_on(main_search.search(MainSearchRequest {
         query: "What changed?".into(),
         model: None,
-        verbose: true,
     }));
     (outcome, fixture.finish())
 }

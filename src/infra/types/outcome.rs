@@ -47,7 +47,8 @@ pub struct ExaOutcome {
     #[serde(flatten)]
     pub input: ExaInput,
     pub results: Vec<Source>,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
@@ -59,7 +60,8 @@ pub struct FetchOutcome {
     pub provider: &'static str,
     pub url: String,
     pub content: String,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
@@ -73,7 +75,8 @@ pub struct MapOutcome {
     pub base_url: String,
     pub results: Vec<String>,
     pub response_time: f64,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,

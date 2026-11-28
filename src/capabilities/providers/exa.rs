@@ -32,14 +32,12 @@ pub(crate) struct ExaSearchRequest {
     pub(crate) include_domains: Vec<String>,
     pub(crate) exclude_domains: Vec<String>,
     pub(crate) category: Option<String>,
-    pub(crate) verbose: bool,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct ExaSimilarRequest {
     pub(crate) url: String,
     pub(crate) num_results: u16,
-    pub(crate) verbose: bool,
 }
 
 pub(crate) struct Exa {
@@ -91,7 +89,6 @@ impl Exa {
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-                verbose: operation.verbose(),
                 timeout_message: "Exa request timed out",
                 model: None,
                 transport: Some("http"),
@@ -108,11 +105,7 @@ impl Exa {
             provider: "exa",
             input: operation.output_input(),
             results: execution.value,
-            attempts: if operation.verbose() {
-                execution.attempts
-            } else {
-                Vec::new()
-            },
+            attempts: execution.attempts,
             diagnostic: execution.diagnostic,
         })
     }
@@ -244,13 +237,6 @@ impl ExaOperation {
             Self::Similar(request) => ExaInput::Similar {
                 url: request.url.clone(),
             },
-        }
-    }
-
-    fn verbose(&self) -> bool {
-        match self {
-            Self::Search(request) => request.verbose,
-            Self::Similar(request) => request.verbose,
         }
     }
 }

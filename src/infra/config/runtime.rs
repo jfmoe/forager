@@ -161,23 +161,23 @@ pub(crate) struct RetryRuntimeConfig {
     pub(crate) max_wait_seconds: u64,
 }
 
+/// What the stderr attempt log prints for each retrieval command.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LogLevel {
-    Error,
-    Warn,
-    Info,
-    Debug,
-    Trace,
+    /// Nothing.
+    Off,
+    /// One summary line for the invocation.
+    Summary,
+    /// The summary line, then one line for each attempt.
+    Attempts,
 }
 
 impl LogLevel {
     fn from_validated(value: &str) -> Self {
         match value {
-            "error" => Self::Error,
-            "warn" => Self::Warn,
-            "info" => Self::Info,
-            "debug" => Self::Debug,
-            "trace" => Self::Trace,
+            "off" => Self::Off,
+            "summary" => Self::Summary,
+            "attempts" => Self::Attempts,
             _ => unreachable!("log.level is validated before runtime assembly"),
         }
     }

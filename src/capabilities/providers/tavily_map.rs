@@ -20,7 +20,6 @@ pub(crate) struct MapRequest {
     pub(crate) max_breadth: u16,
     pub(crate) limit: u16,
     pub(crate) timeout_seconds: u64,
-    pub(crate) verbose: bool,
 }
 
 pub(crate) struct TavilyMap {
@@ -58,7 +57,6 @@ impl TavilyMap {
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-                verbose: request.verbose,
                 timeout_message: "Tavily site map request timed out",
                 model: None,
                 transport: Some("http"),
@@ -74,11 +72,7 @@ impl TavilyMap {
             base_url: site.base_url,
             results: site.results,
             response_time: site.response_time,
-            attempts: if request.verbose {
-                execution.attempts
-            } else {
-                Vec::new()
-            },
+            attempts: execution.attempts,
             diagnostic: execution.diagnostic,
         })
     }

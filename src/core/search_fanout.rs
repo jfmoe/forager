@@ -294,10 +294,7 @@ async fn execute_web_fetch(
             let execution = execution.clone();
             async move {
                 let result = fetch(
-                    FetchRequest {
-                        url: url.clone(),
-                        verbose: true,
-                    },
+                    FetchRequest { url: url.clone() },
                     fetch_config,
                     execution.client,
                     execution.retry_policy,

@@ -12,7 +12,7 @@ use forager::types::{
     YoutubeCommentsPage,
 };
 
-use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
+use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code, result_json};
 
 /// Renders a platform command's result and tees it to `output`: `render` turns a success into
 /// stdout and its diagnostic; a failure becomes the failure payload, or in Markdown the
@@ -21,6 +21,7 @@ fn render_result<T>(
     result: Result<T, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
     failed: &str,
     render: impl FnOnce(T) -> Result<(String, Option<String>), String>,
 ) -> Result<RenderedOutput, String> {
@@ -31,7 +32,7 @@ fn render_result<T>(
         }
         Err(error) => {
             let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Json => format_failure_json(&error, verbose)?,
                 OutputFormat::Markdown => format!(
                     "# {failed}\n\n**{}**: {}",
                     error.kind.as_str(),
@@ -54,15 +55,30 @@ pub(crate) fn render_search(
     result: Result<PlatformSearchPage, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
-    render_result(result, format, output, "Platform search failed", |page| {
-        Ok((format_platform_page(&page, format)?, page.diagnostic))
-    })
+    render_result(
+        result,
+        format,
+        output,
+        verbose,
+        "Platform search failed",
+        |page| {
+            Ok((
+                format_platform_page(&page, format, verbose)?,
+                page.diagnostic,
+            ))
+        },
+    )
 }
 
-fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Result<String, String> {
+fn format_platform_page(
+    page: &PlatformSearchPage,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<String, String> {
     if format == OutputFormat::Json {
-        return serde_json::to_string(page).map_err(|error| error.to_string());
+        return result_json(page, &page.attempts, verbose);
     }
     let mut markdown = format!("# {} search ({})\n", page.platform, page.provider);
     for item in &page.items {
@@ -96,15 +112,30 @@ pub(crate) fn render_stories(
     result: Result<HnStoriesResult, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
-    render_result(result, format, output, "HN stories failed", |listing| {
-        Ok((format_stories(&listing, format)?, listing.diagnostic))
-    })
+    render_result(
+        result,
+        format,
+        output,
+        verbose,
+        "HN stories failed",
+        |listing| {
+            Ok((
+                format_stories(&listing, format, verbose)?,
+                listing.diagnostic,
+            ))
+        },
+    )
 }
 
-fn format_stories(listing: &HnStoriesResult, format: OutputFormat) -> Result<String, String> {
+fn format_stories(
+    listing: &HnStoriesResult,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<String, String> {
     if format == OutputFormat::Json {
-        return serde_json::to_string(listing).map_err(|error| error.to_string());
+        return result_json(listing, &listing.attempts, verbose);
     }
     let mut markdown = format!(
         "# HN {} stories ({})\n",
@@ -141,22 +172,30 @@ pub(crate) fn render_history(
     result: Result<PolymarketHistoryResult, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     render_result(
         result,
         format,
         output,
+        verbose,
         "Polymarket history failed",
-        |history| Ok((format_history(&history, format)?, history.diagnostic)),
+        |history| {
+            Ok((
+                format_history(&history, format, verbose)?,
+                history.diagnostic,
+            ))
+        },
     )
 }
 
 fn format_history(
     history: &PolymarketHistoryResult,
     format: OutputFormat,
+    verbose: bool,
 ) -> Result<String, String> {
     if format == OutputFormat::Json {
-        return serde_json::to_string(history).map_err(|error| error.to_string());
+        return result_json(history, &history.attempts, verbose);
     }
     let market = &history.market;
     let window = match history.window {
@@ -342,15 +381,23 @@ pub(crate) fn render_comments(
     result: Result<PlatformCommentsPage, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
-    render_result(result, format, output, "Comments failed", |page| {
-        Ok((format_comments(&page, format)?, page.into_diagnostic()))
+    render_result(result, format, output, verbose, "Comments failed", |page| {
+        Ok((
+            format_comments(&page, format, verbose)?,
+            page.into_diagnostic(),
+        ))
     })
 }
 
-fn format_comments(page: &PlatformCommentsPage, format: OutputFormat) -> Result<String, String> {
+fn format_comments(
+    page: &PlatformCommentsPage,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<String, String> {
     if format == OutputFormat::Json {
-        return serde_json::to_string(page).map_err(|error| error.to_string());
+        return result_json(page, page.attempts(), verbose);
     }
     Ok(match page {
         PlatformCommentsPage::Xiaohongshu(page) => xiaohongshu_comments_markdown(page),
@@ -442,14 +489,15 @@ pub(crate) fn render_fetch(
     result: Result<PlatformFetchResult, ProviderError>,
     format: ContentOutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(fetched) => (
-            format_platform_fetch(&fetched, format)?,
+            format_platform_fetch(&fetched, format, verbose)?,
             0,
             fetched.diagnostic,
         ),
-        Err(error) => content_failure(&error, format, "Platform fetch failed")?,
+        Err(error) => content_failure(&error, format, verbose, "Platform fetch failed")?,
     };
     apply_tee(
         stdout,
@@ -466,18 +514,20 @@ pub(crate) fn render_transcribe(
     result: Result<PlatformTranscribeResult, ProviderError>,
     format: ContentOutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(transcribed) => {
             let stdout = match format {
                 ContentOutputFormat::Json => {
-                    serde_json::to_string(&transcribed).map_err(|error| error.to_string())?
+                    result_json(&transcribed, &transcribed.fetched.attempts, verbose)?
                 }
                 ContentOutputFormat::Content => {
-                    format_platform_fetch(&transcribed.fetched, format)?
+                    format_platform_fetch(&transcribed.fetched, format, verbose)?
                 }
                 ContentOutputFormat::Markdown => {
-                    let mut markdown = format_platform_fetch(&transcribed.fetched, format)?;
+                    let mut markdown =
+                        format_platform_fetch(&transcribed.fetched, format, verbose)?;
                     let _ = write!(
                         markdown,
                         "\n\nGenerated by {}{}",
@@ -492,7 +542,7 @@ pub(crate) fn render_transcribe(
             };
             (stdout, 0, transcribed.fetched.diagnostic)
         }
-        Err(error) => content_failure(&error, format, "YouTube transcribe failed")?,
+        Err(error) => content_failure(&error, format, verbose, "YouTube transcribe failed")?,
     };
     apply_tee(
         stdout,
@@ -507,10 +557,11 @@ pub(crate) fn render_transcribe(
 fn content_failure(
     error: &ProviderError,
     format: ContentOutputFormat,
+    verbose: bool,
     title: &str,
 ) -> Result<(String, u8, Option<String>), String> {
     let stdout = match format {
-        ContentOutputFormat::Json => format_failure_json(error)?,
+        ContentOutputFormat::Json => format_failure_json(error, verbose)?,
         ContentOutputFormat::Markdown | ContentOutputFormat::Content => format!(
             "# {title}\n\n**{}**: {}",
             error.kind.as_str(),
@@ -537,12 +588,11 @@ fn usage_note(usage: Option<&ModelUsage>) -> String {
 fn format_platform_fetch(
     fetched: &PlatformFetchResult,
     format: ContentOutputFormat,
+    verbose: bool,
 ) -> Result<String, String> {
     let item = &fetched.item;
     match format {
-        ContentOutputFormat::Json => {
-            serde_json::to_string(fetched).map_err(|error| error.to_string())
-        }
+        ContentOutputFormat::Json => result_json(fetched, &fetched.attempts, verbose),
         ContentOutputFormat::Content => Ok(match (&fetched.content, &item.data) {
             (Some(content), _) => content.text.clone(),
             (None, PlatformItemData::X(data)) => {
@@ -611,10 +661,14 @@ pub(crate) fn render_ask(
     result: Result<PlatformAskResult, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let failed = format!("{} ask failed", platform_title(platform));
-    render_result(result, format, output, &failed, |answer| {
-        Ok((format_ask(&answer, format)?, answer.into_diagnostic()))
+    render_result(result, format, output, verbose, &failed, |answer| {
+        Ok((
+            format_ask(&answer, format, verbose)?,
+            answer.into_diagnostic(),
+        ))
     })
 }
 
@@ -627,9 +681,13 @@ fn platform_title(platform: Platform) -> &'static str {
     }
 }
 
-fn format_ask(answer: &PlatformAskResult, format: OutputFormat) -> Result<String, String> {
+fn format_ask(
+    answer: &PlatformAskResult,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<String, String> {
     if format == OutputFormat::Json {
-        return serde_json::to_string(answer).map_err(|error| error.to_string());
+        return result_json(answer, answer.attempts(), verbose);
     }
     Ok(match answer {
         PlatformAskResult::X(answer) => x_answer_markdown(answer),

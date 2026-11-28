@@ -45,10 +45,7 @@ pub(crate) enum DiagnosticMerge {
 pub(crate) enum TerminalPolicy {
     /// Provider chains: cross-provider attribution over the whole chain via
     /// [`attempt_trace::terminal_attempt`].
-    ChainWide {
-        verbose: bool,
-        exhausted_message: &'static str,
-    },
+    ChainWide { exhausted_message: &'static str },
 }
 
 /// The identity a step would record, used for synthetic attempts.
@@ -312,7 +309,6 @@ pub(crate) fn mark_last_attempt_failed(
 /// when the chain records no attributable failure.
 pub(crate) fn chain_wide_error(
     attempts: Vec<ProviderAttempt>,
-    verbose: bool,
     diagnostic: Option<String>,
     exhausted_message: &str,
 ) -> ProviderError {
@@ -326,7 +322,6 @@ pub(crate) fn chain_wide_error(
             |attempt| attempt.message.clone(),
         ),
         attempts,
-        verbose,
         diagnostic,
     }
 }
@@ -337,10 +332,9 @@ fn terminal_error(
     diagnostic: Option<String>,
 ) -> ProviderError {
     match policy {
-        TerminalPolicy::ChainWide {
-            verbose,
-            exhausted_message,
-        } => chain_wide_error(attempts, verbose, diagnostic, exhausted_message),
+        TerminalPolicy::ChainWide { exhausted_message } => {
+            chain_wide_error(attempts, diagnostic, exhausted_message)
+        }
     }
 }
 

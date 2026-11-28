@@ -5,8 +5,10 @@ use crate::attempt_trace;
 use crate::config::LogLevel;
 use crate::types::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 
+/// The stderr attempt log of one retrieval command's attempt chain at `level`: nothing, the
+/// summary line, or the summary line followed by one line per attempt.
 pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<String> {
-    if attempts.is_empty() || matches!(level, LogLevel::Error | LogLevel::Warn | LogLevel::Info) {
+    if level == LogLevel::Off {
         return None;
     }
 
@@ -31,7 +33,7 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         "forager attempts: {}",
         Value::Object(summary.clone())
     )];
-    if level == LogLevel::Trace {
+    if level == LogLevel::Attempts {
         lines.extend(attempts.iter().map(|attempt| {
             format!(
                 "forager attempt: {}",
@@ -87,31 +89,7 @@ mod tests {
     use super::render;
 
     #[test]
-    fn log_levels_project_only_the_configured_attempt_detail() {
-        let attempts = [attempt(AttemptErrorKind::Network)];
-
-        let cases = [
-            (LogLevel::Error, 0),
-            (LogLevel::Warn, 0),
-            (LogLevel::Info, 0),
-            (LogLevel::Debug, 1),
-            (LogLevel::Trace, 2),
-        ];
-
-        for (level, expected_lines) in cases {
-            assert_eq!(
-                render(level, &attempts)
-                    .as_deref()
-                    .map_or(0, |output| output.lines().count()),
-                expected_lines,
-                "unexpected projection for {level:?}"
-            );
-        }
-        assert_eq!(render(LogLevel::Trace, &[]), None);
-    }
-
-    #[test]
-    fn the_summary_line_precedes_one_line_per_attempt_only_at_trace() {
+    fn the_summary_line_precedes_one_line_per_attempt_only_at_the_attempts_level() {
         let attempts = [
             attempt(AttemptErrorKind::Network),
             ProviderAttempt {
@@ -121,9 +99,9 @@ mod tests {
                 ..attempt(AttemptErrorKind::Network)
             },
         ];
-        let prefixes = [LogLevel::Debug, LogLevel::Trace].map(|level| {
+        let prefixes = [LogLevel::Off, LogLevel::Summary, LogLevel::Attempts].map(|level| {
             render(level, &attempts)
-                .expect("an attempt projection")
+                .unwrap_or_default()
                 .lines()
                 .map(|line| {
                     if line.starts_with("forager attempts: ") {
@@ -139,7 +117,11 @@ mod tests {
 
         assert_eq!(
             prefixes,
-            [vec!["summary"], vec!["summary", "attempt", "attempt"]]
+            [
+                vec![],
+                vec!["summary"],
+                vec!["summary", "attempt", "attempt"]
+            ]
         );
     }
 
@@ -149,7 +131,7 @@ mod tests {
         let mut second = attempt(AttemptErrorKind::Network);
         second.model = Some("fallback-model".into());
 
-        let output = render(LogLevel::Debug, &[first, second]).expect("debug projection");
+        let output = render(LogLevel::Summary, &[first, second]).expect("summary projection");
         let summary: serde_json::Value = serde_json::from_str(
             output
                 .strip_prefix("forager attempts: ")
@@ -168,7 +150,8 @@ mod tests {
         web_search.model = Some("web-search-model".into());
         let main_search = attempt(AttemptErrorKind::Network);
 
-        let output = render(LogLevel::Debug, &[web_search, main_search]).expect("debug projection");
+        let output =
+            render(LogLevel::Summary, &[web_search, main_search]).expect("summary projection");
         let summary: serde_json::Value = serde_json::from_str(
             output
                 .strip_prefix("forager attempts: ")
@@ -180,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn trace_projection_contains_only_safe_attempt_fields() {
+    fn the_attempts_level_projects_only_safe_attempt_fields() {
         let mut first = attempt(AttemptErrorKind::Auth);
         first.message = "credential-canary at https://example.test/?token=url-secret".into();
         first.model = Some("model-canary".into());
@@ -190,7 +173,7 @@ mod tests {
         second.provider = "fallback";
         second.retry_count = 1;
 
-        let output = render(LogLevel::Trace, &[first, second]).expect("trace projection");
+        let output = render(LogLevel::Attempts, &[first, second]).expect("attempts projection");
         let mut lines = output.lines();
         let summary: serde_json::Value = serde_json::from_str(
             lines
@@ -257,7 +240,7 @@ mod tests {
             "endpoint-canary",
             "url-secret",
         ] {
-            assert!(!output.contains(canary), "trace leaked {canary}");
+            assert!(!output.contains(canary), "the attempt log leaked {canary}");
         }
     }
 

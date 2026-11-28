@@ -45,7 +45,6 @@ fn search_request(query: &str) -> ExaSearchRequest {
         include_domains: Vec::new(),
         exclude_domains: Vec::new(),
         category: None,
-        verbose: true,
     }
 }
 
@@ -53,7 +52,6 @@ fn similar_request() -> ExaSimilarRequest {
     ExaSimilarRequest {
         url: SOURCE.into(),
         num_results: 5,
-        verbose: true,
     }
 }
 

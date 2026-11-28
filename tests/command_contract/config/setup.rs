@@ -123,7 +123,7 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
 
     let edit = run(
         config_dir.path(),
-        &["config", "set", "log.level", "debug"],
+        &["config", "set", "log.level", "summary"],
         None,
     );
     assert_eq!(edit.status.code(), Some(3), "{edit:?}");

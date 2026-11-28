@@ -36,7 +36,6 @@ impl ResponsesMainSearch<'_> {
         let model = request.model.unwrap_or_else(|| self.model.to_owned());
         let query = request.query;
         let settings = ExecutionSettings {
-            verbose: request.verbose,
             ..self.endpoint.settings(
                 AttemptTarget::seam("main_search"),
                 model.clone(),

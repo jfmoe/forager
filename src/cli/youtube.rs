@@ -517,7 +517,6 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
             dependencies.client,
             dependencies.retry_policy,
             Deadline::new(Duration::from_secs(common.timeout)),
-            common.verbose,
         ))
         .and_then(|transcribed| {
             let PlatformTranscribeResult {
@@ -525,7 +524,7 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
                 model,
                 usage,
             } = transcribed;
-            deliver(fetched, format, content_dir, &file_name, common.verbose).map(|fetched| {
+            deliver(fetched, format, content_dir, &file_name).map(|fetched| {
                 PlatformTranscribeResult {
                     fetched,
                     model,
@@ -540,6 +539,7 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
         result: Box::new(result),
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }

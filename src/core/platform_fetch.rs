@@ -79,7 +79,6 @@ pub(crate) async fn fetch(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformFetchResult, ProviderError> {
     let PlatformFetchPlan {
         platform,
@@ -99,7 +98,6 @@ pub(crate) async fn fetch(
             client.clone(),
             retry_policy,
             deadline,
-            verbose,
         )
         .await,
     )?;
@@ -123,11 +121,7 @@ pub(crate) async fn fetch(
             attempts,
             diagnostic,
         }
-        .lead(full_text)
-        .map_err(|mut error| {
-            error.verbose = verbose;
-            error
-        })?;
+        .lead(full_text)?;
         item.depth = ContentDepth::FullText;
         content = Some(body.value);
         attempts = body.attempts;
@@ -138,7 +132,7 @@ pub(crate) async fn fetch(
         provider: route.name(),
         item,
         content,
-        attempts: if verbose { attempts } else { Vec::new() },
+        attempts,
         diagnostic,
     })
 }
@@ -151,7 +145,6 @@ pub(crate) async fn fetch_item(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<ChainOutcome<PlatformItem>, ProviderError> {
     let PlatformFetchPlan {
         platform,
@@ -159,16 +152,7 @@ pub(crate) async fn fetch_item(
         routes,
         skipped,
     } = plan;
-    let metadata = fetch_metadata(
-        platform,
-        &request,
-        routes,
-        client,
-        retry_policy,
-        deadline,
-        verbose,
-    )
-    .await;
+    let metadata = fetch_metadata(platform, &request, routes, client, retry_policy, deadline).await;
     LeadingTrace::new(skipped)
         .lead(metadata)
         .map(|outcome| outcome.map(|(_, item, _)| item))
@@ -183,7 +167,6 @@ async fn fetch_metadata(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<ChainOutcome<(ProviderId, PlatformItem, FullTextSource)>, ProviderError> {
     let steps = routes
         .into_iter()
@@ -202,7 +185,6 @@ async fn fetch_metadata(
             fallback_off: false,
             diagnostic_merge: DiagnosticMerge::Join,
             terminal: TerminalPolicy::ChainWide {
-                verbose,
                 exhausted_message: "platform fetch deadline elapsed",
             },
             identity: &route_identity,
@@ -246,11 +228,7 @@ async fn read_url_full_text(
         } else {
             deadline
         };
-        // The attempts of every stage are kept; the caller drops them unless verbose.
-        let request = FetchRequest {
-            url: url.clone(),
-            verbose: true,
-        };
+        let request = FetchRequest { url: url.clone() };
         match engine::fetch(
             request,
             web_fetch.clone(),
@@ -278,7 +256,6 @@ async fn read_url_full_text(
         kind: AttemptErrorKind::Runtime,
         message: "the route declared no full-text URL".into(),
         attempts: Vec::new(),
-        verbose: false,
         diagnostic: None,
     });
     error.attempts = attempts;

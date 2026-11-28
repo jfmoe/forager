@@ -24,7 +24,6 @@ pub(crate) struct ExecutionSettings {
     pub(crate) retry_policy: RetryPolicy,
     pub(crate) deadline: Deadline,
     pub(crate) attempt_timeout: Duration,
-    pub(crate) verbose: bool,
     pub(crate) timeout_message: &'static str,
     pub(crate) model: Option<String>,
     pub(crate) transport: Option<&'static str>,
@@ -48,7 +47,6 @@ where
             kind: AttemptErrorKind::Auth,
             message: format!("{} has no configured credentials", settings.provider),
             attempts: Vec::new(),
-            verbose: settings.verbose,
             diagnostic: None,
         });
     }
@@ -210,7 +208,6 @@ where
                 settings.provider,
                 AttemptErrorKind::Timeout,
                 attempts,
-                settings.verbose,
                 diagnostic,
             ));
         };
@@ -288,7 +285,6 @@ where
                     settings.provider,
                     AttemptErrorKind::Timeout,
                     attempts,
-                    settings.verbose,
                     diagnostic,
                 ));
             }
@@ -299,7 +295,6 @@ where
             settings.provider,
             kind,
             attempts,
-            settings.verbose,
             diagnostic,
         ));
     }
@@ -309,7 +304,6 @@ fn terminal_error(
     provider: &'static str,
     kind: AttemptErrorKind,
     attempts: Vec<ProviderAttempt>,
-    verbose: bool,
     diagnostic: Option<String>,
 ) -> ProviderError {
     let message = attempts.last().map_or_else(
@@ -320,7 +314,6 @@ fn terminal_error(
         kind,
         message,
         attempts,
-        verbose,
         diagnostic,
     }
 }
@@ -348,7 +341,6 @@ mod tests {
             retry_policy,
             deadline: Deadline::new(deadline),
             attempt_timeout,
-            verbose: true,
             timeout_message: "test request timed out",
             model: None,
             transport: Some("test"),

@@ -328,7 +328,8 @@ pub struct HnStoriesResult {
     pub provider: &'static str,
     pub list: HnStoriesList,
     pub items: Vec<HnRankedItem>,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,

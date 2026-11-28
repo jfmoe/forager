@@ -67,11 +67,9 @@ pub(crate) async fn run_precheck(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<ChainOutcome<PlatformItem>, ProviderError> {
-    let checked = LeadingTrace::new(prior).lead(
-        platform_fetch::fetch_item(plan.fetch, client, retry_policy, deadline, verbose).await,
-    )?;
+    let checked = LeadingTrace::new(prior)
+        .lead(platform_fetch::fetch_item(plan.fetch, client, retry_policy, deadline).await)?;
     let video = &checked.value;
     if matches!(
         &video.data,
@@ -84,7 +82,6 @@ pub(crate) async fn run_precheck(
                 video.reference
             ),
             attempts: checked.attempts,
-            verbose,
             diagnostic: checked.diagnostic,
         });
     }

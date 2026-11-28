@@ -29,7 +29,6 @@ use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt};
 #[derive(Clone)]
 pub(crate) struct FetchRequest {
     pub(crate) url: String,
-    pub(crate) verbose: bool,
 }
 
 /// Returns whether the URL names a PDF, for the thin-content gate.
@@ -183,7 +182,6 @@ impl HttpFetchProvider {
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: request.verbose,
             timeout_message: match self.service {
                 Service::Jina => "jina request timed out",
                 Service::Tavily => "tavily request timed out",

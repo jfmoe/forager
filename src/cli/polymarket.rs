@@ -266,7 +266,6 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
             dependencies.client,
             dependencies.retry_policy,
             Deadline::new(Duration::from_secs(common.timeout)),
-            common.verbose,
         ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |history| {
         &history.attempts
@@ -275,6 +274,7 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
         result,
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }

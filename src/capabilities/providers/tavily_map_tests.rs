@@ -56,7 +56,6 @@ fn map_request(max_depth: u16, max_breadth: u16, timeout_seconds: u64) -> MapReq
         max_breadth,
         limit: 50,
         timeout_seconds,
-        verbose: true,
     }
 }
 

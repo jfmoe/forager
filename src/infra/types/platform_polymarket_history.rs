@@ -233,7 +233,8 @@ pub struct PolymarketHistoryResult {
     pub points: Vec<PolymarketPricePoint>,
     /// The payout of a resolved market, when the window reaches its settlement.
     pub settlement: Option<PolymarketPricePoint>,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,

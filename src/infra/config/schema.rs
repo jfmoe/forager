@@ -131,7 +131,7 @@ pub(super) struct Log {
 impl Default for Log {
     fn default() -> Self {
         Self {
-            level: "info".into(),
+            level: "off".into(),
         }
     }
 }
@@ -328,7 +328,7 @@ macro_rules! leaf {
 
 const XAI_TOOLS: &[&str] = &["web_search", "x_search"];
 const FALLBACK: &[&str] = &["auto", "off"];
-const LOG_LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
+const LOG_LEVELS: &[&str] = &["off", "summary", "attempts"];
 
 pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("search.backends", search.backends: Strings, Rule::CapabilityOrder { capability: "main_search", allow_empty: false }, View::Plain, "ordered main-model backends"),
@@ -390,7 +390,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.youtube.order", platforms.youtube.order: Strings, Rule::PlatformOrder { platform: Platform::Youtube }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.polymarket.order", platforms.polymarket.order: Strings, Rule::PlatformOrder { platform: Platform::Polymarket }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.reddit.order", platforms.reddit.order: Strings, Rule::PlatformOrder { platform: Platform::Reddit }, View::Plain, "authoritative route order for this platform; empty disables it"),
-    leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
+    leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr attempt log of a retrieval command: off, summary (one line per invocation) or attempts (the summary and one line per attempt)"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
     leaf!("journal.retention_days", journal.retention_days: U64, Rule::Any, View::Plain, "journal retention in days; zero keeps entries indefinitely"),

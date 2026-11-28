@@ -267,7 +267,6 @@ impl YoutubeApi {
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
             timeout_message: "YouTube Data API request timed out",
             model: None,
             transport: Some("http"),

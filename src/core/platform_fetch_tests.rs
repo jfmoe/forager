@@ -51,7 +51,6 @@ fn run(
     web_fetch: &[(&str, &str)],
     reference: &str,
     depth: ContentDepth,
-    verbose: bool,
 ) -> Result<PlatformFetchResult, ProviderError> {
     let mut document = format!("[providers.arxiv_api]\nurl = \"{arxiv}/api/query\"\n");
     for (provider, url) in web_fetch {
@@ -79,7 +78,6 @@ fn run(
         build_client(true).expect("build client"),
         RetryPolicy::new(1, 1.0, Duration::ZERO),
         Deadline::new(Duration::from_mins(1)),
-        verbose,
     ))
 }
 
@@ -102,7 +100,6 @@ fn a_full_text_url_whose_body_is_too_thin_gives_way_to_the_next() {
         &[("firecrawl", &firecrawl_fixture.url)],
         "arxiv:2401.01234",
         ContentDepth::FullText,
-        false,
     )
     .expect("the PDF is read");
     arxiv.finish_all();
@@ -136,7 +133,6 @@ fn when_every_full_text_url_fails_the_fetch_ends_with_the_web_fetch_terminal_sta
         &[("firecrawl", &firecrawl_fixture.url)],
         "arxiv:2401.01234",
         ContentDepth::FullText,
-        false,
     )
     .expect_err("no URL gives a full text");
     arxiv.finish_all();
@@ -159,7 +155,6 @@ fn each_full_text_url_runs_the_global_web_fetch_order() {
         ],
         "arxiv:2401.01234",
         ContentDepth::FullText,
-        false,
     )
     .expect("Jina reads the HTML");
     arxiv.finish_all();
@@ -181,7 +176,7 @@ fn each_full_text_url_runs_the_global_web_fetch_order() {
 }
 
 #[test]
-fn a_verbose_fetch_lists_the_route_attempts_before_the_web_fetch_attempts() {
+fn a_fetch_lists_the_route_attempts_before_the_web_fetch_attempts() {
     let arxiv = Fixture::start_sequence(vec![
         Response::new(200, "application/atom+xml", &sample("arxiv_api/feed.xml")),
         Response::new(404, "text/html", ""),
@@ -193,7 +188,6 @@ fn a_verbose_fetch_lists_the_route_attempts_before_the_web_fetch_attempts() {
         &[("firecrawl", &firecrawl_fixture.url)],
         "arxiv:2401.01234",
         ContentDepth::FullText,
-        true,
     )
     .expect("the PDF is read");
     arxiv.finish_all();
@@ -229,7 +223,6 @@ fn an_abstract_fetch_needs_no_web_fetch_provider_and_carries_no_content() {
         &[],
         "arxiv:2401.01234v2",
         ContentDepth::Abstract,
-        false,
     )
     .expect("the abstract is read");
 
@@ -312,7 +305,6 @@ mod youtube_web {
             build_client(true).expect("build client"),
             RetryPolicy::new(1, 1.0, Duration::ZERO),
             Deadline::new(Duration::from_mins(1)),
-            true,
         ))
         .expect("the fetch succeeds");
         youtube.finish_all();

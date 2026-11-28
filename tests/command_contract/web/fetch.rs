@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use crate::support::samples::sample_json;
 use crate::support::web_samples::jina;
-use crate::support::{Fixture, Response, RunEnvironment};
+use crate::support::{Fixture, Response, RunEnvironment, object_keys, payload};
 
 /// The stored Tavily extract answer whose page content is `raw_content`.
 fn tavily_extract(raw_content: &str) -> String {
@@ -255,11 +255,37 @@ fn a_fetched_body_prints_as_markdown_under_its_provider_or_as_the_bare_content()
 }
 
 #[test]
+fn a_fetched_body_prints_as_json_without_its_attempts() {
+    let content = article();
+    let jina = Fixture::start_sequence(vec![jina(&content)]);
+    let environment = RunEnvironment::new(&jina_only(&jina.url));
+
+    let output = environment.run(&["fetch", "https://example.test/article"]);
+    jina.finish();
+    let payload = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            object_keys(&payload),
+            &payload["content"]
+        ),
+        (
+            Some(0),
+            vec!["content", "provider", "url"],
+            &Value::String(content)
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn the_configured_log_level_prints_the_attempt_summary_on_stderr() {
     let refusal = || Response::new(401, "application/json", &jina_refusal("bad credential"));
     let jina = Fixture::start_sequence(vec![refusal(), refusal()]);
     let environment = RunEnvironment::new(&format!(
-        "{}\n[log]\nlevel = \"debug\"\n",
+        "{}\n[log]\nlevel = \"summary\"\n",
         jina_only(&jina.url)
     ));
 

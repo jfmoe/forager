@@ -166,7 +166,7 @@ fn neither_the_keys_nor_the_account_identity_reach_output_or_trace_logs() {
         let environment = RunEnvironment::new(&config(url, keys));
         let output = environment.run_with_env(
             &["doctor", "--provider", "serpapi"],
-            &[("FORAGER_LOG__LEVEL", "trace")],
+            &[("FORAGER_LOG__LEVEL", "attempts")],
         );
 
         assert_eq!(output.status.code(), Some(4), "{case}");

@@ -68,10 +68,7 @@ async fn fetch_within(
 ) -> Result<FetchOutcome, ProviderError> {
     let config = runtime_config_from_toml(document).expect("valid configuration");
     fetch(
-        FetchRequest {
-            url: url.into(),
-            verbose: true,
-        },
+        FetchRequest { url: url.into() },
         config.web_fetch,
         build_client(true).expect("build client"),
         RetryPolicy::new(1, 1.0, Duration::ZERO),
@@ -120,7 +117,7 @@ fn web_fetch_preserves_fallback_budget_after_an_attempt_timeout() {
                     configured: true,
                 },
             ],
-            web_fetch_chain_settings(true),
+            web_fetch_chain_settings(),
             Deadline::new(Duration::from_secs(12)),
             {
                 let budgets = Rc::clone(&budgets);
@@ -135,7 +132,6 @@ fn web_fetch_preserves_fallback_budget_after_an_attempt_timeout() {
                                 kind: AttemptErrorKind::Timeout,
                                 message: "timed out".into(),
                                 attempts: Vec::new(),
-                                verbose: true,
                                 diagnostic: None,
                             })
                         } else {
@@ -522,7 +518,6 @@ fn main_search(
         MainSearchRequest {
             query: "What changed?".into(),
             model: model.map(str::to_owned),
-            verbose: true,
         },
         config.main_search,
         fallback,
@@ -543,7 +538,6 @@ fn a_command_deadline_ends_main_search_as_a_timeout_that_keeps_its_attempt() {
             MainSearchRequest {
                 query: "Budget".into(),
                 model: None,
-                verbose: true,
             },
             config.main_search,
             FallbackPolicy::Auto,

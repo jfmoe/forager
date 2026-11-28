@@ -89,7 +89,6 @@ pub(crate) async fn run_search(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformSearchPage, ProviderError> {
     let SearchPlan {
         platform,
@@ -115,7 +114,6 @@ pub(crate) async fn run_search(
             fallback_off: false,
             diagnostic_merge: DiagnosticMerge::Join,
             terminal: TerminalPolicy::ChainWide {
-                verbose,
                 exhausted_message: "platform search deadline elapsed",
             },
             identity: &route_identity,
@@ -156,11 +154,7 @@ pub(crate) async fn run_search(
         collection: None,
         items,
         next_cursor: next_page.map(|page| page_cursor::encode(route, request.at_page(page))),
-        attempts: if verbose {
-            outcome.attempts
-        } else {
-            Vec::new()
-        },
+        attempts: outcome.attempts,
         diagnostic: outcome.diagnostic,
     })
 }

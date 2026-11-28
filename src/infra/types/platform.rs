@@ -411,7 +411,8 @@ pub struct PlatformSearchPage {
     /// another command can continue from. `null` alone does not prove the results are
     /// exhausted: Xiaohongshu search never issues a cursor.
     pub next_cursor: Option<String>,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
@@ -663,7 +664,8 @@ pub struct PlatformFetchResult {
     pub item: PlatformItem,
     #[serde(flatten)]
     pub content: Option<PlatformContent>,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
