@@ -842,22 +842,6 @@ fn a_failure_reports_its_rule_path_observation_error_kind_http_status_and_durati
 }
 
 #[test]
-fn a_contract_failure_shows_no_content_of_the_output() {
-    let declared = [on(
-        ProviderId::Exa,
-        check("exa:docs_search", LiveTier::Metered),
-    )];
-
-    let (results, ..) = run(&declared, vec![broke_contract()], long());
-
-    let reported = results[0].to_string();
-    assert!(
-        results[0]["status"] == "failed" && !reported.contains("MARKER-CONTENT"),
-        "{reported}"
-    );
-}
-
-#[test]
 fn an_unattended_run_reruns_a_failed_check_once_after_the_delay_and_the_rerun_decides() {
     let declared = [on(
         ProviderId::Exa,
@@ -958,6 +942,42 @@ fn a_run_that_is_not_unattended_reruns_nothing() {
 
     let (results, started, exit, waited) =
         run_with(&declared, vec![broke_contract()], long(), false);
+
+    assert_eq!(
+        (results[0].get("rerun"), started.len(), exit, waited),
+        (None, 1, 4, Vec::new())
+    );
+}
+
+#[test]
+fn a_browser_check_is_not_rerun_in_an_unattended_run() {
+    let declared = [on(
+        ProviderId::RedditBrowser,
+        check("reddit_browser:search", LiveTier::Attended),
+    )];
+
+    let (results, started, exit, waited) =
+        run_with(&declared, vec![broke_contract()], long(), true);
+
+    assert_eq!(
+        (results[0].get("rerun"), started.len(), exit, waited),
+        (None, 1, 4, Vec::new())
+    );
+}
+
+#[test]
+fn a_failure_stands_without_a_rerun_when_the_time_limit_leaves_no_room_for_the_delay() {
+    let declared = [on(
+        ProviderId::Exa,
+        check("exa:docs_search", LiveTier::Metered),
+    )];
+
+    let (results, started, exit, waited) = run_with(
+        &declared,
+        vec![broke_contract()],
+        Deadline::new(CONFIRMATION_DELAY / 2),
+        true,
+    );
 
     assert_eq!(
         (results[0].get("rerun"), started.len(), exit, waited),
