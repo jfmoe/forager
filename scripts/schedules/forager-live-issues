@@ -1,7 +1,8 @@
 #!/bin/bash
 # Carries out the notification decision of an unattended `forager doctor --live` run under the
 # maintainer's gh identity. Posts a macOS notification for every open and update, for a run that
-# exited with neither 0 nor 4, and for a gh command that failed.
+# exited with neither 0 nor 4, for a run that left a failure unconfirmed or a check unstarted at
+# its time limit, and for a gh command that failed.
 # Usage: forager-live-issues REPORT EXIT_CODE
 repo=jfmoe/forager
 report=${1:?the report of an unattended doctor --live run}
@@ -11,6 +12,13 @@ notify() {
   osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' \
     -e 'end run' "$1" "$2"
 }
+
+for program in gh jq; do
+  if ! command -v "$program" >/dev/null; then
+    notify "forager live run" "$program is not on PATH"
+    exit 1
+  fi
+done
 
 # 0: every check that ran passed. 4: a check failed, and only a confirmed failure has a decision.
 # Any other code means the run checked nothing: its selection was refused or its configuration
@@ -24,6 +32,13 @@ case $exit_code in
     ;;
   *) notify "forager live run" "doctor --live exited $exit_code; read $report" ;;
 esac
+
+# Neither a failure left unconfirmed nor a check the time limit left unstarted reaches an issue, so
+# a run whose failures are all of these would otherwise leave no signal.
+if jq -e '[.checks[]? | select(.confirmed == false or .cause == "deadline")] | length > 0' \
+  "$report" >/dev/null 2>&1; then
+  notify "forager live run" "a failure is unconfirmed or a check ran out of time; read $report"
+fi
 
 # Each decision is four NUL-terminated fields: action, label, title and body.
 while IFS= read -r -d '' action <&3 && IFS= read -r -d '' label <&3 &&

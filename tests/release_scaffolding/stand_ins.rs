@@ -1,12 +1,19 @@
 //! Stand-ins for the programs the scheduled scripts call (`gh`, `osascript`, `forager`): each
 //! records its call and then runs the shell code a test gives it, so a test sees what a script
-//! asks of them and no real issue, notification or live run happens.
+//! asks of them and no real issue, notification or live run happens. A script finds nothing else
+//! on its `PATH` but the host's copies of the few tools it uses, so a program the host has
+//! installed, such as a real `forager`, never stands in for a missing one.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use super::process::{command_behind_closed_proxy, run_command};
+
+/// The host tools the scripts use besides the stand-ins and the shell's builtins. The scripts read
+/// and write their JSON with `jq`, and a stand-in for it would prove nothing about the filters
+/// they pass it, so these tests need the host's.
+const HOST_TOOLS: [&str; 4] = ["dirname", "jq", "mkdir", "mv"];
 
 /// A directory of stand-in programs and the log of their calls.
 pub(crate) struct Fakes {
@@ -22,12 +29,26 @@ impl Fakes {
             behaviours: Vec::new(),
         };
         fs::create_dir(fakes.bin()).expect("create the stand-in bin directory");
+        fs::create_dir(fakes.tools()).expect("create the host tool directory");
+        for tool in HOST_TOOLS {
+            std::os::unix::fs::symlink(host_program(tool), fakes.tools().join(tool))
+                .expect("link a host tool");
+        }
         fakes.program("osascript", "");
         fakes
     }
 
     fn bin(&self) -> PathBuf {
         self.directory.path().join("bin")
+    }
+
+    fn tools(&self) -> PathBuf {
+        self.directory.path().join("tools")
+    }
+
+    /// Takes the host tool `name` off the scripts' `PATH`.
+    pub(crate) fn without_tool(&self, name: &str) {
+        fs::remove_file(self.tools().join(name)).expect("remove a host tool");
     }
 
     pub(crate) fn home(&self) -> PathBuf {
@@ -60,10 +81,7 @@ impl Fakes {
         arguments: &[&str],
         environment: &[(&str, &str)],
     ) -> Output {
-        let path = std::env::join_paths(std::iter::once(self.bin()).chain(std::env::split_paths(
-            &std::env::var_os("PATH").unwrap_or_default(),
-        )))
-        .expect("join PATH");
+        let path = std::env::join_paths([self.bin(), self.tools()]).expect("join PATH");
         // launchd starts the scripts with /bin/bash, which macOS keeps at version 3.2.
         let mut command = command_behind_closed_proxy("/bin/bash");
         command
@@ -102,6 +120,14 @@ impl Fakes {
             })
             .collect()
     }
+}
+
+/// Where the host's `PATH` finds the program `name`.
+fn host_program(name: &str) -> PathBuf {
+    std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+        .map(|directory| directory.join(name))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| panic!("the scheduled job tests need `{name}` on PATH"))
 }
 
 /// A `gh issue list` call that looks for the open issue labelled `label`, as the scripts write it.

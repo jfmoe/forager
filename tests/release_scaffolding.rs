@@ -119,6 +119,21 @@ fn live_checks_never_run_on_github() {
     }
 }
 
+// A scheduled workflow's report counts every job result other than `success` as a failure, so a
+// run the maintainer cancelled by hand would open or comment on its issue. The report waits for
+// the jobs whatever they ended as, except when the run itself was cancelled.
+#[test]
+fn a_scheduled_workflow_reports_every_run_except_a_cancelled_one() {
+    for path in [SCHEDULED_ADVISORIES_WORKFLOW, SCHEDULED_BUILD_WORKFLOW] {
+        let workflow = load_workflow(path);
+        assert_eq!(
+            workflow_jobs(&workflow)["report"]["if"].as_str(),
+            Some("${{ !cancelled() }}"),
+            "{path}"
+        );
+    }
+}
+
 // The scheduled build finds a retired runner image before release day only while it builds on
 // the runners the release uses, so it reads the artifact gate's target list through the same
 // preparation script.

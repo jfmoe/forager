@@ -10,11 +10,16 @@ const REPOSITORY: &str = "jfmoe/forager";
 
 /// Writes a live report holding `notifications` and returns its path.
 fn report(fakes: &Fakes, notifications: &Value) -> String {
+    report_of(fakes, &json!([]), notifications)
+}
+
+/// Writes a live report holding `checks` and `notifications` and returns its path.
+fn report_of(fakes: &Fakes, checks: &Value, notifications: &Value) -> String {
     let path = fakes.home().join("report.json");
     fs::create_dir_all(fakes.home()).expect("create the home directory");
     fs::write(
         &path,
-        json!({"mode": "live", "notifications": notifications}).to_string(),
+        json!({"mode": "live", "checks": checks, "notifications": notifications}).to_string(),
     )
     .expect("write the report");
     path.to_str().expect("a Unicode path").to_owned()
@@ -138,10 +143,95 @@ fn the_live_issue_job_notifies_a_report_it_cannot_read() {
     );
 }
 
+#[test]
+fn the_live_issue_job_notifies_a_run_that_left_a_failure_unconfirmed_or_a_check_unstarted_at_its_time_limit()
+ {
+    let cases = [
+        (
+            "an unconfirmed failure",
+            json!({"id": "exa:search", "status": "failed", "confirmed": false}),
+            true,
+        ),
+        (
+            "a check the time limit left unstarted",
+            json!({"id": "exa:search", "status": "not_started", "cause": "deadline"}),
+            true,
+        ),
+        (
+            "a confirmed failure whose issue is open",
+            json!({"id": "exa:search", "status": "failed", "confirmed": true}),
+            false,
+        ),
+        (
+            "a check a stop signal left unstarted",
+            json!({"id": "xiaohongshu_web:search", "status": "not_started", "cause": "site_stop"}),
+            false,
+        ),
+    ];
+
+    for (case, check, notified) in cases {
+        let mut fakes = Fakes::new();
+        fakes.program("gh", "");
+        let report = report_of(&fakes, &json!([check]), &json!([]));
+
+        let output = fakes.run(LIVE_ISSUES, &[&report, "4"], &[]);
+
+        assert_eq!(output.status.code(), Some(0), "{case}: {output:?}");
+        let expected = notified
+            .then(|| {
+                format!(
+                    "notify forager live run | a failure is unconfirmed or a check ran out of \
+                     time; read {report}"
+                )
+            })
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(fakes.calls(), expected, "{case}");
+    }
+}
+
+#[test]
+fn each_job_notifies_a_program_missing_from_its_path_and_runs_nothing() {
+    let cases = [
+        ("forager-live-daily", "forager daily job", "forager"),
+        ("forager-live-daily", "forager daily job", "gh"),
+        ("forager-live-daily", "forager daily job", "jq"),
+        ("forager-live-weekly", "forager weekly job", "forager"),
+        ("forager-live-weekly", "forager weekly job", "gh"),
+        ("forager-live-weekly", "forager weekly job", "jq"),
+        ("forager-live-issues", "forager live run", "gh"),
+        ("forager-live-issues", "forager live run", "jq"),
+    ];
+
+    for (script, title, missing) in cases {
+        let mut fakes = Fakes::new();
+        for program in ["forager", "gh"] {
+            if program != missing {
+                fakes.program(program, FORAGER);
+            }
+        }
+        if missing == "jq" {
+            fakes.without_tool("jq");
+        }
+        let report = report(&fakes, &json!([notification("exa", "open")]));
+
+        let output = fakes.run(&format!("scripts/schedules/{script}"), &[&report, "4"], &[]);
+
+        assert_eq!(
+            (output.status.code(), fakes.calls()),
+            (
+                Some(1),
+                vec![format!("notify {title} | {missing} is not on PATH")]
+            ),
+            "{script} without {missing}"
+        );
+    }
+}
+
 /// A `forager` whose live run reports no notification and exits as `FAKE_FORAGER_EXIT` says, and
-/// whose health summary exits 4.
+/// whose health summary exits as `FAKE_HEALTH_EXIT` says, 4 by default.
 const FORAGER: &str = r#"case "$*" in
-  *--health*) exit 4 ;;
+  *--health*) exit "${FAKE_HEALTH_EXIT:-4}" ;;
   *) echo '{"mode": "live", "notifications": []}'; exit "${FAKE_FORAGER_EXIT:-0}" ;;
 esac"#;
 
@@ -260,5 +350,35 @@ fn the_weekly_job_keeps_the_last_workflow_record_when_a_query_fails() {
         ),
         "{:?}",
         fakes.calls()
+    );
+}
+
+#[test]
+fn the_weekly_job_notifies_a_health_summary_that_summarised_nothing_and_not_a_clean_one() {
+    let health_notices = |exit_code: &str| {
+        let mut fakes = Fakes::new();
+        fakes.program("forager", FORAGER);
+        fakes.program("gh", &workflow_answers("echo"));
+        let output = fakes.run(
+            "scripts/schedules/forager-live-weekly",
+            &[],
+            &[("FAKE_HEALTH_EXIT", exit_code)],
+        );
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        let health = format!("{}/Library/Logs/forager/health.md", fakes.home().display());
+        fakes
+            .calls()
+            .into_iter()
+            .filter(|call| call.starts_with("notify forager health"))
+            .map(|call| call.replace(&health, "HEALTH"))
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        (health_notices("0"), health_notices("3")),
+        (
+            vec![],
+            vec!["notify forager health | doctor --health exited 3; read HEALTH".to_owned()]
+        )
     );
 }
