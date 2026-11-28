@@ -1,12 +1,16 @@
 //! A directory of timestamped records. Each record is its own private, exclusively created JSON
-//! file, named by when it was written and by the process that wrote it, so concurrent processes
-//! never write the same file. A reader skips a file it cannot parse or does not own, and a write's
-//! cleanup removes the records older than the kind's retention.
+//! file, named by when it was written, by the process that wrote it and by that process's write
+//! sequence, so no two writes share a file. A reader skips a file it cannot parse or does not own,
+//! and a write's cleanup removes the records older than the kind's retention. A directory may be
+//! shared with other data, so only a regular file whose name fully matches the kind's naming is
+//! owned: its prefix, then fields of digits for the time, the process and, optionally, the
+//! sequence.
 
 use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::Serialize;
@@ -19,8 +23,8 @@ use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 pub(crate) struct RecordKind {
     /// The start of each record's file name.
     pub(crate) prefix: &'static str,
-    /// How long a record is kept after it was written.
-    pub(crate) retention: TimeDelta,
+    /// How long a record is kept after it was written; `None` keeps it indefinitely.
+    pub(crate) retention: Option<TimeDelta>,
     /// Whether a write returns only once the record has reached the disk.
     pub(crate) synced: bool,
 }
@@ -38,7 +42,10 @@ impl RecordDirectory {
 
     /// The time before which a record has expired at `now`.
     pub(crate) fn retained_since(&self, now: DateTime<Utc>) -> DateTime<Utc> {
-        now - self.kind.retention
+        self.kind
+            .retention
+            .and_then(|retention| now.checked_sub_signed(retention))
+            .unwrap_or(DateTime::<Utc>::MIN_UTC)
     }
 
     /// Every readable record written at or after `since`, oldest first; a damaged or foreign file
@@ -51,8 +58,8 @@ impl RecordDirectory {
         let mut records = entries
             .filter_map(Result::ok)
             .filter_map(|entry| {
-                let written = self.written(&entry.file_name())?;
-                (written.0 >= since).then_some((written, entry.path()))
+                let written = self.owned(&entry)?;
+                (written.nanos >= since).then_some((written, entry.path()))
             })
             .filter_map(|(written, path)| {
                 let record = serde_json::from_slice::<T>(&fs::read(path).ok()?).ok()?;
@@ -63,14 +70,15 @@ impl RecordDirectory {
         records.into_iter().map(|(_, record)| record).collect()
     }
 
-    /// Writes `record` as written at `at`.
-    pub(crate) fn write<T: Serialize>(&self, at: DateTime<Utc>, record: &T) -> io::Result<()> {
+    /// Writes `record` as written at `at`, returning the record's path.
+    pub(crate) fn write<T: Serialize>(&self, at: DateTime<Utc>, record: &T) -> io::Result<PathBuf> {
         ensure_private_directory(&self.path)?;
         let path = self.path.join(format!(
-            "{}{}_{}.json",
+            "{}{}_{}_{}.json",
             self.kind.prefix,
             nanos(at),
-            std::process::id()
+            std::process::id(),
+            WRITE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         let mut encoded = serde_json::to_vec(record).map_err(io::Error::other)?;
         encoded.push(b'\n');
@@ -79,20 +87,23 @@ impl RecordDirectory {
         if self.kind.synced {
             file.sync_all()?;
         }
-        Ok(())
+        Ok(path)
     }
 
     /// Removes every record written more than the retention before `now`, going on past a file
     /// it cannot remove and returning the first such error. A record another process removed
     /// first is no error.
     pub(crate) fn remove_expired(&self, now: DateTime<Utc>) -> io::Result<()> {
+        if self.kind.retention.is_none() {
+            return Ok(());
+        }
         let cutoff = nanos(self.retained_since(now));
         let mut first_error = None;
         for entry in fs::read_dir(&self.path)? {
             let removed = entry.and_then(|entry| {
                 if self
-                    .written(&entry.file_name())
-                    .is_some_and(|(at, _)| at < cutoff)
+                    .owned(&entry)
+                    .is_some_and(|written| written.nanos < cutoff)
                 {
                     fs::remove_file(entry.path())
                 } else {
@@ -109,16 +120,48 @@ impl RecordDirectory {
         first_error.map_or(Ok(()), Err)
     }
 
-    /// When, in nanoseconds, and by which process a record file was written, from its name;
-    /// `None` for a file this kind does not own.
-    fn written(&self, name: &OsStr) -> Option<(i64, u32)> {
-        let (nanos, pid) = name
+    /// When a record was written, from its name; `None` for an entry this kind does not own.
+    fn owned(&self, entry: &fs::DirEntry) -> Option<Written> {
+        let written = self.written(&entry.file_name())?;
+        entry
+            .file_type()
+            .is_ok_and(|kind| kind.is_file())
+            .then_some(written)
+    }
+
+    fn written(&self, name: &OsStr) -> Option<Written> {
+        let mut fields = name
             .to_str()?
             .strip_prefix(self.kind.prefix)?
             .strip_suffix(".json")?
-            .split_once('_')?;
-        Some((nanos.parse().ok()?, pid.parse().ok()?))
+            .split('_')
+            .map(|field| {
+                (!field.is_empty() && field.bytes().all(|byte| byte.is_ascii_digit()))
+                    .then_some(field)
+            });
+        let nanos = fields.next()??.parse().ok()?;
+        let pid = fields.next()??.parse().ok()?;
+        let sequence = match fields.next() {
+            Some(field) => Some(field?.parse().ok()?),
+            None => None,
+        };
+        fields.next().is_none().then_some(Written {
+            nanos,
+            pid,
+            sequence,
+        })
     }
+}
+
+/// The next write of this process, which keeps two records written at the same instant apart.
+static WRITE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// When, in nanoseconds, by which process and as which of its writes a record was written.
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+struct Written {
+    nanos: i64,
+    pid: u32,
+    sequence: Option<u64>,
 }
 
 fn nanos(at: DateTime<Utc>) -> i64 {
@@ -137,7 +180,7 @@ mod tests {
 
     const KIND: RecordKind = RecordKind {
         prefix: "note_",
-        retention: TimeDelta::days(10),
+        retention: Some(TimeDelta::days(10)),
         synced: true,
     };
 
@@ -223,22 +266,106 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_goes_on_past_an_entry_it_cannot_remove_and_returns_its_error() {
+    fn two_records_written_at_the_same_instant_by_one_process_are_both_kept() {
         let directory = tempfile::tempdir().expect("create the record directory");
         let records = RecordDirectory::new(directory.path().to_path_buf(), KIND);
-        // A directory with a record's name cannot be removed as a file.
-        written(&records, now() - TimeDelta::days(12));
-        let blocking = only_file(directory.path());
-        fs::remove_file(&blocking).expect("remove the record");
-        fs::create_dir(&blocking).expect("create a directory named as a record");
+
+        let paths = [
+            records.write(now(), &json!({ "write": 1 })),
+            records.write(now(), &json!({ "write": 2 })),
+        ]
+        .map(|written| written.expect("write a record"));
+
+        assert_eq!(
+            (
+                paths.map(|path| fs::read(path).expect("read the record")),
+                records.read::<Value>(now()).len(),
+            ),
+            (
+                [b"{\"write\":1}\n".to_vec(), b"{\"write\":2}\n".to_vec()],
+                2
+            )
+        );
+    }
+
+    #[test]
+    fn cleanup_removes_only_expired_regular_files_whose_names_fully_match_the_kind() {
+        let directory = tempfile::tempdir().expect("create the record directory");
+        let path = directory.path();
+        let expired = (now() - TimeDelta::days(11))
+            .timestamp_nanos_opt()
+            .expect("a time in range");
+        let removed = [
+            format!("note_{expired}_2_3.json"),
+            format!("note_{expired}_2.json"),
+        ];
+        let kept = [
+            format!(
+                "note_{}_2_3.json",
+                now().timestamp_nanos_opt().expect("a time in range")
+            ),
+            "note__2_3.json".to_owned(),
+            format!("note_{expired}__3.json"),
+            format!("note_{expired}_2_.json"),
+            format!("note_+{expired}_2.json"),
+            format!("note_{expired}_two.json"),
+            format!("note_{expired}_2_3_4.json"),
+            format!("old_note_{expired}_2.json"),
+            format!("note_{expired}_2.json.bak"),
+            "notes.json".to_owned(),
+        ];
+        for name in removed.iter().chain(&kept) {
+            fs::write(path.join(name), "{}").expect("write a file");
+        }
+        let directory_named_as_a_record = path.join(format!("note_{expired}_7.json"));
+        fs::create_dir(&directory_named_as_a_record).expect("create a directory");
+        #[cfg(unix)]
+        let symlink_named_as_a_record = {
+            let link = path.join(format!("note_{expired}_8.json"));
+            std::os::unix::fs::symlink(path.join("notes.json"), &link).expect("create a symlink");
+            link
+        };
+        let records = RecordDirectory::new(path.to_path_buf(), KIND);
+
+        records
+            .remove_expired(now())
+            .expect("remove the expired records");
+
+        let remaining = file_names(path);
+        assert_eq!(
+            (
+                removed
+                    .iter()
+                    .filter(|name| remaining.contains(name))
+                    .count(),
+                kept.iter().filter(|name| remaining.contains(name)).count(),
+                directory_named_as_a_record.is_dir(),
+            ),
+            (0, kept.len(), true)
+        );
+        #[cfg(unix)]
+        assert!(symlink_named_as_a_record.symlink_metadata().is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_returns_the_error_of_a_record_it_cannot_remove() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().expect("create the state directory");
+        let path = directory.path().join("notes");
+        let records = RecordDirectory::new(path.clone(), KIND);
         written(&records, now() - TimeDelta::days(11));
+        // A record in a directory the user cannot write to cannot be removed.
+        let set_mode = |mode| {
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode)).expect("set the mode");
+        };
+        set_mode(0o500);
 
         let removed = records.remove_expired(now());
 
-        assert_eq!(
-            (removed.is_err(), file_names(directory.path()).len()),
-            (true, 1)
-        );
+        set_mode(0o700);
+        assert_eq!((removed.is_err(), file_names(&path).len()), (true, 1));
     }
 
     #[cfg(unix)]

@@ -1,3 +1,5 @@
+use std::fs;
+
 use tempfile::tempdir;
 
 use super::*;
@@ -19,105 +21,6 @@ fn write_value_persists_json_that_can_be_read_back() {
             .expect("parse journal record");
 
     assert_eq!(persisted, expected);
-}
-
-#[test]
-fn write_value_does_not_replace_an_existing_record() {
-    let root = tempdir().expect("create temporary directory");
-    let config = journal_config(root.path().join("journal"));
-    fs::create_dir(&config.dir).expect("create journal directory");
-    let path = config.dir.join("search_result_1_2_3.json");
-    fs::write(&path, "existing record\n").expect("create existing record");
-
-    let result = write_value_to(&config, &path, json!({"replacement": true}));
-
-    let Err(error) = result else {
-        panic!("existing record must reject replacement");
-    };
-    assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
-    assert_eq!(
-        fs::read_to_string(path).expect("read existing record"),
-        "existing record\n"
-    );
-}
-
-#[test]
-fn cleanup_expired_silences_missing_directory() {
-    let root = tempdir().expect("create temporary directory");
-    let config = journal_config(root.path().join("missing"));
-
-    let warning = cleanup_expired(&config);
-
-    assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
-}
-
-#[test]
-fn cleanup_expired_only_removes_owned_regular_files_past_retention() {
-    let root = tempdir().expect("create temporary directory");
-    let journal_path = root.path().join("journal");
-    fs::create_dir(&journal_path).expect("create journal directory");
-    let stale_time = SystemTime::now()
-        .checked_sub(Duration::from_hours(48))
-        .expect("calculate stale modification time");
-    let cases = [
-        ("search_result_1_2_3.json", true, true),
-        ("search_result_4_5_6.json", false, false),
-        ("search_result__2_3.json", true, false),
-        ("search_result_1__3.json", true, false),
-        ("search_result_1_2_.json", true, false),
-        ("search_result_one_2_3.json", true, false),
-        ("search_result_1_two_3.json", true, false),
-        ("search_result_1_2_three.json", true, false),
-        ("prefix_search_result_1_2_3.json", true, false),
-        ("search_result_1_2_3.json.bak", true, false),
-        ("stale.json", true, false),
-    ];
-    for (name, stale, _) in cases {
-        let path = journal_path.join(name);
-        fs::write(&path, "{}").expect("create retention case");
-        if stale {
-            fs::File::open(&path)
-                .expect("open retention case")
-                .set_times(fs::FileTimes::new().set_modified(stale_time))
-                .expect("set retention case modification time");
-        }
-    }
-    let owned_directory = journal_path.join("search_result_7_8_9.json");
-    fs::create_dir(&owned_directory).expect("create owned-name directory");
-    #[cfg(unix)]
-    let owned_symlink = {
-        let path = journal_path.join("search_result_10_11_12.json");
-        std::os::unix::fs::symlink(journal_path.join("stale.json"), &path)
-            .expect("create owned-name symlink");
-        path
-    };
-    let config = journal_config(journal_path.clone());
-
-    let warning = cleanup_expired(&config);
-
-    assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
-    for (name, _, removed) in cases {
-        assert_eq!(
-            journal_path.join(name).exists(),
-            !removed,
-            "retention result for {name}"
-        );
-    }
-    assert!(owned_directory.is_dir());
-    #[cfg(unix)]
-    assert!(owned_symlink.symlink_metadata().is_ok());
-}
-
-#[test]
-fn cleanup_expired_reports_unexpected_scan_error() {
-    let root = tempdir().expect("create temporary directory");
-    let journal_path = root.path().join("journal");
-    fs::write(&journal_path, "not a directory").expect("create blocking file");
-    let config = journal_config(journal_path);
-
-    let warning = cleanup_expired(&config);
-
-    assert!(warning.is_some(), "expected cleanup warning");
 }
 
 #[test]
@@ -431,8 +334,18 @@ fn a_journal_that_cannot_be_written_is_reported_as_failed_with_a_warning() {
     );
 }
 
+/// Writes an earlier record into `dir`, named as written `age` ago.
+fn earlier_record(dir: &std::path::Path, age: TimeDelta) -> std::path::PathBuf {
+    let written = (Utc::now() - age)
+        .timestamp_nanos_opt()
+        .expect("a time in range");
+    let path = dir.join(format!("search_result_{written}_2_3.json"));
+    fs::write(&path, "{}").expect("create an earlier record");
+    path
+}
+
 #[test]
-fn writing_a_record_removes_expired_owned_records_under_the_default_retention() {
+fn writing_a_record_removes_the_records_named_as_written_before_the_default_retention() {
     let root = tempdir().expect("create temporary directory");
     let dir = root.path().join("journal");
     let document = format!(
@@ -443,21 +356,8 @@ fn writing_a_record_removes_expired_owned_records_under_the_default_retention() 
         .expect("valid configuration")
         .journal;
     fs::create_dir(&dir).expect("create journal directory");
-    let stale_owned = dir.join("search_result_1_2_3.json");
-    let fresh_owned = dir.join("search_result_4_5_6.json");
-    for path in [&stale_owned, &fresh_owned] {
-        fs::write(path, "{}").expect("create an earlier record");
-    }
-    fs::File::open(&stale_owned)
-        .expect("open the stale record")
-        .set_times(
-            fs::FileTimes::new().set_modified(
-                SystemTime::now()
-                    .checked_sub(Duration::from_hours(960))
-                    .expect("calculate stale modification time"),
-            ),
-        )
-        .expect("age the stale record");
+    let expired = earlier_record(&dir, TimeDelta::days(31));
+    let retained = earlier_record(&dir, TimeDelta::days(29));
 
     let journal = record_success(&config);
 
@@ -467,10 +367,28 @@ fn writing_a_record_removes_expired_owned_records_under_the_default_retention() 
             journal
                 .reference
                 .is_some_and(|reference| std::path::Path::new(&reference).is_file()),
-            stale_owned.exists(),
-            fresh_owned.exists(),
+            expired.exists(),
+            retained.exists(),
         ),
         ("written", true, false, true)
+    );
+}
+
+#[test]
+fn a_journal_retained_indefinitely_keeps_every_earlier_record() {
+    let root = tempdir().expect("create temporary directory");
+    let config = JournalRuntimeConfig {
+        retention_days: 0,
+        ..journal_config(root.path().join("journal"))
+    };
+    fs::create_dir(&config.dir).expect("create journal directory");
+    let earliest = earlier_record(&config.dir, TimeDelta::days(3650));
+
+    let journal = record_success(&config);
+
+    assert_eq!(
+        (journal.status, journal.warning, earliest.exists()),
+        ("written", None, true)
     );
 }
 
