@@ -1,4 +1,4 @@
-use std::fs::{self, OpenOptions};
+use std::fs::{self, OpenOptions, TryLockError};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Output, Stdio};
@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use crate::support::{
     command_deadline, forager_command, run_command, spawn_command, wait_for_child,
 };
-use fs2::FileExt;
 
 #[test]
 fn non_interactive_setup_creates_a_complete_template() {
@@ -70,7 +69,7 @@ fn setup_modes_time_out_without_writing_when_the_config_lock_is_held() {
         .write(true)
         .open(config_dir.path().join(".config.lock"))
         .expect("open config lock");
-    lock.lock_exclusive().expect("hold config lock");
+    lock.lock().expect("hold config lock");
 
     for arguments in [
         &["setup", "--lang", "en"][..],
@@ -108,10 +107,10 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
             .write(true)
             .open(&lock_path)
         {
-            match lock.try_lock_exclusive() {
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
-                Ok(()) => FileExt::unlock(&lock).expect("release probe lock"),
-                Err(error) => panic!("probe config lock: {error}"),
+            match lock.try_lock() {
+                Err(TryLockError::WouldBlock) => break,
+                Ok(()) => lock.unlock().expect("release probe lock"),
+                Err(TryLockError::Error(error)) => panic!("probe config lock: {error}"),
             }
         }
         assert!(

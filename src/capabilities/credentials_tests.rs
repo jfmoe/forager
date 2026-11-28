@@ -1,6 +1,5 @@
 use std::fs::{self, OpenOptions};
 
-use fs2::FileExt;
 use serde_json::{Value, json};
 use tempfile::tempdir;
 
@@ -118,7 +117,7 @@ fn a_busy_cursor_lock_falls_back_to_optimistic_selection() {
         .write(true)
         .open(path.with_extension("lock"))
         .expect("open credential lock");
-    lock.lock_exclusive().expect("hold credential lock");
+    lock.lock().expect("hold credential lock");
     let pool = CredentialPool::in_state_file(
         "exa",
         vec!["first".into(), "second".into()],
@@ -126,7 +125,7 @@ fn a_busy_cursor_lock_falls_back_to_optimistic_selection() {
     );
 
     let selection = block_on(pool.claim());
-    FileExt::unlock(&lock).expect("release credential lock");
+    lock.unlock().expect("release credential lock");
 
     assert_eq!(
         (

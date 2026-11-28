@@ -335,7 +335,6 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::Duration;
 
-    use fs2::FileExt;
     use tempfile::tempdir;
     use tokio::time::Instant;
 
@@ -551,7 +550,7 @@ mod tests {
             .write(true)
             .open(path.with_extension("lock"))
             .expect("open state lock");
-        lock.lock_exclusive().expect("hold state lock");
+        lock.lock().expect("hold state lock");
 
         let error = block_on_paused(async {
             limiter(Some(path))
@@ -561,7 +560,7 @@ mod tests {
                 .expect("busy lock blocks the send")
         });
 
-        FileExt::unlock(&lock).expect("release state lock");
+        lock.unlock().expect("release state lock");
         assert_eq!(error.kind(), AttemptErrorKind::Runtime);
     }
 
