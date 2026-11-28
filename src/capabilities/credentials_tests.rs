@@ -112,6 +112,26 @@ fn persistent_claims_reset_corrupt_state_and_fold_shrunken_key_counts() {
 }
 
 #[test]
+fn a_cursor_state_that_is_not_utf8_is_reset_and_the_repair_persists() {
+    let directory = tempdir().expect("create state directory");
+    let path = directory.path().join("credential_pool_state.json");
+    fs::write(&path, b"\xff\xfe\x00garbage").expect("write undecodable cursor state");
+
+    let (index, diagnostic) = claim_persistent_index(&path, "exa", 2).expect("claim cursor");
+    let state: Value = serde_json::from_slice(&fs::read(&path).expect("read repaired state"))
+        .expect("parse repaired state");
+
+    assert_eq!(
+        (index, diagnostic.as_deref(), &state["providers"]),
+        (
+            0,
+            Some("credential cursor state was corrupt and has been reset"),
+            &json!({"exa": {"next_index": 1}}),
+        )
+    );
+}
+
+#[test]
 fn a_corrupt_provider_cursor_is_reset_alone_and_the_repair_persists() {
     let directory = tempdir().expect("create state directory");
     let path = directory.path().join("credential_pool_state.json");

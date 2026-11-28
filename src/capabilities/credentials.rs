@@ -162,7 +162,7 @@ fn read_state(path: &Path) -> io::Result<(Value, Option<String>)> {
     let Some(content) = state_file::read_state(path)? else {
         return Ok((empty_state(), None));
     };
-    Ok(serde_json::from_str(&content).map_or_else(
+    Ok(serde_json::from_slice(&content).map_or_else(
         |_| {
             (
                 empty_state(),
