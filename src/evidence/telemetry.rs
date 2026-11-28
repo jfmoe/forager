@@ -119,19 +119,15 @@ impl Invocation {
         provider: &'static str,
         result: ResultSignal,
     ) -> Self {
-        let answered = attempts
-            .iter()
-            .position(|attempt| {
-                attempt.provider == provider && attempt.disposition == AttemptDisposition::Succeeded
-            })
-            .unwrap_or(attempts.len());
+        let invocation = Self::from_attempts(attempts);
+        let fallback = failed_before_answer(&invocation.attempts, provider)
+            .next()
+            .is_some();
         Self {
             succeeded: Some(provider),
-            fallback: attempts[..answered].iter().any(|attempt| {
-                attempt.provider != provider && attempt.disposition == AttemptDisposition::Failed
-            }),
+            fallback,
             result,
-            ..Self::from_attempts(attempts)
+            ..invocation
         }
     }
 
@@ -229,6 +225,23 @@ pub(crate) struct RecordedAttempt {
     pub(crate) retry_count: usize,
     pub(crate) rotation_count: usize,
     pub(crate) credential_index: usize,
+}
+
+/// The attempts of providers other than `provider` that ran and failed before `provider`
+/// answered. A route that was skipped never ran, so none of its attempts is among them.
+fn failed_before_answer<'a>(
+    attempts: &'a [RecordedAttempt],
+    provider: &'a str,
+) -> impl Iterator<Item = &'a RecordedAttempt> {
+    let answered = attempts
+        .iter()
+        .position(|attempt| {
+            attempt.provider == provider && attempt.disposition == AttemptDisposition::Succeeded
+        })
+        .unwrap_or(attempts.len());
+    attempts[..answered].iter().filter(move |attempt| {
+        attempt.provider != provider && attempt.disposition == AttemptDisposition::Failed
+    })
 }
 
 impl RecordedAttempt {

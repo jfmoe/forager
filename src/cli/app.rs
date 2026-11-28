@@ -3,6 +3,7 @@
 mod args;
 mod browser;
 mod dispatch;
+mod doctor;
 mod invocation;
 mod platform;
 
