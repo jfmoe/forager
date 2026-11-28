@@ -64,9 +64,11 @@ still carries the full result, and JSON output gains `output_status: "failed"` a
 `output_error` message. A failed journal write is only a stderr warning: it never changes the
 result or the exit code.
 
-`log.level=debug` enables an optional terminal projection with one bounded attempts summary;
-`trace` adds safe fields for each attempt. This projection never changes stdout or replaces
-`--verbose` and journal attempts.
+`log.level` adds a stderr attempt log to every retrieval command, successful or not:
+`summary` prints one `forager attempts:` line with the bounded summary and whether a retry,
+credential rotation, or fallback happened; `attempts` adds one `forager attempt:` line of safe
+fields for each attempt. The log never changes stdout or replaces `--verbose` and journal
+attempts.
 
 `content` output is available only for `search`, `fetch`, and `platform <id> fetch`.
 All other commands with `--format` accept only `json` and `markdown`.
@@ -1235,9 +1237,9 @@ read.
   seconds between attempts.
 - `http.ssl_verify` turns TLS certificate verification off when `false`.
 - `providers.jina.respond_with` sets Jina's `X-Respond-With` header, such as `readerlm-v2`.
-- `log.level` is `error`, `warn`, `info` (default), `debug`, or `trace`. Only `debug` and `trace`
-  add output. Terminal errors, capability gaps, and journal and `--output` warnings always reach
-  stderr.
+- `log.level` is `off` (default), `summary`, or `attempts`; any other value, from the file or the
+  environment, is a configuration error that names these three. Terminal errors, capability gaps,
+  and journal and `--output` warnings always reach stderr.
 - Every `timeout` is a positive number of seconds.
 - A leading `~/` in `journal.dir` or `browser.path` expands to `HOME`, and a relative path is
   relative to the configuration directory.

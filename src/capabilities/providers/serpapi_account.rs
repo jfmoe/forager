@@ -86,7 +86,6 @@ impl Serpapi {
                         kind,
                         message,
                         attempts: outcome.attempts,
-                        verbose: false,
                         diagnostic: outcome.diagnostic,
                     }),
             },

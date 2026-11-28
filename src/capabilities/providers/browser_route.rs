@@ -70,7 +70,6 @@ impl BrowserRoute {
             retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
             timeout_message: "browser command timed out",
             model: None,
             transport: Some("browser"),

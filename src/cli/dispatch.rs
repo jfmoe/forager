@@ -86,6 +86,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -97,6 +99,8 @@ pub enum CommandOutput {
         format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -108,6 +112,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -120,6 +126,8 @@ pub enum CommandOutput {
         format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -131,6 +139,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -144,6 +154,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -156,6 +168,8 @@ pub enum CommandOutput {
         format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -167,6 +181,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -178,6 +194,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -189,6 +207,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Whether the result lists every provider attempt, as `--verbose` asks.
+        verbose: bool,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -503,11 +523,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 });
             }
             let (result, journal, attempt_log) = context.search(
-                providers::MainSearchRequest {
-                    query,
-                    model,
-                    verbose,
-                },
+                providers::MainSearchRequest { query, model },
                 capabilities,
                 extra_sources,
                 fallback,
@@ -528,12 +544,12 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
-            let (result, attempt_log) =
-                FetchContext::load(timeout)?.fetch(FetchRequest { url, verbose });
+            let (result, attempt_log) = FetchContext::load(timeout)?.fetch(FetchRequest { url });
             Ok(CommandOutput::Fetch {
                 result,
                 format,
                 output: output.target(),
+                verbose,
                 attempt_log,
             })
         }
@@ -556,12 +572,12 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     max_breadth,
                     limit,
                     timeout_seconds: timeout,
-                    verbose,
                 });
             Ok(CommandOutput::Map {
                 result,
                 format,
                 output: output.target(),
+                verbose,
                 attempt_log,
             })
         }
@@ -594,11 +610,11 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 include_domains,
                 exclude_domains,
                 category,
-                verbose,
             },
             timeout,
             format,
             output.target(),
+            verbose,
         ),
         Command::Exa {
             command:
@@ -611,14 +627,11 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     verbose,
                 },
         } => run_exa_similar(
-            ExaSimilarRequest {
-                url,
-                num_results,
-                verbose,
-            },
+            ExaSimilarRequest { url, num_results },
             timeout,
             format,
             output.target(),
+            verbose,
         ),
         Command::Platform { command } => super::platform::run(command),
         Command::Browser { command } => super::browser::run(command),
@@ -1051,12 +1064,14 @@ fn run_exa_search(
     timeout: Option<u64>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<CommandOutput, AppError> {
     let (result, attempt_log) = AppContext::<providers::Exa>::for_exa(timeout)?.exa_search(request);
     Ok(CommandOutput::Exa {
         result,
         format,
         output,
+        verbose,
         attempt_log,
     })
 }
@@ -1066,6 +1081,7 @@ fn run_exa_similar(
     timeout: Option<u64>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<CommandOutput, AppError> {
     let (result, attempt_log) =
         AppContext::<providers::Exa>::for_exa(timeout)?.exa_similar(request);
@@ -1073,6 +1089,7 @@ fn run_exa_similar(
         result,
         format,
         output,
+        verbose,
         attempt_log,
     })
 }

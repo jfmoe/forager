@@ -393,7 +393,6 @@ impl PolymarketApi {
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
             timeout_message: endpoint.timeout_message(),
             model: None,
             transport: Some("http"),

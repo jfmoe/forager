@@ -407,7 +407,6 @@ fn search_invocation(
         MainSearchRequest {
             query: query.into(),
             model: None,
-            verbose: true,
         },
         &capabilities,
         0,

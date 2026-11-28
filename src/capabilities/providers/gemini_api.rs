@@ -264,7 +264,6 @@ impl GeminiApi {
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
             timeout_message: "Gemini API request timed out",
             model: Some(self.config.model.clone()),
             transport: Some("http"),

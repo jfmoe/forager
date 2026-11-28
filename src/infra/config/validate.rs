@@ -10,11 +10,21 @@ use super::location::{ConfigError, EditError};
 use super::schema::{Config, FieldRef, Rule, SCHEMA, leaf};
 
 pub(super) fn validate_edit_value(path: &str, value: &Value) -> Result<(), EditError> {
-    let valid = leaf(path).is_some_and(|leaf| edit_value_satisfies(leaf.rule, value));
-    if valid {
-        Ok(())
-    } else {
-        Err(invalid_value(path))
+    match leaf(path) {
+        Some(leaf) if edit_value_satisfies(leaf.rule, value) => Ok(()),
+        Some(leaf) => Err(EditError::Argument(format!(
+            "invalid value for `{path}`{}",
+            accepted_values(leaf.rule)
+        ))),
+        None => Err(invalid_value(path)),
+    }
+}
+
+/// Names the values a rule accepts, for a rule that has a fixed set of them.
+fn accepted_values(rule: Rule) -> String {
+    match rule {
+        Rule::OneOf(allowed) => format!("; accepted values: {}", allowed.join(", ")),
+        _ => String::new(),
     }
 }
 
@@ -59,7 +69,7 @@ pub(super) fn invalid_value(path: &str) -> EditError {
 pub(super) fn validate(config: &Config, path: &Path, content: &str) -> Result<(), ConfigError> {
     for leaf in SCHEMA {
         if !field_satisfies(leaf.rule, (leaf.get)(config)) {
-            return Err(value_error(path, content, leaf.path));
+            return Err(value_error(path, content, leaf.path, leaf.rule));
         }
     }
     Ok(())
@@ -151,13 +161,16 @@ fn strings_satisfy<'a>(
     valid && (allow_empty || count > 0)
 }
 
-fn value_error(path: &Path, content: &str, key: &str) -> ConfigError {
+fn value_error(path: &Path, content: &str, key: &str, rule: Rule) -> ConfigError {
     let position = source_position(content, key)
         .map(|(line, column)| format!(" at line {line}, column {column}"))
         .unwrap_or_default();
     ConfigError::Document {
         path: path.to_path_buf(),
-        detail: format!("invalid value for `{key}`{position}"),
+        detail: format!(
+            "invalid value for `{key}`{position}{}",
+            accepted_values(rule)
+        ),
     }
 }
 

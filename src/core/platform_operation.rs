@@ -5,8 +5,8 @@
 //! hands the operation the configuration of the route the operation's declaration names, read
 //! from that route's own field, so the route's inherent method never receives another route's
 //! configuration; a route that is absent from the order or unconfigured is a configuration
-//! error. The route chain runs through the shared chain executor. The attempts of a successful
-//! operation without `--verbose` are dropped here, once for every operation.
+//! error. The route chain runs through the shared chain executor, and the answer carries every
+//! attempt of the operation, the skipped routes and a precheck's read first.
 //!
 //! The no-wildcard rule covers every match in this module, so a new route of a paged operation
 //! or a new operation outcome is a compile error at every site here.
@@ -200,7 +200,6 @@ struct OperationRun {
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 }
 
 /// The answer of an operation's route, with the attempts the command reports and the diagnostic.
@@ -236,7 +235,6 @@ impl<C: Send + 'static, Q, I: Sync, T: Traced + Send> OperationPlan<C, Q, I, T> 
             run.client.clone(),
             run.retry_policy,
             run.deadline,
-            run.verbose,
         )
         .await?;
         let input = input(&video);
@@ -280,7 +278,6 @@ async fn answer<C: Send + 'static, Q, I: Sync, T: Traced + Send>(
             fallback_off: false,
             diagnostic_merge: DiagnosticMerge::Join,
             terminal: TerminalPolicy::ChainWide {
-                verbose: run.verbose,
                 exhausted_message: operation.exhausted_message,
             },
             identity: &identity,
@@ -313,11 +310,7 @@ async fn answer<C: Send + 'static, Q, I: Sync, T: Traced + Send>(
     Ok(Answered {
         route: route.route,
         value: outcome.value,
-        attempts: if run.verbose {
-            outcome.attempts
-        } else {
-            Vec::new()
-        },
+        attempts: outcome.attempts,
         diagnostic: outcome.diagnostic,
     })
 }
@@ -389,13 +382,11 @@ pub(crate) async fn run_cited_by(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformSearchPage, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     let CitedByPlan { request, route } = plan;
     let answered = route.run(&request, &run).await?;
@@ -454,13 +445,11 @@ pub(crate) async fn run_videos(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformSearchPage, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     let VideosPlan { request, route } = plan;
     let answered = route.run(&request, &run).await?;
@@ -513,13 +502,11 @@ pub(crate) async fn run_transcribe(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformTranscribeResult, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     let (item, answered) = plan
         .route
@@ -609,13 +596,11 @@ pub(crate) async fn run_comments(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformCommentsPage, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     Ok(match plan.0 {
         PlannedComments::Xiaohongshu { request, route } => {
@@ -695,13 +680,11 @@ pub(crate) async fn run_ask(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PlatformAskResult, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     Ok(match plan.0 {
         PlannedAsk::X { request, route } => {
@@ -768,13 +751,11 @@ pub(crate) async fn run_stories(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<HnStoriesResult, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     let StoriesPlan { request, route } = plan;
     let answered = route.run(&request, &run).await?;
@@ -815,13 +796,11 @@ pub(crate) async fn run_history(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    verbose: bool,
 ) -> Result<PolymarketHistoryResult, ProviderError> {
     let run = OperationRun {
         client,
         retry_policy,
         deadline,
-        verbose,
     };
     let HistoryPlan { request, route } = plan;
     let answered = route.run(&request, &run).await?;
@@ -865,7 +844,6 @@ mod tests {
                 build_client(true).expect("build client"),
                 RetryPolicy::new(1, 1.0, Duration::ZERO),
                 Deadline::new(Duration::from_secs(10)),
-                false,
             ))
         }
 
@@ -1004,12 +982,12 @@ mod tests {
                         question: "What animals stand behind the speaker?".to_owned(),
                     });
                     let plan = plan_ask(config, &runtime.platform_routes, request).expect("plan");
-                    block_on(run_ask(plan, client, retry, deadline, false)).map(drop)
+                    block_on(run_ask(plan, client, retry, deadline)).map(drop)
                 } else {
                     let request = YoutubeTranscribeRequest { video };
                     let plan =
                         plan_transcribe(config, &runtime.platform_routes, request).expect("plan");
-                    block_on(run_transcribe(plan, client, retry, deadline, false)).map(drop)
+                    block_on(run_transcribe(plan, client, retry, deadline)).map(drop)
                 };
                 let paths = |fixture: Fixture| {
                     fixture
@@ -1106,7 +1084,6 @@ mod tests {
                 build_client(true).expect("build client"),
                 RetryPolicy::new(1, 1.0, Duration::ZERO),
                 Deadline::new(Duration::from_secs(10)),
-                false,
             ))
             .expect("a video without a description is transcribed");
             api.finish();

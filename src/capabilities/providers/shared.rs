@@ -120,7 +120,6 @@ impl Trail {
             kind,
             message,
             attempts: Vec::new(),
-            verbose: false,
             diagnostic: None,
         })
     }
@@ -158,7 +157,6 @@ pub(super) fn parameter_error(message: String) -> ProviderError {
         kind: AttemptErrorKind::Parameter,
         message,
         attempts: Vec::new(),
-        verbose: false,
         diagnostic: None,
     }
 }

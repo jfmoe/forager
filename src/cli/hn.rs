@@ -324,7 +324,6 @@ fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
             dependencies.client,
             dependencies.retry_policy,
             Deadline::new(Duration::from_secs(common.timeout)),
-            common.verbose,
         ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |listing| {
         &listing.attempts
@@ -333,6 +332,7 @@ fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
         result,
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }

@@ -296,7 +296,6 @@ impl ArxivApi {
             retry_policy,
             deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
             timeout_message: "arXiv API request timed out",
             model: None,
             transport: Some("http"),

@@ -31,7 +31,8 @@ pub struct XiaohongshuCommentsPage {
     /// Whether the note has top-level comments this result does not deliver, including those
     /// the limit cut off.
     pub has_more: bool,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,

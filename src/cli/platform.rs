@@ -415,7 +415,7 @@ fn run_page<Plan, Page>(
         &PlatformRuntimeConfig,
         &PlatformRoutesRuntimeConfig,
     ) -> Result<Plan, PlatformPreflightError>,
-    run: impl FnOnce(Plan, Client, RetryPolicy, Deadline, bool) -> Page,
+    run: impl FnOnce(Plan, Client, RetryPolicy, Deadline) -> Page,
     format: OutputFormat,
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError>
@@ -433,7 +433,6 @@ where
         dependencies.client,
         dependencies.retry_policy,
         Deadline::new(Duration::from_secs(common.timeout)),
-        common.verbose,
     ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |page| {
         &page.attempts
@@ -442,6 +441,7 @@ where
         result,
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }
@@ -466,7 +466,6 @@ fn comments(
             dependencies.client,
             dependencies.retry_policy,
             Deadline::new(Duration::from_secs(common.timeout)),
-            common.verbose,
         ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |page| {
         page.attempts()
@@ -475,6 +474,7 @@ fn comments(
         result,
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }
@@ -498,7 +498,6 @@ fn ask(
         dependencies.client,
         dependencies.retry_policy,
         Deadline::new(Duration::from_secs(common.timeout)),
-        common.verbose,
     ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |answer| {
         answer.attempts()
@@ -508,6 +507,7 @@ fn ask(
         result,
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }
@@ -584,11 +584,10 @@ fn fetch(
         dependencies.client,
         dependencies.retry_policy,
         Deadline::new(Duration::from_secs(common.timeout)),
-        common.verbose,
     ));
     let result = result.and_then(|fetched| {
         let file_name = content_file_name(&fetched.item.reference);
-        deliver(fetched, format, content_dir, &file_name, common.verbose)
+        deliver(fetched, format, content_dir, &file_name)
     });
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |fetched| {
         &fetched.attempts
@@ -597,6 +596,7 @@ fn fetch(
         result: Box::new(result),
         format,
         output: common.output.target(),
+        verbose: common.verbose,
         attempt_log,
     })
 }
@@ -610,7 +610,6 @@ fn deliver(
     format: ContentOutputFormat,
     content_dir: Option<PathBuf>,
     file_name: &str,
-    verbose: bool,
 ) -> Result<PlatformFetchResult, ProviderError> {
     if format == ContentOutputFormat::Content {
         return Ok(fetched);
@@ -629,7 +628,6 @@ fn deliver(
             kind: AttemptErrorKind::Runtime,
             message: format!("cannot write the full text to {}: {error}", path.display()),
             attempts: fetched.attempts,
-            verbose,
             diagnostic: fetched.diagnostic,
         }),
     }
@@ -697,7 +695,6 @@ mod tests {
             ContentOutputFormat::Content,
             Some(content_dir.path().to_path_buf()),
             "hn-8863.md",
-            false,
         )
         .expect("delivered");
 
@@ -722,7 +719,6 @@ mod tests {
             ContentOutputFormat::Json,
             Some(content_dir.clone()),
             "hn-8863.md",
-            false,
         )
         .expect_err("an unwritable content directory");
 

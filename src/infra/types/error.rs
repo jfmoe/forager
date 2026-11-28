@@ -113,7 +113,6 @@ pub struct ProviderError {
     pub kind: AttemptErrorKind,
     pub message: String,
     pub attempts: Vec<ProviderAttempt>,
-    pub verbose: bool,
     pub diagnostic: Option<String>,
 }
 

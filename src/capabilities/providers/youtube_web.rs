@@ -277,7 +277,6 @@ impl YoutubeWeb {
             retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
             timeout_message: step.timeout_message(),
             model: None,
             transport: Some("http"),

@@ -456,7 +456,7 @@ fn config_set_and_unset_edit_inline_tables() {
 fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let config_path = config_dir.path().join("config.toml");
-    fs::write(&config_path, "[log]\nlevel = \"info\"\n").expect("write config");
+    fs::write(&config_path, "[log]\nlevel = \"off\"\n").expect("write config");
     let lock = OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -468,7 +468,7 @@ fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
 
     let set = run(
         config_dir.path(),
-        &["config", "set", "log.level", "debug"],
+        &["config", "set", "log.level", "summary"],
         &[],
         None,
     );
@@ -489,7 +489,7 @@ fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
     }
     assert_eq!(
         fs::read_to_string(config_path).expect("read preserved config"),
-        "[log]\nlevel = \"info\"\n"
+        "[log]\nlevel = \"off\"\n"
     );
 }
 
@@ -945,7 +945,7 @@ fn config_set_enforces_private_directory_and_file_modes() {
     }
     let output = run(
         &config_dir,
-        &["config", "set", "log.level", "debug"],
+        &["config", "set", "log.level", "summary"],
         &[],
         None,
     );

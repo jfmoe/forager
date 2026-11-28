@@ -211,7 +211,6 @@ impl Serpapi {
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.timeout_seconds),
-            verbose: false,
             timeout_message: "SerpApi request timed out",
             model: None,
             transport: Some("http"),

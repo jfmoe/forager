@@ -106,7 +106,6 @@ impl ResponsesEndpoint<'_> {
             retry_policy,
             deadline,
             attempt_timeout: deadline.remaining().unwrap_or_default(),
-            verbose: false,
             timeout_message: self.timeout_message,
             model: Some(model),
             transport: Some("sse"),

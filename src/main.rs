@@ -12,8 +12,9 @@ use forager::app::{
 };
 use forager::types::{
     AttemptErrorKind, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome, MapOutcome,
-    SearchCandidate, SearchOutcome,
+    ProviderAttempt, SearchCandidate, SearchOutcome,
 };
+use serde::Serialize;
 use serde_json::{Value, json};
 
 #[path = "cli/platform_render.rs"]
@@ -63,45 +64,51 @@ fn main() -> ExitCode {
             result,
             format,
             output,
+            verbose,
             attempt_log,
-        }) => emit_logged(render_exa(result, format, output), attempt_log),
+        }) => emit_logged(render_exa(result, format, output, verbose), attempt_log),
         Ok(CommandOutput::Fetch {
             result,
             format,
             output,
+            verbose,
             attempt_log,
-        }) => emit_logged(render_fetch(result, format, output), attempt_log),
+        }) => emit_logged(render_fetch(result, format, output, verbose), attempt_log),
         Ok(CommandOutput::Map {
             result,
             format,
             output,
+            verbose,
             attempt_log,
-        }) => emit_logged(render_map(result, format, output), attempt_log),
+        }) => emit_logged(render_map(result, format, output, verbose), attempt_log),
         Ok(CommandOutput::PlatformSearch {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_search(result, format, output),
+            platform_render::render_search(result, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::PlatformFetch {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_fetch(*result, format, output),
+            platform_render::render_fetch(*result, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::PlatformComments {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_comments(result, format, output),
+            platform_render::render_comments(result, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::PlatformAsk {
@@ -109,36 +116,40 @@ fn main() -> ExitCode {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_ask(platform, result, format, output),
+            platform_render::render_ask(platform, result, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::PlatformTranscribe {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_transcribe(*result, format, output),
+            platform_render::render_transcribe(*result, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::HnStories {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_stories(result, format, output),
+            platform_render::render_stories(result, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::PolymarketHistory {
             result,
             format,
             output,
+            verbose,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_history(result, format, output),
+            platform_render::render_history(result, format, output, verbose),
             attempt_log,
         ),
         Err(error) => emit_error(&error, json_preflight_errors, json_preflight_output),
@@ -210,7 +221,9 @@ fn render_search(
         Err(failure) => {
             let error = &failure.error;
             let stdout = match format {
-                ContentOutputFormat::Json => format_search_failure_json(&failure, journal)?,
+                ContentOutputFormat::Json => {
+                    format_search_failure_json(&failure, journal, verbose)?
+                }
                 ContentOutputFormat::Markdown | ContentOutputFormat::Content => {
                     let mut rendered = format!(
                         "# Search failed\n\n**{}**: {}",
@@ -340,8 +353,9 @@ fn append_extra_sources_markdown(markdown: &mut String, extra_sources: &[SearchC
 fn format_search_failure_json(
     failure: &SearchFailure,
     journal: &JournalOutcome,
+    verbose: bool,
 ) -> Result<String, String> {
-    let mut payload: Value = serde_json::from_str(&format_failure_json(&failure.error)?)
+    let mut payload: Value = serde_json::from_str(&format_failure_json(&failure.error, verbose)?)
         .map_err(|error| error.to_string())?;
     add_journal_status(&mut payload, journal)?;
     let object = payload
@@ -359,7 +373,7 @@ fn format_search_failure_json(
         let Value::Array(mut candidates) = candidates else {
             return Err("extra_sources did not serialize as an array".into());
         };
-        if failure.error.verbose {
+        if verbose {
             object.insert("extra_sources".into(), Value::Array(candidates));
         } else {
             for candidate in &mut candidates {
@@ -421,13 +435,12 @@ fn render_map(
     result: Result<MapOutcome, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
             let stdout = match format {
-                OutputFormat::Json => {
-                    serde_json::to_string(&outcome).map_err(|error| error.to_string())?
-                }
+                OutputFormat::Json => result_json(&outcome, &outcome.attempts, verbose)?,
                 OutputFormat::Markdown => {
                     let mut markdown = format!("# Site map: {}\n", outcome.base_url);
                     for result in &outcome.results {
@@ -443,7 +456,7 @@ fn render_map(
         }
         Err(error) => {
             let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Json => format_failure_json(&error, verbose)?,
                 OutputFormat::Markdown => format!(
                     "# Site map failed\n\n**{}**: {}",
                     error.kind.as_str(),
@@ -466,13 +479,12 @@ fn render_fetch(
     result: Result<FetchOutcome, ProviderError>,
     format: ContentOutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
             let stdout = match format {
-                ContentOutputFormat::Json => {
-                    serde_json::to_string(&outcome).map_err(|error| error.to_string())?
-                }
+                ContentOutputFormat::Json => result_json(&outcome, &outcome.attempts, verbose)?,
                 ContentOutputFormat::Markdown => {
                     format!("# Fetched with {}\n\n{}", outcome.provider, outcome.content)
                 }
@@ -482,7 +494,7 @@ fn render_fetch(
         }
         Err(error) => {
             let stdout = match format {
-                ContentOutputFormat::Json => format_failure_json(&error)?,
+                ContentOutputFormat::Json => format_failure_json(&error, verbose)?,
                 ContentOutputFormat::Markdown | ContentOutputFormat::Content => format!(
                     "# Fetch failed\n\n**{}**: {}",
                     error.kind.as_str(),
@@ -523,11 +535,16 @@ fn render_exa(
     result: Result<ExaOutcome, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
-        Ok(outcome) => (format_success(&outcome, format)?, 0, outcome.diagnostic),
+        Ok(outcome) => (
+            format_success(&outcome, format, verbose)?,
+            0,
+            outcome.diagnostic,
+        ),
         Err(error) => (
-            format_failure(&error, format)?,
+            format_failure(&error, format, verbose)?,
             postflight_exit_code(error.kind),
             error.diagnostic,
         ),
@@ -541,9 +558,13 @@ fn render_exa(
     )
 }
 
-fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, String> {
+fn format_success(
+    outcome: &ExaOutcome,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<String, String> {
     match format {
-        OutputFormat::Json => serde_json::to_string(outcome).map_err(|error| error.to_string()),
+        OutputFormat::Json => result_json(outcome, &outcome.attempts, verbose),
         OutputFormat::Markdown => {
             let mut markdown = format!(
                 "# Exa {}: {}\n",
@@ -567,9 +588,13 @@ fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, 
     }
 }
 
-fn format_failure(error: &ProviderError, format: OutputFormat) -> Result<String, String> {
+fn format_failure(
+    error: &ProviderError,
+    format: OutputFormat,
+    verbose: bool,
+) -> Result<String, String> {
     match format {
-        OutputFormat::Json => format_failure_json(error),
+        OutputFormat::Json => format_failure_json(error, verbose),
         OutputFormat::Markdown => Ok(format!(
             "# Exa search failed\n\n**{}**: {}",
             error.kind.as_str(),
@@ -578,12 +603,39 @@ fn format_failure(error: &ProviderError, format: OutputFormat) -> Result<String,
     }
 }
 
-fn format_failure_json(error: &ProviderError) -> Result<String, String> {
-    encode_failure_payload(error, &failure_payload(error)?)
+/// The JSON of a successful `result`, followed by its `attempts` as `provider_attempts` when
+/// `verbose`.
+fn result_json<T: Serialize>(
+    result: &T,
+    attempts: &[ProviderAttempt],
+    verbose: bool,
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct WithAttempts<'a, T> {
+        #[serde(flatten)]
+        result: &'a T,
+        provider_attempts: &'a [ProviderAttempt],
+    }
+    if verbose {
+        serde_json::to_string(&WithAttempts {
+            result,
+            provider_attempts: attempts,
+        })
+    } else {
+        serde_json::to_string(result)
+    }
+    .map_err(|error| error.to_string())
+}
+
+fn format_failure_json(error: &ProviderError, verbose: bool) -> Result<String, String> {
+    encode_failure_payload(&failure_payload(error, verbose)?, verbose)
 }
 
 /// The fields of the stable failure payload, for commands that add their own fields.
-fn failure_payload(error: &ProviderError) -> Result<serde_json::Map<String, Value>, String> {
+fn failure_payload(
+    error: &ProviderError,
+    verbose: bool,
+) -> Result<serde_json::Map<String, Value>, String> {
     let mut payload = serde_json::Map::new();
     payload.insert("error_kind".into(), error.kind.as_str().into());
     payload.insert(
@@ -593,7 +645,7 @@ fn failure_payload(error: &ProviderError) -> Result<serde_json::Map<String, Valu
     payload.insert("attempts".into(), bounded_attempt_summary(&error.attempts));
     payload.insert("journal_ref".into(), Value::Null);
     payload.insert("journal_status".into(), "not_applicable".into());
-    if error.verbose {
+    if verbose {
         payload.insert(
             "provider_attempts".into(),
             serde_json::to_value(&error.attempts)
@@ -605,11 +657,11 @@ fn failure_payload(error: &ProviderError) -> Result<serde_json::Map<String, Valu
 
 /// Encodes a failure payload; without `--verbose` it must stay within 4 KiB.
 fn encode_failure_payload(
-    error: &ProviderError,
     payload: &serde_json::Map<String, Value>,
+    verbose: bool,
 ) -> Result<String, String> {
     let encoded = serde_json::to_string(payload).map_err(|error| error.to_string())?;
-    if !error.verbose && encoded.len() > FAILURE_PAYLOAD_TARGET_BYTES {
+    if !verbose && encoded.len() > FAILURE_PAYLOAD_TARGET_BYTES {
         return Err("default failure payload exceeded 4 KiB".into());
     }
     Ok(encoded)
@@ -738,11 +790,10 @@ mod tests {
             kind: AttemptErrorKind::Evidence,
             message: "界".repeat(600),
             attempts,
-            verbose: false,
             diagnostic: None,
         };
         let encoded =
-            format_failure_json(&provider_error).expect("bounded provider failure payload");
+            format_failure_json(&provider_error, false).expect("bounded provider failure payload");
         let payload: Value = serde_json::from_str(&encoded).expect("provider failure JSON");
 
         assert!(encoded.len() <= 4096);
@@ -772,13 +823,15 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let payloads = [false, true].map(|verbose| {
-            let encoded = format_failure_json(&ProviderError {
-                kind: AttemptErrorKind::RateLimited,
-                message: "rate limit detail".into(),
-                attempts: attempts.clone(),
+            let encoded = format_failure_json(
+                &ProviderError {
+                    kind: AttemptErrorKind::RateLimited,
+                    message: "rate limit detail".into(),
+                    attempts: attempts.clone(),
+                    diagnostic: None,
+                },
                 verbose,
-                diagnostic: None,
-            })
+            )
             .expect("provider failure payload");
             let payload: Value = serde_json::from_str(&encoded).expect("provider failure JSON");
             (
@@ -832,6 +885,7 @@ mod tests {
             }),
             ContentOutputFormat::Json,
             None,
+            false,
         )
         .expect("rendered output");
         let payload: Value = serde_json::from_str(&rendered.stdout).expect("fetch JSON");
@@ -844,6 +898,32 @@ mod tests {
             ),
             (0, &json!("body"), Some("content truncated at 4 MiB"))
         );
+    }
+
+    #[test]
+    fn a_successful_result_lists_its_attempts_only_when_verbose() {
+        let listed = [false, true].map(|verbose| {
+            let rendered = render_fetch(
+                Ok(FetchOutcome {
+                    provider: "jina",
+                    url: "https://example.test/page".into(),
+                    content: "body".into(),
+                    attempts: vec![attempt("jina", AttemptErrorKind::Network)],
+                    diagnostic: None,
+                }),
+                ContentOutputFormat::Json,
+                None,
+                verbose,
+            )
+            .expect("rendered output");
+            let payload: Value = serde_json::from_str(&rendered.stdout).expect("fetch JSON");
+            payload
+                .get("provider_attempts")
+                .and_then(Value::as_array)
+                .map(Vec::len)
+        });
+
+        assert_eq!(listed, [None, Some(1)]);
     }
 
     /// The JSON payload of a search whose main search failed for a bad key, with `gaps` and the
@@ -859,7 +939,6 @@ mod tests {
                     kind: AttemptErrorKind::Auth,
                     message: "bad key".into(),
                     attempts: Vec::new(),
-                    verbose,
                     diagnostic: None,
                 },
                 extra_sources,
@@ -870,6 +949,7 @@ mod tests {
                 reference: Some("/journal/record.json".into()),
                 warning: None,
             },
+            verbose,
         )
         .expect("search failure payload");
         serde_json::from_str(&encoded).expect("search failure JSON")
@@ -1167,7 +1247,6 @@ mod tests {
                     kind: AttemptErrorKind::Timeout,
                     message: "deadline exceeded".into(),
                     attempts: vec![attempt("xai", AttemptErrorKind::Timeout)],
-                    verbose: false,
                     diagnostic: None,
                 },
                 extra_sources: Vec::new(),

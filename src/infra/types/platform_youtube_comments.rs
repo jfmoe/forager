@@ -38,7 +38,8 @@ pub struct YoutubeCommentsPage {
     pub comments: Vec<YoutubeComment>,
     /// Whether the video has top-level comments this page does not deliver.
     pub has_more: bool,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,

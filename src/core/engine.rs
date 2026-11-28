@@ -55,7 +55,6 @@ fn provider_chain_settings<C>(
     seam: &'static str,
     budget_policy: BudgetPolicy,
     fallback_off: bool,
-    verbose: bool,
     exhausted_message: &'static str,
 ) -> ChainSettings<'static, (providers::ProviderId, C)> {
     ChainSettings {
@@ -63,24 +62,18 @@ fn provider_chain_settings<C>(
         budget_policy,
         fallback_off,
         diagnostic_merge: chain::DiagnosticMerge::Join,
-        terminal: chain::TerminalPolicy::ChainWide {
-            verbose,
-            exhausted_message,
-        },
+        terminal: chain::TerminalPolicy::ChainWide { exhausted_message },
         identity: &provider_identity::<C>,
     }
 }
 
-fn web_fetch_chain_settings<C>(
-    verbose: bool,
-) -> ChainSettings<'static, (providers::ProviderId, C)> {
+fn web_fetch_chain_settings<C>() -> ChainSettings<'static, (providers::ProviderId, C)> {
     provider_chain_settings(
         "web_fetch",
         BudgetPolicy::SlicedEven {
             skipped_message: "skipped to preserve fallback deadline budget",
         },
         false,
-        verbose,
         "web fetch deadline elapsed",
     )
 }
@@ -171,7 +164,6 @@ pub(crate) async fn search(
             "main_search",
             BudgetPolicy::PrimaryFirst,
             !fallback.allows_fallback(),
-            request.verbose,
             "main search deadline elapsed",
         ),
         deadline,
@@ -218,7 +210,7 @@ pub(crate) async fn fetch(
     let pdf = is_pdf(&request.url);
     let step = chain::run_chain(
         provider_steps(config.into_entries()),
-        web_fetch_chain_settings(request.verbose),
+        web_fetch_chain_settings(),
         deadline,
         |(id, provider_config), provider_deadline| {
             let client = client.clone();
@@ -263,11 +255,7 @@ pub(crate) async fn fetch(
         provider: step.value.0,
         url: redact_url(&request.url),
         content: step.value.1,
-        attempts: if request.verbose {
-            step.attempts
-        } else {
-            Vec::new()
-        },
+        attempts: step.attempts,
         diagnostic: step.diagnostic,
     })
 }
@@ -287,7 +275,6 @@ pub(crate) async fn supplemental_web_search(
                 skipped_message: "skipped to preserve fallback deadline budget",
             },
             fallback_off,
-            false,
             "supplemental web search has no executable provider",
         ),
         execution.deadline,
@@ -343,7 +330,6 @@ pub(crate) async fn documentation_search(
                 skipped_message: "skipped to preserve fallback deadline budget",
             },
             !execution.fallback.allows_fallback(),
-            false,
             "documentation search has no executable provider",
         ),
         execution.deadline,

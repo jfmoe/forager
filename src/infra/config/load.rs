@@ -190,8 +190,35 @@ fn normalize_credentials(config: &mut Config) {
 
 #[cfg(test)]
 mod tests {
-    use super::apply_env_value;
+    use std::path::Path;
+
+    use super::{apply_env_value, read_document};
     use crate::config::schema::Config;
+
+    #[test]
+    fn a_log_level_outside_its_values_from_the_file_or_the_environment_names_them() {
+        let path = Path::new("/forager/config.toml");
+        let from_file = read_document("[log]\nlevel = \"debug\"\n", path, |_| Ok(()));
+        let from_environment = read_document("", path, |config| {
+            apply_env_value(config, "log.level", "trace").expect("a string value");
+            Ok(())
+        });
+
+        let messages = [from_file, from_environment].map(|loaded| {
+            loaded
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default()
+        });
+
+        for message in messages {
+            assert!(
+                message.contains("invalid value for `log.level`")
+                    && message.contains("accepted values: off, summary, attempts"),
+                "{message}"
+            );
+        }
+    }
 
     #[test]
     fn schema_mutator_executor_applies_every_field_kind_to_its_value() {

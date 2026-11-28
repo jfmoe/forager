@@ -340,7 +340,8 @@ pub struct XAskResult {
     pub query: String,
     pub answer: String,
     pub sources: Vec<XSource>,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    /// Every attempt of the command; the binary lists them only under `--verbose`.
+    #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,

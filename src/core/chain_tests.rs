@@ -41,7 +41,6 @@ fn settings() -> ChainSettings<'static, &'static str> {
         fallback_off: false,
         diagnostic_merge: DiagnosticMerge::Join,
         terminal: TerminalPolicy::ChainWide {
-            verbose: false,
             exhausted_message: "chain exhausted",
         },
         identity: &identity,
@@ -125,7 +124,6 @@ fn failed(
         kind,
         message: message.into(),
         attempts: vec![failed_attempt(provider, kind, message)],
-        verbose: false,
         diagnostic: diagnostic.map(str::to_owned),
     })
 }
@@ -478,7 +476,7 @@ fn chain_wide_error_uses_kind_and_message_from_the_same_terminal_attempt() {
         failed_attempt("jina", AttemptErrorKind::Network, "connection reset"),
     ];
 
-    let error = chain_wide_error(attempts, false, None, "web fetch deadline elapsed");
+    let error = chain_wide_error(attempts, None, "web fetch deadline elapsed");
 
     assert_eq!(
         (error.kind, error.message.as_str()),
@@ -528,7 +526,6 @@ mod leading_trace {
                 kind: AttemptErrorKind::Quality,
                 message: "refused".into(),
                 attempts: vec![attempt("gemini_api")],
-                verbose: false,
                 diagnostic: None,
             }))
             .err()
