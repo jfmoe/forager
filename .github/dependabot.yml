@@ -17,7 +17,7 @@ updates:
           - patch
     ignore:
       # reqwest 0.13 trades the bundled certificate roots for the system trust store and ring for
-      # aws-lc, which the offline tests cannot prove; #336 decides whether to take it.
+      # aws-lc, which the offline tests cannot prove, so forager stays on 0.12.
       - dependency-name: reqwest
         update-types:
           - version-update:semver-major
