@@ -29,6 +29,10 @@ use crate::types::{AttemptErrorKind, Deadline};
 
 const STATE_FILE: &str = "rate_limit_state.json";
 const STATE_SCHEMA_VERSION: u64 = 1;
+// Every paced send rewrites the reservations, a sync on each would cost a command more than its
+// other startup work, and a file a power loss damages counts as a reservation made now, which
+// only lengthens one interval.
+const STATE_SYNCED: bool = false;
 #[cfg(not(test))]
 const LOCK_WAIT: Duration = Duration::from_millis(100);
 // The test build's state lives in a directory of the test process, whose reservations
@@ -238,7 +242,7 @@ fn reserve_under_lock(
         return Ok(None);
     }
     state["routes"][route] = json!({"reserved_at_ms": window});
-    state_file::write_state(path, &state, true)?;
+    state_file::write_state(path, &state, STATE_SYNCED)?;
     Ok(Some(window))
 }
 

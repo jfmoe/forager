@@ -9,6 +9,9 @@ use crate::state_file::{self, StateLock, serialized_blocking};
 
 const STATE_FILE: &str = "credential_pool_state.json";
 const STATE_SCHEMA_VERSION: u8 = 1;
+// Every claim of a multi-key pool rewrites the cursor, a sync on each would cost a command more
+// than its other startup work, and a cursor a power loss damages is reset with a diagnostic.
+const STATE_SYNCED: bool = false;
 #[cfg(not(test))]
 const LOCK_WAIT: Duration = Duration::from_millis(100);
 // The test build's cursor state lives in a directory of the test process, whose claims
@@ -147,7 +150,7 @@ fn claim_persistent_index(
         provider.to_owned(),
         json!({"next_index": (index + 1) % key_count}),
     );
-    state_file::write_state(path, &state, true)?;
+    state_file::write_state(path, &state, STATE_SYNCED)?;
     Ok((index, diagnostic))
 }
 
