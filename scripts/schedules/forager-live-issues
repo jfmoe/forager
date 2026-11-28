@@ -16,7 +16,12 @@ notify() {
 # Any other code means the run checked nothing: its selection was refused or its configuration
 # did not load.
 case $exit_code in
-  0 | 4) ;;
+  0 | 4)
+    if ! jq -e . "$report" >/dev/null 2>&1; then
+      notify "forager live run" "cannot read the report $report"
+      exit 0
+    fi
+    ;;
   *) notify "forager live run" "doctor --live exited $exit_code; read $report" ;;
 esac
 
@@ -36,8 +41,12 @@ while IFS= read -r -d '' action <&3 && IFS= read -r -d '' label <&3 &&
         gh label create "$label" --repo "$repo" --force --color FBCA04 \
           --description "forager's scheduled Live Checks of one provider" &&
           gh issue create --repo "$repo" --label "$label" --title "$title" --body "$body"
-      fi || notify "forager: $title" "could not $action the issue labelled $label"
-      notify "forager: $title" "$action: the issue labelled $label"
+      fi
+      if [ "$?" -eq 0 ]; then
+        notify "forager: $title" "$action: the issue labelled $label"
+      else
+        notify "forager: $title" "could not $action the issue labelled $label"
+      fi
       ;;
     close)
       if [ -n "$number" ]; then

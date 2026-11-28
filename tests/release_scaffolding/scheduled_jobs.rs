@@ -114,9 +114,27 @@ esac"#,
             "notify forager: Live Checks of jina fail | could not open the issue labelled \
              live-check:jina"
                 .to_owned(),
-            "notify forager: Live Checks of jina fail | open: the issue labelled live-check:jina"
-                .to_owned(),
         ]
+    );
+}
+
+#[test]
+fn the_live_issue_job_notifies_a_report_it_cannot_read() {
+    let mut fakes = Fakes::new();
+    fakes.program("gh", "");
+    fs::create_dir_all(fakes.home()).expect("create the home directory");
+    let report = fakes.home().join("report.json");
+    fs::write(&report, "not a report").expect("write the report");
+    let report = report.to_str().expect("a Unicode path");
+
+    let output = fakes.run(LIVE_ISSUES, &[report, "4"], &[]);
+
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(
+        fakes.calls(),
+        [format!(
+            "notify forager live run | cannot read the report {report}"
+        )]
     );
 }
 

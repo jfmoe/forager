@@ -64,7 +64,8 @@ impl Fakes {
             &std::env::var_os("PATH").unwrap_or_default(),
         )))
         .expect("join PATH");
-        let mut command = command_behind_closed_proxy("bash");
+        // launchd starts the scripts with /bin/bash, which macOS keeps at version 3.2.
+        let mut command = command_behind_closed_proxy("/bin/bash");
         command
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join(script))
             .args(arguments)
