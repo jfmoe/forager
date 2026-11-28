@@ -813,8 +813,7 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
     )
     .depends_on("xiaohongshu_browser:search")
     .time_limit(BROWSER_LIMIT),
-    // One comment page holds 10 top-level comments, so 15 needs the second page, and a comment
-    // carries one reply before it is expanded.
+    // One comment page holds 10 top-level comments, so 15 needs the second page.
     platform_check(
         "xiaohongshu_browser:comments",
         LiveTier::Attended,
@@ -838,12 +837,14 @@ const XIAOHONGSHU_BROWSER_LIVE: &[LiveCheck] = &[
             Field::text("comments[].text").in_some_items(),
             Field::text("comments[].author").in_some_items(),
             Field::text("comments[].published").in_some_items(),
-            Field::list("comments[].replies", 2).in_some_items(),
+            Field::text("comments[].reply_count").in_some_items(),
+            Field::list("comments[].replies", 0),
             Field::text("comments[].replies[].id"),
             Field::text("comments[].replies[].reply_to"),
-        ]),
+        ])
+        .with_sample(&[SampleRule::RepliesExpanded]),
         "the week's most-commented note, so the read reaches the second comment page and \
-         expands a reply thread",
+         expands a reply thread when one of its comments has one",
     )
     .depends_on("xiaohongshu_browser:search")
     .time_limit(BROWSER_LIMIT),

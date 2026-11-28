@@ -284,6 +284,10 @@ pub(crate) enum SampleRule {
     ResolvedByPayout { winner: &'static str },
     /// An event with an open market is priced by live CLOB quotes, not Gamma's cached prices.
     LiveQuotes,
+    /// A comment carries one reply until its thread is expanded, so when any comment declares
+    /// two or more replies, some comment carries two or more. A note without such a comment has
+    /// no thread to expand.
+    RepliesExpanded,
 }
 
 /// A result on a browser route that ends every remaining check on its site in the run, because

@@ -306,7 +306,36 @@ fn sample_violation(rule: SampleRule, payload: &Value) -> Option<Detail> {
             (open && source.and_then(Value::as_str) != Some("clob"))
                 .then(|| Detail::at(Rule::LiveQuotes, "price_source", "price_source", source))
         }
+        SampleRule::RepliesExpanded => replies_expanded(payload),
     }
+}
+
+/// Names the replies of the first comment that declares two or more, when no comment carries
+/// two or more. A count that is not a whole number, such as `1.2万`, declares a thread.
+fn replies_expanded(payload: &Value) -> Option<Detail> {
+    let comments = payload["comments"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    let carried = |comment: &Value| comment["replies"].as_array().map_or(0, Vec::len);
+    if comments.iter().any(|comment| carried(comment) >= 2) {
+        return None;
+    }
+    let declares_thread = |comment: &Value| {
+        let count = comment["reply_count"].as_str().unwrap_or_default().trim();
+        count
+            .parse::<u64>()
+            .map_or(!count.is_empty(), |count| count >= 2)
+    };
+    let (index, comment) = comments
+        .iter()
+        .enumerate()
+        .find(|(_, comment)| declares_thread(comment))?;
+    Some(Detail::at(
+        Rule::RepliesExpanded,
+        "comments[].replies",
+        &format!("comments[{index}].replies"),
+        comment.get("replies"),
+    ))
 }
 
 /// The winning market resolved Yes at a payout of 1, priced by its resolution, and the fetch
