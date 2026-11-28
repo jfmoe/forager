@@ -1,6 +1,6 @@
 [package]
 name = "forager"
-version = "0.21.0"
+version = "0.22.0"
 edition = "2024"
 description = "A search and retrieval CLI for AI agents"
 repository = "https://github.com/jfmoe/forager"
