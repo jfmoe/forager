@@ -55,6 +55,35 @@ fn a_pool_rotates_through_the_state_file_its_caller_supplies() {
 }
 
 #[test]
+fn a_single_key_pool_selects_its_key_without_touching_cursor_state() {
+    let directory = tempdir().expect("create state directory");
+    let pool = CredentialPool::in_state_file(
+        "exa",
+        vec!["only".into()],
+        Some(directory.path().join("cursor.json")),
+    );
+
+    let selection = block_on(pool.claim());
+    let entries = fs::read_dir(directory.path())
+        .expect("read state directory")
+        .count();
+
+    assert_eq!(
+        (selection.index, selection.diagnostic, entries),
+        (0, None, 0)
+    );
+}
+
+#[test]
+fn a_single_key_pool_without_cursor_state_reports_no_optimistic_selection() {
+    let pool = CredentialPool::in_state_file("exa", vec!["only".into()], None);
+
+    let selection = block_on(pool.claim());
+
+    assert_eq!((selection.index, selection.diagnostic), (0, None));
+}
+
+#[test]
 fn persistent_claims_reset_corrupt_state_and_fold_shrunken_key_counts() {
     let directory = tempdir().expect("create state directory");
     let path = directory.path().join("credential_pool_state.json");

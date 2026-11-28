@@ -62,6 +62,13 @@ impl CredentialPool {
     }
 
     pub(crate) async fn claim(&self) -> CredentialSelection {
+        // One key has nothing to rotate, so its claim skips the cursor's lock and state write.
+        if self.keys.len() == 1 {
+            return CredentialSelection {
+                index: 0,
+                diagnostic: None,
+            };
+        }
         let Some(path) = &self.state_file else {
             return CredentialSelection {
                 index: 0,

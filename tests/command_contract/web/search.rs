@@ -22,6 +22,7 @@ fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
         Response::new(200, "text/event-stream", &body),
     ]);
     let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+    fs::create_dir_all(&environment.state_dir).expect("create state directory");
     let markdown_tee = environment.state_dir.join("result.md");
     let markdown_tee_argument = markdown_tee.to_string_lossy().into_owned();
 
