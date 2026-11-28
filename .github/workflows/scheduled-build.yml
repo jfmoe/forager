@@ -46,7 +46,7 @@ jobs:
     needs:
       - prepare-targets
       - build
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:

@@ -10,7 +10,7 @@ Live Checks are the only layer that reaches the real services. This procedure co
 | `metered` | Weekly, on the maintainer's machine | The weekly job |
 | `attended` | Only with the user present: after a release, as [`release.md`](release.md) says, and after a change to an attended route | A person |
 
-GitHub runs no Live Check. Its two scheduled workflows, `scheduled-build.yml` and `scheduled-advisories.yml`, build forager on each release runner and check dependency advisories, and each keeps its own issue through the workflow token. Every scheduled job passes `--unattended`, which refuses the `attended` tier and leaves out expensive and manual-only checks. A rule test checks the job files for it and binds each job's interval to its tier's.
+GitHub runs no Live Check. Its two scheduled workflows, `scheduled-build.yml` and `scheduled-advisories.yml`, build forager on each release runner and check dependency advisories, and each keeps its own issue through the workflow token; a run cancelled by hand reports nothing. Every scheduled job passes `--unattended`, which refuses the `attended` tier and leaves out expensive and manual-only checks. A rule test checks the job files for it and binds each job's interval to its tier's.
 
 ## Installing the scheduled jobs
 
@@ -19,9 +19,11 @@ The job files are in `scripts/schedules/`; forager installs nothing. The jobs ru
 | File | What it does |
 | --- | --- |
 | `forager-live-daily` | Runs the `free` tier unattended and hands the report to `forager-live-issues` |
-| `forager-live-weekly` | Runs the `metered` tier the same way, then writes `github_workflows.json`, the record the health summary reads, from `gh`, then runs `doctor --health` and notifies when it exits 4 |
-| `forager-live-issues` | Carries out the report's `notifications` with `gh`: finds the issue by label, opens it or comments on it when one is open, closes it, and notifies every open and update, every failed `gh` command and every run that exited with neither 0 nor 4 |
+| `forager-live-weekly` | Runs the `metered` tier the same way, then writes `github_workflows.json`, the record the health summary reads, from `gh`, then runs `doctor --health` and notifies when it exits with anything but 0 |
+| `forager-live-issues` | Carries out the report's `notifications` with `gh`: finds the issue by label, opens it or comments on it when one is open, closes it, and notifies every open and update, every failed `gh` command, every run that exited with neither 0 nor 4, and every run that left a failure unconfirmed or a check unstarted at its time limit |
 | `com.github.jfmoe.forager.live-daily.plist`, `com.github.jfmoe.forager.live-weekly.plist` | The launchd jobs that start the two scripts and give them a `PATH` |
+
+Each script first checks that the programs it needs are on that `PATH`, and notifies the one it misses instead of running.
 
 1. Make sure `forager`, `gh` and `jq` are installed, `gh auth status` shows the maintainer's account, and the keys of the `metered` providers are configured.
 2. Copy the three scripts into `~/.local/bin`: `mkdir -p ~/.local/bin && install -m 755 scripts/schedules/forager-live-* ~/.local/bin/`. Copy them rather than linking, so a checked-out branch never changes what a job runs.
@@ -48,7 +50,7 @@ Reading a `live-check:` issue:
 - The body lists each failing check of the provider with its error kind and HTTP status, and nothing else, because the repository is public. Only a confirmed failure reaches it: both observations failed, or the one observation was an `auth` or `parameter` failure.
 - A comment means the set of failing checks or their error kinds changed, and lists the new set. Closing means every check in it passed in a later scheduled run or is no longer declared. A check that is unconfigured, unselected or not started changes nothing, and a run by hand never opens, updates or closes an issue.
 - For the detail (the failed rule, the path, what was observed and the command's own message), read the tier's last report, or run the command the issue names: `forager doctor --live --provider <provider> --tier free,metered`, whose tier selection keeps a person's rerun out of the provider's attended checks. No provider declares the pipeline check, so its issue names `forager doctor --live --tier metered`, which runs every `metered` check.
-- A run that exits 4 without a notification left its failures unconfirmed; the report shows them with `confirmed: false`.
+- A failure left unconfirmed and a check the time limit left unstarted reach no issue. The job posts a macOS notification for a run that has either, and the report shows them with `confirmed: false` and `cause: "deadline"`.
 - A decision whose `gh` command failed is not tried again: the next run compares against records that already hold this run. The notification names the issue and the action; carry it out by hand from the tier's last report.
 
 Reading a `workflow:` issue: it links the failed run. A build failure is a retired runner image or a target that no longer builds; an advisory failure names the advisory and the crate.
