@@ -2,8 +2,9 @@
 //! file, named by when it was written, by the process that wrote it and by that process's write
 //! sequence, so no two writes share a file. A reader skips a file it cannot parse or does not own.
 //! A write's cleanup removes the records older than the kind's retention, at most once a sweep
-//! period, because listing the directory on every write costs more as records accumulate; a
-//! reader applies its own window, so a record left until the next sweep is never read as current.
+//! period, because listing the directory on every write costs more as records accumulate. An
+//! expired record can therefore stay on disk for up to one sweep period; a reader that applies the
+//! retention, as `retained_since` gives it, still skips it.
 //! A directory may be shared with other data, so only a regular file whose name fully matches the
 //! kind's naming is owned: its prefix, then fields of digits for the time, the process and,
 //! optionally, the sequence.
@@ -63,7 +64,7 @@ impl RecordDirectory {
         let mut records = entries
             .filter_map(Result::ok)
             .filter_map(|entry| {
-                let written = self.owned(&entry)?;
+                let written = self.written_if_owned(&entry)?;
                 (written.nanos >= since).then_some((written, entry.path()))
             })
             .filter_map(|(written, path)| {
@@ -125,7 +126,7 @@ impl RecordDirectory {
         for entry in fs::read_dir(&self.path)? {
             let removed = entry.and_then(|entry| {
                 if self
-                    .owned(&entry)
+                    .written_if_owned(&entry)
                     .is_some_and(|written| written.nanos < cutoff)
                 {
                     fs::remove_file(entry.path())
@@ -144,7 +145,7 @@ impl RecordDirectory {
     }
 
     /// When a record was written, from its name; `None` for an entry this kind does not own.
-    fn owned(&self, entry: &fs::DirEntry) -> Option<Written> {
+    fn written_if_owned(&self, entry: &fs::DirEntry) -> Option<Written> {
         let written = self.written(&entry.file_name())?;
         entry
             .file_type()
