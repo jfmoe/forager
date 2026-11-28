@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/jfmoe/forager/compare/v0.22.0...v0.23.0) - 2026-11-28
+
+### Fixed
+
+- *(doctor)* search Xiaohongshu by most comments in its Live Check
+- *(doctor)* pass the Xiaohongshu comments check on a note without threads
+- *(doctor)* read ten results in the Exa docs search Live Check
+
+### Other
+
+- bump the github-actions group across 1 directory with 6 updates
+
 ## [0.22.0](https://github.com/jfmoe/forager/compare/v0.21.0...v0.22.0) - 2026-11-28
 
 ### Added
