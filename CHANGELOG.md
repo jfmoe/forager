@@ -7,6 +7,217 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0](https://github.com/jfmoe/forager/compare/v0.21.0...v0.22.0) - 2026-11-28
+
+### Added
+
+- *(skill)* [**breaking**] rebuild the product skill around what an agent's task needs
+- *(doctor)* keep one issue per provider from scheduled Live Checks
+- *(ci)* build each release target and check advisories weekly
+- *(doctor)* summarise real use and the schedules' freshness offline
+- *(telemetry)* record every retrieval command's health signals locally
+- *(log)* [**breaking**] collect every attempt once and narrow log.level to three values
+- *(doctor)* assert every decoded field in Live Checks and record each run
+- *(doctor)* [**breaking**] replace smoke with Live Checks run by doctor --live
+- *(doctor)* [**breaking**] send no billed request from doctor for one provider
+- *(doctor)* add an offline mode and check the state directories
+- [**breaking**] remove Context7; Documentation Search is served by Exa alone
+- [**breaking**] remove the classifier; an undeclared search runs main search only
+- [**breaking**] remove the research command and its evidence pipeline
+
+### Fixed
+
+- *(skill)* route platform URLs, opt-in offers and config errors as trials need
+- *(skill)* keep code values out of the skill and the deciding rules on top
+- *(schedules)* signal every run the jobs cannot act on
+- *(doctor)* name a command the pipeline issue can run and close a retired check's issue
+- *(schedules)* notify only what the issue job did, after the workflows
+- *(doctor)* name a provider that fails most of its calls in the health summary
+- *(cli)* keep the exit code and telemetry when the reader closes the pipe
+- *(telemetry)* classify an unwritten output copy and skipped routes
+- *(doctor)* fail a contract field under a missing object and mark confirmation
+- *(doctor)* tighten the Live Check contracts and keep reruns off browser routes
+- *(youtube_web)* report a caption body that is not srv1 as invalid
+
+### Other
+
+- *(release)* stop pinning the app token action's version
+- add the product skill's maintenance procedure and review points
+- *(tests)* move the installable skill rule into the repository rules
+- hold reqwest major updates out of Dependabot
+- *(deps)* upgrade toml_edit to 0.25
+- *(deps)* upgrade toml to 1.2
+- *(deps)* upgrade nix to 0.32
+- *(deps)* upgrade sha2 to 0.11
+- open weekly Dependabot updates
+- forbid unsafe code through the manifest's lint table
+- replace fs2 with the standard library's file locking
+- *(deps)* update the lockfile to the latest compatible versions
+- move the toolchain to Rust 1.100.1
+- add review standards for mistakes no test can catch
+- *(agents)* reject a check command piped into a filter
+- turn off debug info in the dev profile
+- keep agents off manual-only checks and state the jobs' prerequisites
+- *(schedules)* close the schedule rule's blind spots and bind the records and skill lists
+- *(infra)* share one timestamped record directory between run records and telemetry
+- *(doctor)* name a health entry by one rule and read telemetry's switch once
+- *(doctor)* give doctor rendering its own module and name the fallback rule
+- *(cli)* gather a result's presentation into one type
+- *(test)* inline the telemetry tests and share the empty environment
+- *(core)* lead every chain with earlier attempts in one place
+- *(types)* move the Live Check rule vocabulary into the shared types
+- *(doctor)* name the Live Check rules and the record error as types
+- *(catalog)* define the opt-in route rule once
+- *(doctor)* build both all-provider reports in one place
+- *(doctor)* separate the local provider check from reachability
+- *(runner)* exempt the access window test that sends to every route
+- give each testing fact one owner and guard the contract layout
+- close the gaps the offline test rebuild left in its own proofs
+- *(tests)* read samples through one reader and share the environment
+- expect what the stored samples hold where a test stopped hand-writing its record
+- derive every valid upstream record from the sample store
+- *(testing)* close the gaps a fresh agent fell into
+- *(testing)* give rendering to the binary and every layer its limits
+- *(testing)* describe each test layer by the question it answers
+- *(runner)* terminate a test after 2 s by default and 6 s in CI
+- prove the timing-dependent rules by an effect instead of the clock
+- keep each rule's proof in the one test that owns it
+- prove the failure exit codes, a fetched body's formats and the log level
+- *(rate-limit)* stop waiting out the state lock in the test build
+- *(rules)* fix the set of test binaries and forbid doc tests
+- *(tests)* merge the command contract tests into one binary
+- *(support)* retire the fixture server's unused parallel mode
+- *(config)* check the Windows read side of private files in process
+- *(fetch)* derive every stored web fetch variant through one helper
+- *(search)* prove the command options reach the engine again
+- *(search)* replay the main search failures from stored samples
+- *(credentials)* stop waiting out the cursor lock in the test build
+- tidy the seams and shared fixtures of the offline tests
+- *(search)* prove the search command's own rules in the crate
+- *(search)* open seams for in-crate search command tests
+- *(search)* retire the main search tests that other tests already prove
+- *(search)* prove the main search rules in the crate
+- *(search)* open a seam for in-crate main search decoding tests
+- *(search)* prove the supplemental search rules in the crate
+- *(search)* open seams for in-crate supplemental search tests
+- *(fetch)* retire the fetch attribution tests that the chain proves
+- *(fetch)* prove the web fetch rules in the crate
+- *(fetch)* open a seam for in-crate decoding tests
+- *(exa)* expect the stored search result in the Markdown tee
+- *(exa)* prove the Exa rules in the crate
+- *(exa)* open a seam for in-crate decoding tests
+- *(tavily)* prove the site map's rules in the crate
+- *(tavily)* open a seam for in-crate site map tests
+- *(reddit_browser)* keep sample records out of the projection rewrite
+- *(browser)* exempt the browser routes' CLI timeout from the limit
+- *(xiaohongshu_browser)* derive search failures from a search sample
+- *(reddit_browser)* name the served local pages samples
+- *(reddit_browser)* judge observations from the stored samples
+- *(reddit_browser)* replace identifiers that may be real
+- *(xiaohongshu_browser)* judge observations from the stored samples
+- *(xiaohongshu_browser)* replace identifiers that may be real
+- *(xiaohongshu_browser)* keep one refused input per Xiaohongshu command
+- *(xiaohongshu_browser)* prove the missing-token refusal in the types
+- *(hn_api)* exempt the content-directory fetch from the runner limit
+- *(browser)* publish the stand-in's pid files by rename
+- *(serpapi)* reject an invented Scholar profile URL
+- *(xai)* keep one argument-wiring case per X command path
+- *(xai)* prove the X ref hints in the platform types
+- *(serpapi)* zero the search ID in the status-error sample
+- *(hn_api)* give the shared-window test its widest deadline
+- *(tests)* tidy the first-batch route tests after review
+- *(testing)* drop the binary half of a filter that matches no binary
+- *(hn_api)* retire the unwritable-thread fetch contract
+- *(hn_api)* prove an unwritable full text fails in the crate
+- *(samples)* replace X individuals and drop Scholar profile IDs
+- *(gemini_api)* prove the Gemini route's rules in the crate
+- *(gemini_api)* read every Gemini body from the stored samples
+- *(gemini_api)* open seams for in-crate Gemini tests
+- *(youtube_api)* replace the channels of individuals in the samples
+- *(youtube_api)* prove the YouTube API route's rules in the crate
+- *(youtube_api)* read every Data API body from the stored samples
+- *(youtube_api)* open seams for in-crate YouTube API tests
+- *(xai)* prove the X route's rules in the crate
+- *(xai)* open seams for in-crate X tests
+- *(serpapi)* read the success-protocol bodies from the stored samples
+- *(serpapi)* prove the Scholar route's rules in the crate
+- *(serpapi)* open seams for in-crate Scholar tests
+- *(ssrn_crossref)* read every Crossref body from the stored samples
+- *(ssrn_crossref)* retire the input-form fetch contract
+- *(ssrn_crossref)* prove the SSRN route's rules in the crate
+- *(ssrn_crossref)* open seams for in-crate SSRN tests
+- *(hn_api)* read every Hacker News body from the stored samples
+- *(hn_api)* keep only the empty list in the stories contract
+- *(hn_api)* retire the link-story fetch contract
+- *(hn_api)* prove the Hacker News route's rules in the crate
+- *(hn_api)* open seams for in-crate Hacker News tests
+- retire per-platform copies of the platform-independent rules
+- prove the platform-independent planning and cursor rules once
+- decide full-text delivery in one place and split planning tests
+- *(testing)* list the tests allowed to wait and match the procedure to the suite
+- restore lost proofs and close the sample rule's gaps
+- *(test)* share the fixture server's request readers and runtime
+- *(search)* prove that a search with the journal off writes none
+- *(youtube_web)* keep only the outer facts of the fetch contract
+- *(polymarket_api)* keep only the outer facts of the history contract
+- *(polymarket_api)* retire the fetch contract that the crate proves
+- *(polymarket_api)* keep only the outer facts of the search contract
+- *(cli)* share one parser of the platform command in its tests
+- name the spawned-binary layer the command contract
+- *(architecture)* prove decoding in the crate against stored samples
+- *(polymarket_api)* retire a history test that other tests prove
+- *(polymarket_api)* read the stored Polymarket bodies as they are
+- *(polymarket_api)* prove Polymarket's route rules in the crate from stored samples
+- open seams for in-crate Polymarket tests
+- *(youtube_web)* read every YouTube web body from the stored samples
+- *(youtube_web)* prove YouTube web's route rules in the crate from stored samples
+- *(cli)* split the YouTube fetch's argument checks from running it
+- *(arxiv_api)* retire arXiv tests that other tests prove
+- *(arxiv_api)* read every arXiv body from the stored feed
+- prove arXiv's route rules in the crate from stored samples
+- open seams for in-crate arXiv and orchestration tests
+- *(cli)* name the first setup step number and content failures
+- *(setup)* number the setup steps from their order
+- *(journal)* type the search plan source
+- drop names left over from retired definitions
+- *(search)* make a search candidate's URL required
+- state the compile-time dispatch rule as it stands
+- *(checklist)* drop the check that a route is registered
+- *(providers)* tighten names, visibility and dispatch
+- *(checklist)* state only what the checklist checks beyond the compiler
+- *(checklist)* require a live case for every catalog operation
+- *(catalog)* derive operation-only routes from operation routes
+- *(checklist)* retire the operation-only route rule
+- *(platform)* run single-route operations through one entry
+- *(catalog)* drop registration fields with one value per route
+- *(checklist)* prove route declarations match their built routes
+- *(providers)* declare every platform route once
+- *(providers)* declare hn_api and reddit_browser once
+- *(catalog)* define the provider identity once
+- remove the acceptance manifest and the rules that read it
+- let the Windows job compile without denying warnings
+- run the target script behind the proxy and tidy test wording
+- *(test)* read canary requests with the shared request reader
+- keep only release-shape assertions with an incident or a script
+- run one pull-request workflow with linux and windows jobs
+- run the Windows read-side permission check in the Windows job
+- run the suite through one nextest configuration
+- answer fixture requests by route and keep the gate offline
+- *(test)* share the fixture server with in-crate tests
+- isolate in-crate tests from real state and real hosts
+- let callers supply the credential and access state files
+- state current rules where the retirements left old wording
+- drop the unreachable parameter kind from JSON preflight
+- prove an undefined provider section is a configuration error
+- remove dead code left after the retirements
+- prove the rejection rules with invented names, not retired ones
+- reduce the Windows job to compile, permissions and artifact gate
+- *(adr)* keep ADR-0038's lists unbroken
+- prove surviving rules without Context7 as a sample
+- prove surviving rules without the classifier as a sample
+- *(rules)* drop the line-count ceiling on Rust sources
+- rebuild the agent-facing documentation ([#295](https://github.com/jfmoe/forager/pull/295))
+
 ## [0.21.0](https://github.com/jfmoe/forager/compare/v0.20.0...v0.21.0) - 2026-11-21
 
 ### Added
