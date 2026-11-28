@@ -295,16 +295,13 @@ fn decode_cluster(
         ));
     };
     let versions = organic_results(results)?;
-    let (title, authors, published) = versions
-        .first()
-        .map(|first| {
-            (
-                first.title.clone().unwrap_or_default(),
-                first.authors(),
-                first.published(),
-            )
-        })
-        .unwrap_or_default();
+    let (title, authors, published) = versions.first().map_or_default(|first| {
+        (
+            first.title.clone().unwrap_or_default(),
+            first.authors(),
+            first.published(),
+        )
+    });
     let item = PlatformItem {
         reference: PlatformRef::Scholar(requested),
         url: requested.canonical_url(),
@@ -480,14 +477,13 @@ impl OrganicResult {
         }
         info.and_then(|info| info.summary.as_deref())
             .and_then(|summary| summary.split_once(" - "))
-            .map(|(names, _)| {
+            .map_or_default(|(names, _)| {
                 names
                     .split(", ")
                     .map(|name| name.replace('…', "").trim().to_owned())
                     .filter(|name| !name.is_empty())
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     /// Returns the year that ends the byline's source segment (`source, YYYY` or a bare `YYYY`),

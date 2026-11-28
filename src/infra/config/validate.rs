@@ -163,8 +163,7 @@ fn strings_satisfy<'a>(
 
 fn value_error(path: &Path, content: &str, key: &str, rule: Rule) -> ConfigError {
     let position = source_position(content, key)
-        .map(|(line, column)| format!(" at line {line}, column {column}"))
-        .unwrap_or_default();
+        .map_or_default(|(line, column)| format!(" at line {line}, column {column}"));
     ConfigError::Document {
         path: path.to_path_buf(),
         detail: format!(

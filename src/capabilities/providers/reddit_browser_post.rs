@@ -527,8 +527,7 @@ fn full_text_source(
     let media = data
         .link_url
         .as_ref()
-        .map(|url| format!("; its media is at {url}"))
-        .unwrap_or_default();
+        .map_or_default(|url| format!("; its media is at {url}"));
     let reason = if known {
         "without text of its own"
     } else {

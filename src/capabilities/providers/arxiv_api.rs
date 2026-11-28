@@ -539,12 +539,7 @@ impl Entry {
             url: reference.canonical_url(),
             reference,
             depth: ContentDepth::Abstract,
-            title: Some(
-                self.title
-                    .as_deref()
-                    .map(fold_whitespace)
-                    .unwrap_or_default(),
-            ),
+            title: Some(self.title.as_deref().map_or_default(fold_whitespace)),
             authors: self
                 .authors
                 .iter()
@@ -553,12 +548,7 @@ impl Entry {
                 .collect(),
             published: non_empty(self.published),
             data: PlatformItemData::Arxiv(ArxivItemData {
-                abstract_text: self
-                    .summary
-                    .as_deref()
-                    .map(str::trim)
-                    .unwrap_or_default()
-                    .to_owned(),
+                abstract_text: self.summary.as_deref().map_or_default(str::trim).to_owned(),
                 updated: non_empty(self.updated),
                 primary_category: self.primary_category.map(|category| category.term),
                 categories: self

@@ -712,8 +712,7 @@ fn incomplete(
         let reason = data
             .filter_failure
             .as_deref()
-            .map(|failure| format!(" ({failure})"))
-            .unwrap_or_default();
+            .map_or_default(|failure| format!(" ({failure})"));
         return runtime(format!(
             "the Xiaohongshu page logic made {} filter clicks, not {}{reason}",
             data.filter_clicks, expected.clicks
@@ -811,16 +810,14 @@ fn decode_note(note: &serde_json::Value, now: NaiveDateTime) -> Option<PlatformI
         title: Some(
             card["display_title"]
                 .as_str()
-                .map(str::trim)
-                .unwrap_or_default()
+                .map_or_default(str::trim)
                 .to_owned(),
         ),
         authors: card["user"]["nickname"]
             .as_str()
             .map(str::trim)
             .filter(|name| !name.is_empty())
-            .map(|name| vec![name.to_owned()])
-            .unwrap_or_default(),
+            .map_or_default(|name| vec![name.to_owned()]),
         published: published_text
             .as_deref()
             .and_then(|shown| published_date(shown, now)),

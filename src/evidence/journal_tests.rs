@@ -142,7 +142,7 @@ fn outcome() -> SearchOutcome {
     }
 }
 
-fn record(plan_source: PlanSource, result: &Result<SearchOutcome, SearchFailure>) -> Value {
+fn record(plan_source: PlanSource, result: &Result<SearchOutcome, Box<SearchFailure>>) -> Value {
     build_record(SearchRecord {
         query: "query",
         budget: Duration::from_mins(3),
@@ -237,7 +237,7 @@ fn a_failed_search_record_keeps_each_candidate_with_its_summary_and_each_gap() {
         Capability::WebSearch,
     )
     .expect("an HTTP candidate");
-    let result = Err(SearchFailure {
+    let result = Err(Box::new(SearchFailure {
         error: ProviderError {
             kind: AttemptErrorKind::Auth,
             message: "bad key".into(),
@@ -250,7 +250,7 @@ fn a_failed_search_record_keeps_each_candidate_with_its_summary_and_each_gap() {
             reason: "no_configured_provider",
             providers_skipped: vec!["exa".into()],
         }],
-    });
+    }));
 
     let record = record(PlanSource::Caller, &result);
 
@@ -358,7 +358,7 @@ fn a_search_record_keeps_the_query_plan_and_attempts_that_the_payload_leaves_out
 
 #[test]
 fn a_search_that_used_up_its_budget_is_recorded_with_its_attempt_chain() {
-    let result = Err(SearchFailure {
+    let result = Err(Box::new(SearchFailure {
         error: ProviderError {
             kind: AttemptErrorKind::Timeout,
             message: "deadline exceeded".into(),
@@ -367,7 +367,7 @@ fn a_search_that_used_up_its_budget_is_recorded_with_its_attempt_chain() {
         },
         extra_sources: Vec::new(),
         capability_gaps: Vec::new(),
-    });
+    }));
 
     let record = build_record(SearchRecord {
         query: "Budget",

@@ -671,19 +671,19 @@ mod tests {
     struct FakeUnpack;
 
     impl Unpack for FakeUnpack {
-        async fn unpack(
+        fn unpack(
             &self,
             archive: &Path,
             bundle: &str,
             into: &Path,
             _deadline: Deadline,
-        ) -> Result<(), SetupFailure> {
+        ) -> impl Future<Output = Result<(), SetupFailure>> {
             assert_eq!(fs::read(archive).expect("read archive"), PACKAGE_BYTES);
             let executable = into.join(bundle).join("Contents/MacOS/Chromium");
             fs::create_dir_all(executable.parent().expect("bundle directory"))
                 .expect("create bundle");
             fs::write(executable, "").expect("write executable");
-            Ok(())
+            std::future::ready(Ok(()))
         }
     }
 

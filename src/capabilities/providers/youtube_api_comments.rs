@@ -141,8 +141,7 @@ fn top_level_comment(video: &YoutubeRef, thread: Thread) -> Result<YoutubeCommen
     }
     let replies = thread
         .replies
-        .map(|replies| replies.comments.into_iter().map(reply).collect::<Vec<_>>())
-        .unwrap_or_default();
+        .map_or_default(|replies| replies.comments.into_iter().map(reply).collect::<Vec<_>>());
     let top = reply(snippet.top_level_comment);
     let delivered = u64::try_from(replies.len()).unwrap_or(u64::MAX);
     Ok(YoutubeComment {

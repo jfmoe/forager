@@ -1085,9 +1085,7 @@ fn prepare(check: &LiveCheck, input: Option<&str>, scratch: Option<&Path>) -> Pr
         .map(|argument| match argument {
             LiveArgument::Text(text) => (*text).to_owned(),
             LiveArgument::Timeout => check.time_limit.as_secs().to_string(),
-            LiveArgument::ContentDir => scratch
-                .map(|path| path.display().to_string())
-                .unwrap_or_default(),
+            LiveArgument::ContentDir => scratch.map_or_default(|path| path.display().to_string()),
             LiveArgument::Input(_) => input.unwrap_or_default().to_owned(),
         })
         .collect::<Vec<_>>();

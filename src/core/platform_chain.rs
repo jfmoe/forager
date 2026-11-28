@@ -317,8 +317,7 @@ fn opt_in_hint<C>(
                     platform = catalog::route_platform(*route)
                 );
                 let risk = catalog::opt_in_risk(*route)
-                    .map(|risk| format!(". {risk}"))
-                    .unwrap_or_default();
+                    .map_or_default(|risk| format!(". {risk}"));
                 Some(format!(
                     "; to use {route}, run `forager browser install`{login}, then add `{route}` to {order_key}{risk}",
                     route = route.name(),

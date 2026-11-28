@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Output;
 
-use crate::support::{forager_command, run_command};
+use crate::support::{forager_command, run_command, stderr};
 
 #[test]
 fn config_path_does_not_load_the_configuration_file() {
@@ -28,7 +28,7 @@ fn config_path_does_not_load_the_configuration_file() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(output.stderr.is_empty());
+    assert_eq!(stderr(&output), "");
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn config_path_uses_xdg_config_home() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(output.stderr.is_empty());
+    assert_eq!(stderr(&output), "");
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn config_path_uses_the_xdg_default_below_home() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(output.stderr.is_empty());
+    assert_eq!(stderr(&output), "");
 }
 
 #[test]

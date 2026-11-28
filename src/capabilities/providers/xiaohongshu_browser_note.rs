@@ -318,13 +318,7 @@ fn note_item(note: &NoteState, reference: &XiaohongshuRef, token: &AccessToken) 
     PlatformItem {
         url: reference.canonical_url(),
         depth: ContentDepth::Metadata,
-        title: Some(
-            note.title
-                .as_deref()
-                .map(str::trim)
-                .unwrap_or_default()
-                .to_owned(),
-        ),
+        title: Some(note.title.as_deref().map_or_default(str::trim).to_owned()),
         authors: text(note.user.nickname.as_ref()).into_iter().collect(),
         published: note.time.and_then(beijing_time),
         data: PlatformItemData::XiaohongshuNote(XiaohongshuNoteData {
@@ -372,7 +366,7 @@ fn native_body(item: &PlatformItem, desc: Option<&str>) -> Option<String> {
     let PlatformItemData::XiaohongshuNote(data) = &item.data else {
         return None;
     };
-    let desc = desc.map(str::trim).unwrap_or_default();
+    let desc = desc.map_or_default(str::trim);
     let title = item.title.as_deref().unwrap_or_default();
     if title.is_empty() && desc.is_empty() && data.images.is_empty() {
         return None;

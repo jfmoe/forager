@@ -186,7 +186,7 @@ fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> Set
 }
 
 fn render_search(
-    result: Result<SearchOutcome, SearchFailure>,
+    result: Result<SearchOutcome, Box<SearchFailure>>,
     journal: &JournalOutcome,
     format: ContentOutputFormat,
     output: Option<OutputTarget>,
@@ -1289,7 +1289,7 @@ mod tests {
     #[test]
     fn a_search_that_ran_out_of_time_prints_its_failure_payload_and_exits_four() {
         let rendered = render_search(
-            Err(SearchFailure {
+            Err(Box::new(SearchFailure {
                 error: ProviderError {
                     kind: AttemptErrorKind::Timeout,
                     message: "deadline exceeded".into(),
@@ -1298,7 +1298,7 @@ mod tests {
                 },
                 extra_sources: Vec::new(),
                 capability_gaps: Vec::new(),
-            }),
+            })),
             &written_journal(),
             ContentOutputFormat::Json,
             None,

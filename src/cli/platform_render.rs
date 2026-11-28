@@ -579,8 +579,7 @@ fn content_failure(
 fn usage_note(usage: Option<&ModelUsage>) -> String {
     usage
         .and_then(|usage| usage.total_tokens)
-        .map(|total| format!(" ({total} tokens)"))
-        .unwrap_or_default()
+        .map_or_default(|total| format!(" ({total} tokens)"))
 }
 
 /// Renders a fetched item. A full text is printed only by `content`; the other formats reference

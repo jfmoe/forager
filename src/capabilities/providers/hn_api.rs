@@ -634,8 +634,7 @@ fn firebase_failure_message(_body: &str, status: u16) -> String {
     let reason = StatusCode::from_u16(status)
         .ok()
         .and_then(|status| status.canonical_reason())
-        .map(|reason| format!(" ({reason})"))
-        .unwrap_or_default();
+        .map_or_default(|reason| format!(" ({reason})"));
     format!("HN Firebase API returned HTTP {status}{reason}")
 }
 
