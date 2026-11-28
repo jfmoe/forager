@@ -153,10 +153,14 @@ fn the_record_keeps_the_exit_code_the_output_copy_settled() {
             output.status.code(),
             stored
                 .iter()
-                .map(|(_, record)| (record["exit_code"].clone(), record["error_kind"].clone()))
+                .map(|(_, record)| (
+                    record["exit_code"].clone(),
+                    record["error_kind"].clone(),
+                    record["succeeded"].clone()
+                ))
                 .collect::<Vec<_>>(),
         ),
-        (Some(3), vec![(json!(3), Value::Null)])
+        (Some(3), vec![(json!(3), json!("output"), json!("jina"))])
     );
 }
 

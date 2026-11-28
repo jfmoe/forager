@@ -27,7 +27,7 @@ fn main() -> ExitCode {
     let command = cli.kind();
     let json_preflight_errors = cli.uses_json_preflight_errors();
     let json_preflight_output = cli.json_preflight_output();
-    let (exit_code, invocation) = match app::run(cli) {
+    let (settled, invocation) = match app::run(cli) {
         Ok(output) => {
             let invocation = output.invocation();
             (emit_output(output), invocation)
@@ -37,7 +37,29 @@ fn main() -> ExitCode {
             error.invocation(),
         ),
     };
-    finish(command, invocation, exit_code)
+    let invocation = if settled.output_unwritten {
+        invocation.with_unwritten_output()
+    } else {
+        invocation
+    };
+    finish(command, invocation, settled.exit_code)
+}
+
+/// What printing a command's output settled: its exit code, and whether its `--output` copy
+/// could not be written.
+#[derive(Clone, Copy)]
+struct Settled {
+    exit_code: u8,
+    output_unwritten: bool,
+}
+
+impl Settled {
+    fn exit(exit_code: u8) -> Self {
+        Self {
+            exit_code,
+            output_unwritten: false,
+        }
+    }
 }
 
 /// The terminal function: every command passes through it once its exit code and its
@@ -50,17 +72,17 @@ fn finish(command: CommandKind, invocation: Invocation, exit_code: u8) -> ExitCo
     ExitCode::from(exit_code)
 }
 
-/// Prints a command's output and returns its exit code.
+/// Prints a command's output and returns what that settled.
 // One arm per typed command output; each arm only hands its fields to that output's renderer.
 #[expect(clippy::too_many_lines)]
-fn emit_output(output: CommandOutput) -> u8 {
+fn emit_output(output: CommandOutput) -> Settled {
     match output {
         CommandOutput::Text {
             stdout,
             stderr,
             exit_code,
-        } => emit(stdout, stderr, exit_code),
-        CommandOutput::Failure { kind, message } => emit(
+        } => Settled::exit(emit(stdout, stderr, exit_code)),
+        CommandOutput::Failure { kind, message } => Settled::exit(emit(
             json!({
                 "error_kind": kind.as_str(),
                 "message": message.chars().take(500).collect::<String>(),
@@ -68,7 +90,7 @@ fn emit_output(output: CommandOutput) -> u8 {
             .to_string(),
             None,
             postflight_exit_code(kind),
-        ),
+        )),
         CommandOutput::SearchPreflight {
             error,
             journal,
@@ -184,10 +206,10 @@ fn emit_output(output: CommandOutput) -> u8 {
 
 /// Emits a failure that ended the command before a rendered result: as the JSON preflight
 /// payload when JSON was selected, else as one stderr line.
-fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> u8 {
+fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> Settled {
     if !json {
         eprintln!("{}: {error}", error.category());
-        return error.exit_code();
+        return Settled::exit(error.exit_code());
     }
     emit_rendered(apply_tee(
         error.json_preflight_payload().to_string(),
@@ -331,21 +353,24 @@ fn emit_search_preflight(
     journal: &JournalOutcome,
     format: ContentOutputFormat,
     output: Option<OutputTarget>,
-) -> u8 {
+) -> Settled {
     emit_rendered(render_search_preflight(error, journal, format, output))
 }
 
-fn emit_rendered(rendered: Result<RenderedOutput, String>) -> u8 {
+fn emit_rendered(rendered: Result<RenderedOutput, String>) -> Settled {
     match rendered {
-        Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+        Ok(rendered) => Settled {
+            exit_code: emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            output_unwritten: rendered.output_unwritten,
+        },
         Err(error) => {
             eprintln!("runtime_error: {error}");
-            4
+            Settled::exit(4)
         }
     }
 }
 
-fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> u8 {
+fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> Settled {
     emit_rendered(with_attempt_log(rendered, attempt_log))
 }
 
@@ -555,6 +580,8 @@ struct RenderedOutput {
     stdout: String,
     stderr: Option<String>,
     exit_code: u8,
+    /// Whether the `--output` copy could not be written.
+    output_unwritten: bool,
 }
 
 fn render_exa(
@@ -705,6 +732,7 @@ fn apply_tee(
             stdout,
             stderr: diagnostic,
             exit_code,
+            output_unwritten: false,
         });
     };
     let tee_bytes = format!("{stdout}\n");
@@ -716,6 +744,7 @@ fn apply_tee(
             },
             stderr: diagnostic,
             exit_code,
+            output_unwritten: false,
         }),
         Err(error) => {
             let output_diagnostic = format!(
@@ -734,6 +763,7 @@ fn apply_tee(
                     None => output_diagnostic,
                 }),
                 exit_code: 3,
+                output_unwritten: true,
             })
         }
     }
@@ -1299,6 +1329,7 @@ mod tests {
                 stdout: r#"{"answer":"answer"}"#.into(),
                 stderr: Some("diagnostic".into()),
                 exit_code: 0,
+                output_unwritten: false,
             })
         };
 

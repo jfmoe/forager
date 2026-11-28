@@ -17,7 +17,6 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::attempt_trace;
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 use crate::types::{AttemptDisposition, AttemptErrorKind, Platform, ProviderAttempt};
 
@@ -91,31 +90,46 @@ impl ResultSignal {
     }
 }
 
-/// Why an invocation ended without a result: an attempt's error kind, or an argument or
-/// configuration error before any request.
+/// Why an invocation ended with a failure: an attempt's error kind, or an error of forager's own.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
 pub(crate) enum TerminalKind {
     Attempt(AttemptErrorKind),
-    Preflight(PreflightKind),
+    Local(LocalKind),
 }
 
+/// An error of forager's own, which no provider caused.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum PreflightKind {
+pub(crate) enum LocalKind {
+    /// An argument error before any request.
     Argument,
+    /// A configuration error before any request.
     Config,
+    /// The `--output` copy of a result could not be written.
+    Output,
 }
 
 impl Invocation {
-    /// An invocation that answered with `result` from `provider` after `attempts`.
+    /// An invocation that answered with `result` from `provider` after `attempts`. It fell back
+    /// when another provider ran and failed before `provider` answered; a route that was skipped
+    /// never ran, so it does not count.
     pub(crate) fn succeeded(
         attempts: &[ProviderAttempt],
         provider: &'static str,
         result: ResultSignal,
     ) -> Self {
+        let answered = attempts
+            .iter()
+            .position(|attempt| {
+                attempt.provider == provider && attempt.disposition == AttemptDisposition::Succeeded
+            })
+            .unwrap_or(attempts.len());
         Self {
             succeeded: Some(provider),
+            fallback: attempts[..answered].iter().any(|attempt| {
+                attempt.provider != provider && attempt.disposition == AttemptDisposition::Failed
+            }),
             result,
             ..Self::from_attempts(attempts)
         }
@@ -137,6 +151,19 @@ impl Invocation {
         }
     }
 
+    /// The same invocation, whose `--output` copy could not be written. A run that failed keeps
+    /// the kind of its failure; one that answered ends with [`LocalKind::Output`] and still names
+    /// the provider that answered.
+    #[must_use]
+    pub fn with_unwritten_output(self) -> Self {
+        Self {
+            error_kind: self
+                .error_kind
+                .or(Some(TerminalKind::Local(LocalKind::Output))),
+            ..self
+        }
+    }
+
     /// The same invocation, which fetched from `host`.
     pub(crate) fn with_host(self, host: Option<String>) -> Self {
         Self { host, ..self }
@@ -148,7 +175,6 @@ impl Invocation {
                 .iter()
                 .find(|attempt| attempt.disposition != AttemptDisposition::Skipped)
                 .map(|attempt| attempt.provider),
-            fallback: attempt_trace::fallback_occurred(attempts),
             attempts: attempts.iter().map(RecordedAttempt::of).collect(),
             ..Self::default()
         }
@@ -171,7 +197,7 @@ pub(crate) struct Record {
     pub(crate) first_choice: Option<Cow<'static, str>>,
     /// The provider whose answer the result carries.
     pub(crate) succeeded: Option<Cow<'static, str>>,
-    /// Whether the run fell back, as the Attempt Trace defines it.
+    /// Whether another provider ran and failed before the one that answered.
     pub(crate) fallback: bool,
     pub(crate) result: ResultSignal,
     /// The host a `fetch` read from, without userinfo or port.
@@ -368,7 +394,7 @@ mod tests {
 
     use chrono::{DateTime, TimeDelta, Utc};
 
-    use super::{Invocation, RecordedAttempt, ResultSignal, RetrievalCommand, read, record};
+    use super::{Invocation, RecordedAttempt, ResultSignal, RetrievalCommand, nanos, read, record};
     use crate::chain::skipped_attempt;
     use crate::types::{
         AttemptDisposition, AttemptErrorKind, AttemptTarget, Platform, ProviderAttempt,
@@ -456,7 +482,7 @@ mod tests {
                 Some("comments"),
                 Some("youtube_api"),
                 Some("youtube_api"),
-                true,
+                false,
                 ResultSignal {
                     items: Some(0),
                     content_chars: None,
@@ -478,12 +504,75 @@ mod tests {
     }
 
     #[test]
+    fn a_run_fell_back_only_when_another_provider_ran_and_failed_before_the_answer() {
+        let skipped = || {
+            skipped_attempt(
+                AttemptTarget::platform("youtube", "comments"),
+                "youtube_web",
+                "not configured",
+            )
+        };
+        let cases = [
+            (
+                "a skipped route and a retried provider",
+                vec![
+                    skipped(),
+                    attempt("youtube_api", Some(AttemptErrorKind::Network)),
+                    attempt("youtube_api", None),
+                ],
+                false,
+            ),
+            (
+                "another provider that failed",
+                vec![
+                    attempt("youtube_web", Some(AttemptErrorKind::Network)),
+                    attempt("youtube_api", None),
+                ],
+                true,
+            ),
+            (
+                "another provider that answered an earlier stage",
+                vec![attempt("youtube_web", None), attempt("youtube_api", None)],
+                false,
+            ),
+            (
+                "another provider that failed after the answer",
+                vec![
+                    attempt("youtube_api", None),
+                    attempt("youtube_web", Some(AttemptErrorKind::Network)),
+                ],
+                false,
+            ),
+        ];
+
+        for (case, attempts, fallback) in cases {
+            assert_eq!(
+                Invocation::succeeded(&attempts, "youtube_api", ResultSignal::items(1)).fallback,
+                fallback,
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
     fn a_reader_skips_a_damaged_record_and_a_file_the_store_does_not_own() {
         let directory = tempfile::tempdir().expect("telemetry directory");
         record_at(directory.path(), now());
+        let written = fs::read_dir(directory.path())
+            .expect("telemetry directory")
+            .next()
+            .expect("the written record")
+            .expect("a directory entry")
+            .path();
+        let text = fs::read(&written).expect("the written record");
+        // A record cut short, as a crash during its unsynced write leaves it, named inside the
+        // window the reader asks for so the reader has to parse it.
         fs::write(
-            directory.path().join("invocation_1_1.json"),
-            "{\"schema_version\": 1, \"recor",
+            directory.path().join(format!(
+                "invocation_{}_1.json",
+                nanos(now() + TimeDelta::milliseconds(500))
+            )),
+            &text[..text.len() / 2],
         )
         .expect("a damaged record");
         fs::write(directory.path().join("notes.json"), "{}").expect("a foreign file");
