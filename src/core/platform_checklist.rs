@@ -79,7 +79,7 @@ impl Rule {
             ),
             Self::SkillFile => (
                 "the product skill has a file for every built-in platform, so an agent learns of the platform in the release that adds it",
-                "write `skills/forager/references/platforms/<platform>.md` and add the platform's row to the entry's platform table",
+                "write `skills/forager/references/platforms/<platform>.md` and the platform's row in the entry's table, as `docs/agents/product-skill.md` says",
             ),
         }
     }

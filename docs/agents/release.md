@@ -3,6 +3,7 @@
 ## Merging to main
 
 - A branch reaches `main` through a pull request. Once every check the pull request runs is green, merge with `gh pr merge <N> --rebase --delete-branch`. Rebase keeps every Conventional Commit, and release-plz builds the changelog from them. The `plan` job of `release.yml` also runs on pull requests but is not a merge condition.
+- A branch that changes the product skill's routing or structure carries the fresh-agent trial that [`product-skill.md`](product-skill.md) requires before it merges.
 - A GitHub rebase merge rewrites commit hashes. After merging, confirm that the local and remote trees match, then run `git pull --rebase`; local commits with the same content are skipped.
 
 ## Releasing
